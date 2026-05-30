@@ -352,6 +352,44 @@ label {
   padding: 14px;
 }
 
+.tab-row {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.tab-button,
+.tiny-button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tab-button {
+  min-height: 40px;
+  padding: 9px 12px;
+}
+
+.tab-button.active {
+  border-color: var(--primary);
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
+.trainer-tab {
+  display: none;
+}
+
+.trainer-tab.active {
+  display: block;
+}
+
 .list {
   display: grid;
   gap: 10px;
@@ -383,8 +421,16 @@ label {
   align-items: start;
 }
 
+.record-title,
 .data-record strong {
   grid-column: 1 / -1;
+}
+
+.record-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .list-item strong,
@@ -418,6 +464,76 @@ label {
 }
 
 .data-record span {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.record-notes {
+  grid-column: 1 / -1;
+}
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.tiny-button {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.tiny-button:hover {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+
+.tiny-button.danger {
+  border-color: rgba(220, 38, 38, 0.25);
+  color: var(--danger);
+}
+
+.compact-list {
+  margin-top: 10px;
+}
+
+.workout-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 12px;
+}
+
+.workout-card span,
+.workout-card small {
+  display: block;
+  color: var(--muted);
+}
+
+.workout-exercises {
+  display: grid;
+  gap: 8px;
+}
+
+.exercise-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: calc(var(--radius) - 2px);
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.library-item {
+  padding: 10px;
+}
+
+.history-block span {
   overflow-wrap: normal;
   word-break: normal;
 }
@@ -508,6 +624,26 @@ label {
 
 .toast[data-type="error"] {
   background: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .record-title,
+  .exercise-row {
+    display: grid;
+    gap: 8px;
+  }
+
+  .record-actions {
+    justify-content: flex-start;
+  }
+
+  .data-record {
+    grid-template-columns: 1fr;
+  }
+
+  .mini-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (min-width: 760px) {

@@ -13,16 +13,25 @@ const REQUIRED_TABLES = [
 const EXPECTED_RLS_POLICIES = [
   ["students", "SELECT anon", "mvp_anon_select_students"],
   ["students", "INSERT anon", "mvp_anon_insert_students"],
+  ["students", "UPDATE anon", "mvp_anon_update_students"],
   ["assessments", "SELECT anon", "mvp_anon_select_assessments"],
   ["assessments", "INSERT anon", "mvp_anon_insert_assessments"],
+  ["assessments", "UPDATE anon", "mvp_anon_update_assessments"],
+  ["assessments", "DELETE anon", "mvp_anon_delete_assessments"],
   ["body_measurements", "SELECT anon", "mvp_anon_select_body_measurements"],
   ["body_measurements", "INSERT anon", "mvp_anon_insert_body_measurements"],
+  ["body_measurements", "UPDATE anon", "mvp_anon_update_body_measurements"],
+  ["body_measurements", "DELETE anon", "mvp_anon_delete_body_measurements"],
   ["exercise_library", "SELECT anon", "mvp_anon_select_exercise_library"],
   ["exercise_library", "INSERT anon", "mvp_anon_insert_exercise_library"],
   ["workouts", "SELECT anon", "mvp_anon_select_workouts"],
   ["workouts", "INSERT anon", "mvp_anon_insert_workouts"],
+  ["workouts", "UPDATE anon", "mvp_anon_update_workouts"],
+  ["workouts", "DELETE anon", "mvp_anon_delete_workouts"],
   ["workout_exercises", "SELECT anon", "mvp_anon_select_workout_exercises"],
   ["workout_exercises", "INSERT anon", "mvp_anon_insert_workout_exercises"],
+  ["workout_exercises", "UPDATE anon", "mvp_anon_update_workout_exercises"],
+  ["workout_exercises", "DELETE anon", "mvp_anon_delete_workout_exercises"],
   ["workout_logs", "SELECT anon", "mvp_anon_select_workout_logs"],
   ["workout_logs", "INSERT anon", "mvp_anon_insert_workout_logs"]
 ];
@@ -55,9 +64,13 @@ const state = {
   workoutLogs: [],
   selectedStudentId: "",
   selectedWorkoutId: "",
+  trainerActiveTab: "profile",
+  trainerAssessmentsCache: [],
+  trainerMeasurementsCache: [],
   studentAreaId: "",
   studentSearch: "",
   exerciseSearch: "",
+  exerciseGroupFilter: "",
   accessRole: "",
   adminUnlocked: false,
   lastError: "",
@@ -88,9 +101,19 @@ const el = {
   trainerWorkoutSelect: document.querySelector("#trainer-workout-select"),
   trainerExerciseSelect: document.querySelector("#trainer-exercise-select"),
   trainerExerciseLibrary: document.querySelector("#trainer-exercise-library"),
+  trainerTabs: document.querySelector("#trainer-tabs"),
+  trainerHistory: document.querySelector("#trainer-history"),
+  editStudentForm: document.querySelector("#edit-student-form"),
   exerciseSearch: document.querySelector("#exercise-search"),
+  exerciseGroupFilter: document.querySelector("#exercise-group-filter"),
   trainerWorkouts: document.querySelector("#trainer-workouts"),
   studentSearch: document.querySelector("#student-search"),
+  addExerciseButton: document.querySelector("#add-exercise-to-workout"),
+  setsInput: document.querySelector("#sets-input"),
+  repsInput: document.querySelector("#reps-input"),
+  loadInput: document.querySelector("#load-input"),
+  restInput: document.querySelector("#rest-input"),
+  exerciseNotesInput: document.querySelector("#exercise-notes-input"),
   adminLock: document.querySelector("#admin-lock"),
   adminPanel: document.querySelector("#admin-panel"),
   adminConnectionStatus: document.querySelector("#admin-connection-status"),
@@ -392,10 +415,10 @@ async function renderStudentDetails() {
       ${renderEvolutionCard("Cintura", pick(latestMeasurement, ["waist", "waist_cm"], "Sem dado"))}
     `;
     el.studentAssessments.innerHTML = assessments.length
-      ? assessments.map(renderAssessmentItem).join("")
+      ? assessments.map(renderAssessmentReadOnlyItem).join("")
       : emptyMessage("Nenhuma avaliação encontrada.");
     el.studentMeasurements.innerHTML = measurements.length
-      ? measurements.map(renderMeasurementItem).join("")
+      ? measurements.map(renderMeasurementReadOnlyItem).join("")
       : emptyMessage("Nenhuma medida corporal encontrada.");
   } catch (error) {
     console.error(error);
@@ -1106,6 +1129,730 @@ function getExerciseKey(exercise) {
 }
 
 /**
+ * Retorna o aluno atualmente selecionado pelo treinador.
+ */
+function getSelectedStudent() {
+  return state.students.find((item) => String(item.id) === String(state.selectedStudentId));
+}
+
+/**
+ * Troca a aba visivel da Area Treinador.
+ */
+function switchTrainerTab(tabName) {
+  state.trainerActiveTab = tabName || "profile";
+  document.querySelectorAll("[data-trainer-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.trainerTab === state.trainerActiveTab);
+  });
+  document.querySelectorAll(".trainer-tab").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === `trainer-tab-${state.trainerActiveTab}`);
+  });
+}
+
+/**
+ * Normaliza data para campos input[type=date].
+ */
+function formatInputDate(value) {
+  if (!value) return "";
+  return String(value).slice(0, 10);
+}
+
+/**
+ * Preenche o formulario de edicao do perfil do aluno.
+ */
+function fillStudentProfileForm(student) {
+  if (!el.editStudentForm) return;
+  el.editStudentForm.reset();
+  if (!student) return;
+
+  el.editStudentForm.elements.name.value = pick(student, ["name", "full_name", "nome"], "");
+  el.editStudentForm.elements.nickname.value = pick(student, ["nickname", "apelido"], "");
+  el.editStudentForm.elements.birth_date.value = formatInputDate(pick(student, ["birth_date", "date_of_birth"], ""));
+  el.editStudentForm.elements.height_cm.value = normalizeNumberInput(pick(student, ["height_cm", "height"], ""));
+  el.editStudentForm.elements.objective.value = pick(student, ["objective"], "");
+  el.editStudentForm.elements.difficulties.value = pick(student, ["difficulties"], "");
+  el.editStudentForm.elements.restrictions.value = pick(student, ["restrictions"], "");
+  el.editStudentForm.elements.notes.value = pick(student, ["notes", "observations"], "");
+}
+
+/**
+ * Renderiza o perfil do aluno selecionado e hidrata as abas do treinador.
+ */
+async function renderTrainerProfile() {
+  const student = getSelectedStudent();
+
+  if (!student) {
+    el.trainerProfileTitle.textContent = "Selecione um aluno na lista.";
+    el.trainerProfileSummary.innerHTML = emptyMessage("Selecione um aluno para visualizar o perfil.");
+    el.trainerAssessments.innerHTML = emptyMessage("Nenhum aluno selecionado.");
+    el.trainerMeasurements.innerHTML = emptyMessage("Nenhum aluno selecionado.");
+    el.trainerWorkouts.innerHTML = emptyMessage("Nenhum aluno selecionado.");
+    el.trainerHistory.innerHTML = emptyMessage("Nenhum aluno selecionado.");
+    fillStudentProfileForm(null);
+    renderTrainerWorkoutSelect([]);
+    return;
+  }
+
+  const name = pick(student, ["name", "full_name", "nome"], "Aluno sem nome");
+  el.trainerProfileTitle.textContent = name;
+  el.trainerProfileSummary.innerHTML = `
+    <div class="profile-card">
+      <div class="avatar large">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+      <div>
+        <strong>${escapeHtml(name)}</strong>
+        <span>Apelido: ${escapeHtml(pick(student, ["nickname", "apelido"], "Nao informado"))}</span>
+        <span>Altura: ${escapeHtml(formatNumber(pick(student, ["height_cm", "height"], "-")))} cm</span>
+        <small>Objetivo: ${escapeHtml(pick(student, ["objective", "email"], "Nao informado"))}</small>
+        <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Nao informado"))}</small>
+        <small>Restricoes: ${escapeHtml(pick(student, ["restrictions"], "Nao informado"))}</small>
+      </div>
+    </div>
+  `;
+  fillStudentProfileForm(student);
+
+  try {
+    const [assessments, measurements] = await Promise.all([
+      fetchTable("assessments", { eq: { column: "student_id", value: state.selectedStudentId }, orderBy: "created_at" }),
+      fetchTable("body_measurements", { eq: { column: "student_id", value: state.selectedStudentId }, orderBy: "created_at" })
+    ]);
+    const workouts = getStudentWorkouts(state.selectedStudentId);
+
+    state.trainerAssessmentsCache = assessments;
+    state.trainerMeasurementsCache = measurements;
+
+    el.trainerAssessments.innerHTML = assessments.length
+      ? assessments.map(renderAssessmentItem).join("")
+      : emptyMessage("Nenhuma avaliacao encontrada.");
+    el.trainerMeasurements.innerHTML = measurements.length
+      ? measurements.map(renderMeasurementItem).join("")
+      : emptyMessage("Nenhuma medida corporal encontrada.");
+    el.trainerWorkouts.innerHTML = workouts.length
+      ? workouts.map(renderWorkoutItem).join("")
+      : emptyMessage("Nenhum treino criado para este aluno.");
+    renderTrainerWorkoutSelect(workouts);
+    renderTrainerHistory();
+    switchTrainerTab(state.trainerActiveTab);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Renderiza uma avaliacao fisica compacta com acoes.
+ */
+function renderAssessmentItem(assessment) {
+  const notes = pick(assessment, ["notes", "observations"], "");
+  return `
+    <article class="data-record" data-assessment-id="${escapeHtml(assessment.id)}">
+      <div class="record-title">
+        <strong>${formatDate(pick(assessment, ["assessment_date", "assessed_at", "created_at"]))}</strong>
+        ${renderRecordActions("assessment", assessment.id)}
+      </div>
+      <span><b>Peso:</b> ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg"], "-")))} kg</span>
+      <span><b>Altura:</b> ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm"], "-")))} cm</span>
+      <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage"], "-")))}</span>
+      <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass"], "-")))}</span>
+      <span><b>Gordura visceral:</b> ${escapeHtml(formatNumber(pick(assessment, ["visceral_fat"], "-")))}</span>
+      <span><b>Agua corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_water"], "-")))}</span>
+      <span><b>IMC:</b> ${escapeHtml(formatNumber(pick(assessment, ["bmi"], "-")))}</span>
+      ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
+    </article>
+  `;
+}
+
+/**
+ * Renderiza uma medida corporal compacta com acoes.
+ */
+function renderMeasurementItem(measurement) {
+  const notes = pick(measurement, ["notes", "observations"], "");
+  return `
+    <article class="data-record" data-measurement-id="${escapeHtml(measurement.id)}">
+      <div class="record-title">
+        <strong>${formatDate(pick(measurement, ["measurement_date", "measured_at", "created_at"]))}</strong>
+        ${renderRecordActions("measurement", measurement.id)}
+      </div>
+      <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm"], "-")))} cm</span>
+      <span><b>Abdomen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm"], "-")))} cm</span>
+      <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm"], "-")))} cm</span>
+      <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm"], "-")))} cm</span>
+      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm"], "-")))} cm</span>
+      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm"], "-")))} cm</span>
+      ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
+    </article>
+  `;
+}
+
+/**
+ * Renderiza avaliacao na Area Aluno sem acoes de treinador.
+ */
+function renderAssessmentReadOnlyItem(assessment) {
+  return renderAssessmentItem(assessment).replace(/<div class="record-actions">[\s\S]*?<\/div>/, "");
+}
+
+/**
+ * Renderiza medida corporal na Area Aluno sem acoes de treinador.
+ */
+function renderMeasurementReadOnlyItem(measurement) {
+  return renderMeasurementItem(measurement).replace(/<div class="record-actions">[\s\S]*?<\/div>/, "");
+}
+
+/**
+ * Renderiza botoes compactos de edicao e exclusao.
+ */
+function renderRecordActions(type, id) {
+  return `
+    <div class="record-actions">
+      <button class="tiny-button" type="button" data-action="edit-${escapeHtml(type)}" data-id="${escapeHtml(id)}">Editar</button>
+      <button class="tiny-button danger" type="button" data-action="delete-${escapeHtml(type)}" data-id="${escapeHtml(id)}">Excluir</button>
+    </div>
+  `;
+}
+
+/**
+ * Renderiza um treino com exercicios e acoes.
+ */
+function renderWorkoutItem(workout) {
+  const exercises = getWorkoutExercises(workout.id);
+
+  return `
+    <article class="workout-card" data-workout-id="${escapeHtml(workout.id)}">
+      <div class="record-title">
+        <div>
+          <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
+          <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo nao informado"))}</span>
+          <small>Criado em ${formatDate(pick(workout, ["created_at", "start_date"]))}</small>
+        </div>
+        ${renderRecordActions("workout", workout.id)}
+      </div>
+      <div class="workout-exercises">
+        ${exercises.length ? exercises.map(renderTrainerWorkoutExerciseItem).join("") : emptyMessage("Nenhum exercicio neste treino.")}
+      </div>
+    </article>
+  `;
+}
+
+/**
+ * Retorna exercicios vinculados a um treino.
+ */
+function getWorkoutExercises(workoutId) {
+  return state.workoutExercises.filter((item) => String(item.workout_id) === String(workoutId));
+}
+
+/**
+ * Renderiza exercicio dentro do treino do treinador.
+ */
+function renderTrainerWorkoutExerciseItem(item) {
+  const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
+
+  return `
+    <article class="exercise-row" data-workout-exercise-id="${escapeHtml(item.id)}">
+      <div>
+        <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
+        <span>Series: ${escapeHtml(formatNumber(pick(item, ["sets"], "-")))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(item, ["rest_seconds"], "-")))}s</span>
+        <small>${escapeHtml(pick(item, ["notes", "instructions"], ""))}</small>
+      </div>
+      <div class="record-actions">
+        <button class="tiny-button" type="button" data-action="edit-workout-exercise" data-id="${escapeHtml(item.id)}">Editar</button>
+        <button class="tiny-button danger" type="button" data-action="delete-workout-exercise" data-id="${escapeHtml(item.id)}">Remover</button>
+      </div>
+    </article>
+  `;
+}
+
+/**
+ * Preenche o select com exercicios unicos da exercise_library.
+ */
+function renderExerciseSelect() {
+  const exercises = getUniqueExercises();
+  el.trainerExerciseSelect.innerHTML = exercises.length
+    ? exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}">${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</option>`).join("")
+    : `<option value="">Nenhum exercicio encontrado</option>`;
+}
+
+/**
+ * Renderiza a biblioteca de exercicios apenas na aba Biblioteca.
+ */
+function renderExerciseLibrary() {
+  if (!el.trainerExerciseLibrary) return;
+  const search = state.exerciseSearch.toLowerCase().trim();
+  renderExerciseGroupFilter();
+  const exercises = getUniqueExercises().filter((exercise) => {
+    const name = pick(exercise, ["name", "title", "nome"], "").toLowerCase();
+    const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "").toLowerCase();
+    const matchesSearch = !search || name.includes(search) || group.includes(search);
+    const matchesGroup = !state.exerciseGroupFilter || group === state.exerciseGroupFilter.toLowerCase();
+    return matchesSearch && matchesGroup;
+  });
+
+  el.trainerExerciseLibrary.innerHTML = exercises.length
+    ? exercises.map(renderExerciseLibraryItem).join("")
+    : emptyMessage(state.tableErrors.exercise_library || "Nenhum exercicio encontrado na tabela exercise_library.");
+}
+
+/**
+ * Remove duplicados visuais usando nome + grupo muscular.
+ */
+function getUniqueExercises() {
+  const map = new Map();
+  state.exercises.forEach((exercise) => {
+    const key = getExerciseKey(exercise);
+    if (!map.has(key)) map.set(key, exercise);
+  });
+  return Array.from(map.values());
+}
+
+/**
+ * Preenche o filtro de grupo muscular.
+ */
+function renderExerciseGroupFilter() {
+  if (!el.exerciseGroupFilter) return;
+  const current = el.exerciseGroupFilter.value;
+  const groups = Array.from(new Set(getUniqueExercises()
+    .map((exercise) => pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], ""))
+    .filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  el.exerciseGroupFilter.innerHTML = `<option value="">Todos os grupos</option>${groups.map((group) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`).join("")}`;
+  el.exerciseGroupFilter.value = groups.includes(current) ? current : "";
+  state.exerciseGroupFilter = el.exerciseGroupFilter.value;
+}
+
+/**
+ * Renderiza um item da biblioteca de exercicios.
+ */
+function renderExerciseLibraryItem(exercise) {
+  return `
+    <article class="simple-item stacked library-item">
+      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
+      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
+      <span>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Equipamento nao informado"))} | ${escapeHtml(pick(exercise, ["difficulty", "difficulty_level", "nivel"], "Nivel nao informado"))}</span>
+      <small>${escapeHtml(pick(exercise, ["instructions", "description", "instrucoes"], "Sem instrucoes cadastradas."))}</small>
+    </article>
+  `;
+}
+
+/**
+ * Atualiza perfil do aluno adaptando colunas ao schema real.
+ */
+async function updateStudentProfile(form) {
+  if (!state.selectedStudentId) {
+    showToast("Selecione um aluno antes de editar o perfil.", "error");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const payload = {
+    name: formData.get("name") || null,
+    nickname: formData.get("nickname") || null,
+    birth_date: formData.get("birth_date") || null,
+    height_cm: numberOrNull(formData.get("height_cm")),
+    objective: formData.get("objective") || null,
+    difficulties: formData.get("difficulties") || null,
+    restrictions: formData.get("restrictions") || null,
+    notes: formData.get("notes") || null
+  };
+
+  setFormLoading(form, true);
+  try {
+    await updateWithSchemaFallback("students", state.selectedStudentId, payload, "Erro ao atualizar perfil");
+    showToast("Perfil atualizado com sucesso.");
+    await loadSupabaseData();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+/**
+ * Insere ou edita avaliacao fisica com campos numericos normalizados.
+ */
+async function createAssessment(form) {
+  if (!state.selectedStudentId) {
+    showToast("Selecione um aluno antes de salvar a avaliacao.", "error");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const payload = {
+    student_id: state.selectedStudentId,
+    weight: numberOrNull(formData.get("weight")),
+    height: numberOrNull(formData.get("height")),
+    body_fat: numberOrNull(formData.get("body_fat")),
+    muscle_mass: numberOrNull(formData.get("muscle_mass")),
+    visceral_fat: numberOrNull(formData.get("visceral_fat")),
+    body_water: numberOrNull(formData.get("body_water")),
+    bmi: numberOrNull(formData.get("bmi")),
+    notes: formData.get("notes") || null
+  };
+  const editId = form.dataset.editId;
+  setFormLoading(form, true);
+
+  try {
+    if (editId) {
+      await updateWithSchemaFallback("assessments", editId, payload, "Erro ao editar avaliacao");
+      form.dataset.editId = "";
+      form.querySelector("button[type='submit']").textContent = "Salvar avaliacao";
+      showToast("Avaliacao atualizada.");
+    } else {
+      await insertWithSchemaFallback("assessments", payload, "Erro ao salvar avaliacao");
+      showToast("Avaliacao salva com sucesso.");
+    }
+    form.reset();
+    await refreshSelectedStudentProfile();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+/**
+ * Insere ou edita medidas corporais com campos numericos normalizados.
+ */
+async function createMeasurement(form) {
+  if (!state.selectedStudentId) {
+    showToast("Selecione um aluno antes de salvar medidas.", "error");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const payload = {
+    student_id: state.selectedStudentId,
+    waist: numberOrNull(formData.get("waist")),
+    abdomen: numberOrNull(formData.get("abdomen")),
+    hip: numberOrNull(formData.get("hip")),
+    arm: numberOrNull(formData.get("arm")),
+    thigh: numberOrNull(formData.get("thigh")),
+    calf: numberOrNull(formData.get("calf")),
+    notes: formData.get("notes") || null
+  };
+  const editId = form.dataset.editId;
+  setFormLoading(form, true);
+
+  try {
+    if (editId) {
+      await updateWithSchemaFallback("body_measurements", editId, payload, "Erro ao editar medidas");
+      form.dataset.editId = "";
+      form.querySelector("button[type='submit']").textContent = "Salvar medidas";
+      showToast("Medidas atualizadas.");
+    } else {
+      await insertWithSchemaFallback("body_measurements", payload, "Erro ao salvar medidas");
+      showToast("Medidas salvas com sucesso.");
+    }
+    form.reset();
+    await refreshSelectedStudentProfile();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+/**
+ * Cria ou edita treino do aluno selecionado.
+ */
+async function createWorkout(form) {
+  if (!state.selectedStudentId) {
+    showToast("Selecione um aluno antes de criar o treino.", "error");
+    return;
+  }
+
+  const formData = new FormData(form);
+  const payload = {
+    student_id: state.selectedStudentId,
+    title: formData.get("title"),
+    goal: formData.get("goal") || null,
+    notes: formData.get("notes") || null,
+    status: "active"
+  };
+  const editId = form.dataset.editId;
+  setFormLoading(form, true);
+
+  try {
+    if (editId) {
+      await updateWithSchemaFallback("workouts", editId, payload, "Erro ao editar treino");
+      state.selectedWorkoutId = editId;
+      form.dataset.editId = "";
+      form.querySelector("button[type='submit']").textContent = "Criar treino";
+      showToast("Treino atualizado.");
+    } else {
+      const created = await insertWithSchemaFallback("workouts", payload, "Erro ao criar treino");
+      state.selectedWorkoutId = created[0]?.id || "";
+      showToast("Treino criado com sucesso.");
+    }
+    form.reset();
+    await loadSupabaseData();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+/**
+ * Adiciona ou edita exercicio da exercise_library dentro de um treino.
+ */
+async function addExerciseToWorkout() {
+  const workoutId = el.trainerWorkoutSelect.value;
+  const exerciseId = el.trainerExerciseSelect.value;
+
+  if (!workoutId || !exerciseId) {
+    showToast("Selecione treino e exercicio.", "error");
+    return;
+  }
+
+  const currentCount = getWorkoutExercises(workoutId).length;
+  const payload = {
+    workout_id: workoutId,
+    exercise_id: exerciseId,
+    sets: numberOrNull(el.setsInput.value),
+    reps: el.repsInput.value || null,
+    load_description: el.loadInput.value || null,
+    rest_seconds: numberOrNull(el.restInput.value),
+    notes: el.exerciseNotesInput.value || null,
+    order_index: currentCount + 1
+  };
+  const editId = el.addExerciseButton.dataset.editId;
+
+  try {
+    if (editId) {
+      await updateWithSchemaFallback("workout_exercises", editId, payload, "Erro ao editar exercicio do treino");
+      el.addExerciseButton.dataset.editId = "";
+      el.addExerciseButton.textContent = "Adicionar exercicio";
+      showToast("Exercicio atualizado no treino.");
+    } else {
+      await insertWorkoutExerciseWithFallback(payload);
+      showToast("Exercicio adicionado ao treino.");
+    }
+    clearWorkoutExerciseForm();
+    await loadSupabaseData();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Limpa os campos do formulario de exercicio do treino.
+ */
+function clearWorkoutExerciseForm() {
+  el.setsInput.value = "";
+  el.repsInput.value = "";
+  el.loadInput.value = "";
+  el.restInput.value = "";
+  el.exerciseNotesInput.value = "";
+}
+
+/**
+ * Atualiza registros removendo colunas que nao existam no schema atual.
+ */
+async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage) {
+  let currentPayload = { ...payload };
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      return await runQuery(supabaseClient.from(tableName).update(currentPayload).eq("id", id).select(), fallbackMessage);
+    } catch (error) {
+      const missingColumn = getMissingColumnFromError(error.message);
+
+      if (!missingColumn || !(missingColumn in currentPayload)) {
+        throw error;
+      }
+
+      const { [missingColumn]: _removed, ...nextPayload } = currentPayload;
+      currentPayload = nextPayload;
+    }
+  }
+
+  throw new Error(`${fallbackMessage}: nao foi possivel adaptar o payload ao schema.`);
+}
+
+/**
+ * Exclui um registro apos confirmacao visual.
+ */
+async function deleteRecord(tableName, id, successMessage) {
+  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+
+  try {
+    await runQuery(supabaseClient.from(tableName).delete().eq("id", id).select(), "Erro ao excluir registro");
+    showToast(successMessage);
+    await loadSupabaseData();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Exclui treino e seus exercicios antes, caso a foreign key nao esteja com cascade.
+ */
+async function deleteWorkoutWithExercises(id) {
+  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+
+  try {
+    await runQuery(supabaseClient.from("workout_exercises").delete().eq("workout_id", id).select(), "Erro ao excluir exercicios do treino");
+    await runQuery(supabaseClient.from("workouts").delete().eq("id", id).select(), "Erro ao excluir treino");
+    if (String(state.selectedWorkoutId) === String(id)) state.selectedWorkoutId = "";
+    showToast("Treino excluido.");
+    await loadSupabaseData();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Preenche formulario de avaliacao para edicao.
+ */
+function editAssessment(id) {
+  const record = state.trainerAssessmentsCache.find((item) => String(item.id) === String(id));
+  const form = document.querySelector("#new-assessment-form");
+  if (!record || !form) return;
+
+  form.dataset.editId = id;
+  form.elements.weight.value = normalizeNumberInput(pick(record, ["weight", "weight_kg"], ""));
+  form.elements.height.value = normalizeNumberInput(pick(record, ["height", "height_cm"], ""));
+  form.elements.body_fat.value = normalizeNumberInput(pick(record, ["body_fat", "body_fat_percentage"], ""));
+  form.elements.muscle_mass.value = normalizeNumberInput(pick(record, ["muscle_mass", "lean_mass"], ""));
+  form.elements.visceral_fat.value = normalizeNumberInput(pick(record, ["visceral_fat"], ""));
+  form.elements.body_water.value = normalizeNumberInput(pick(record, ["body_water"], ""));
+  form.elements.bmi.value = normalizeNumberInput(pick(record, ["bmi"], ""));
+  form.elements.notes.value = pick(record, ["notes", "observations"], "");
+  form.querySelector("button[type='submit']").textContent = "Atualizar avaliacao";
+  switchTrainerTab("assessments");
+}
+
+/**
+ * Preenche formulario de medidas para edicao.
+ */
+function editMeasurement(id) {
+  const record = state.trainerMeasurementsCache.find((item) => String(item.id) === String(id));
+  const form = document.querySelector("#new-measurement-form");
+  if (!record || !form) return;
+
+  form.dataset.editId = id;
+  form.elements.waist.value = normalizeNumberInput(pick(record, ["waist", "waist_cm"], ""));
+  form.elements.abdomen.value = normalizeNumberInput(pick(record, ["abdomen", "abdomen_cm"], ""));
+  form.elements.hip.value = normalizeNumberInput(pick(record, ["hip", "hip_cm"], ""));
+  form.elements.arm.value = normalizeNumberInput(pick(record, ["arm", "arms", "arm_cm"], ""));
+  form.elements.thigh.value = normalizeNumberInput(pick(record, ["thigh", "thighs", "thigh_cm"], ""));
+  form.elements.calf.value = normalizeNumberInput(pick(record, ["calf", "calves", "calf_cm"], ""));
+  form.elements.notes.value = pick(record, ["notes", "observations"], "");
+  form.querySelector("button[type='submit']").textContent = "Atualizar medidas";
+  switchTrainerTab("measurements");
+}
+
+/**
+ * Preenche formulario de treino para edicao.
+ */
+function editWorkout(id) {
+  const record = state.workouts.find((item) => String(item.id) === String(id));
+  const form = document.querySelector("#new-workout-form");
+  if (!record || !form) return;
+
+  form.dataset.editId = id;
+  form.elements.title.value = pick(record, ["title", "name", "nome"], "");
+  form.elements.goal.value = pick(record, ["goal", "description"], "");
+  form.elements.notes.value = pick(record, ["notes"], "");
+  form.querySelector("button[type='submit']").textContent = "Atualizar treino";
+  state.selectedWorkoutId = id;
+  renderTrainerWorkoutSelect(getStudentWorkouts(state.selectedStudentId));
+  switchTrainerTab("workouts");
+}
+
+/**
+ * Preenche formulario de exercicio do treino para edicao.
+ */
+function editWorkoutExercise(id) {
+  const record = state.workoutExercises.find((item) => String(item.id) === String(id));
+  if (!record) return;
+
+  state.selectedWorkoutId = record.workout_id;
+  el.trainerWorkoutSelect.value = record.workout_id;
+  el.trainerExerciseSelect.value = record.exercise_id;
+  el.setsInput.value = normalizeNumberInput(pick(record, ["sets"], ""));
+  el.repsInput.value = pick(record, ["reps"], "");
+  el.loadInput.value = pick(record, ["load_description", "load", "weight"], "");
+  el.restInput.value = normalizeNumberInput(pick(record, ["rest_seconds"], ""));
+  el.exerciseNotesInput.value = pick(record, ["notes", "instructions"], "");
+  el.addExerciseButton.dataset.editId = id;
+  el.addExerciseButton.textContent = "Atualizar exercicio";
+  switchTrainerTab("workouts");
+}
+
+/**
+ * Executa a acao clicada nas listas do treinador.
+ */
+function handleTrainerListAction(event) {
+  const button = event.target.closest("[data-action]");
+  if (!button) return;
+  const { action, id } = button.dataset;
+
+  if (action === "edit-assessment") editAssessment(id);
+  if (action === "delete-assessment") deleteRecord("assessments", id, "Avaliacao excluida.");
+  if (action === "edit-measurement") editMeasurement(id);
+  if (action === "delete-measurement") deleteRecord("body_measurements", id, "Medida excluida.");
+  if (action === "edit-workout") editWorkout(id);
+  if (action === "delete-workout") deleteWorkoutWithExercises(id);
+  if (action === "edit-workout-exercise") editWorkoutExercise(id);
+  if (action === "delete-workout-exercise") deleteRecord("workout_exercises", id, "Exercicio removido do treino.");
+}
+
+/**
+ * Renderiza o historico comparativo do aluno.
+ */
+function renderTrainerHistory() {
+  const workouts = getStudentWorkouts(state.selectedStudentId);
+  const logs = state.workoutLogs.filter((log) => String(log.student_id) === String(state.selectedStudentId));
+  const firstAssessment = state.trainerAssessmentsCache.at(-1);
+  const latestAssessment = state.trainerAssessmentsCache[0];
+  const firstMeasurement = state.trainerMeasurementsCache.at(-1);
+  const latestMeasurement = state.trainerMeasurementsCache[0];
+
+  const blocks = [
+    renderHistoryBlock("Inicio", [
+      `Peso inicial: ${formatNumber(pick(firstAssessment, ["weight", "weight_kg"], "-"))} kg`,
+      `Cintura inicial: ${formatNumber(pick(firstMeasurement, ["waist", "waist_cm"], "-"))} cm`,
+      `Primeiro treino: ${escapeHtml(pick(workouts.at(-1), ["title", "name", "nome"], "-"))}`
+    ]),
+    renderHistoryBlock("Agora", [
+      `Peso atual: ${formatNumber(pick(latestAssessment, ["weight", "weight_kg"], "-"))} kg`,
+      `Cintura atual: ${formatNumber(pick(latestMeasurement, ["waist", "waist_cm"], "-"))} cm`,
+      `Treino atual: ${escapeHtml(pick(workouts[0], ["title", "name", "nome"], "-"))}`
+    ]),
+    renderHistoryBlock("Treinos concluidos", logs.length
+      ? logs.slice(0, 8).map((log) => `${formatDate(pick(log, ["completed_at", "created_at"]))} - ${escapeHtml(pick(state.workouts.find((workout) => String(workout.id) === String(log.workout_id)), ["title", "name", "nome"], "Treino"))}`)
+      : ["Nenhum treino concluido ainda."]),
+    renderHistoryBlock("Evolucao de exercicios", renderExerciseEvolution(workouts))
+  ];
+
+  el.trainerHistory.innerHTML = blocks.join("");
+}
+
+/**
+ * Monta um bloco compacto do historico.
+ */
+function renderHistoryBlock(title, lines) {
+  return `
+    <article class="simple-item stacked history-block">
+      <strong>${escapeHtml(title)}</strong>
+      ${lines.map((line) => `<span>${line}</span>`).join("")}
+    </article>
+  `;
+}
+
+/**
+ * Lista a evolucao de carga, series e repeticoes por treino.
+ */
+function renderExerciseEvolution(workouts) {
+  const lines = [];
+  workouts.forEach((workout) => {
+    getWorkoutExercises(workout.id).forEach((item) => {
+      const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
+      lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))}`);
+    });
+  });
+  return lines.length ? lines.slice(0, 12) : ["Nenhum exercicio cadastrado nos treinos."];
+}
+
+/**
  * Renderiza um item do diagnostico.
  */
 function renderDiagnostic(label, value) {
@@ -1244,6 +1991,17 @@ function bindEvents() {
     renderExerciseLibrary();
   });
 
+  el.exerciseGroupFilter.addEventListener("change", (event) => {
+    state.exerciseGroupFilter = event.target.value;
+    renderExerciseLibrary();
+  });
+
+  el.trainerTabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-trainer-tab]");
+    if (!button) return;
+    switchTrainerTab(button.dataset.trainerTab);
+  });
+
   el.trainerStudentsList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-student-id]");
     if (!button) return;
@@ -1256,6 +2014,10 @@ function bindEvents() {
   document.querySelector("#new-student-form").addEventListener("submit", (event) => {
     event.preventDefault();
     createStudent(event.currentTarget);
+  });
+  document.querySelector("#edit-student-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    updateStudentProfile(event.currentTarget);
   });
   document.querySelector("#new-workout-form").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1270,6 +2032,10 @@ function bindEvents() {
     createMeasurement(event.currentTarget);
   });
   document.querySelector("#add-exercise-to-workout").addEventListener("click", addExerciseToWorkout);
+
+  el.trainerAssessments.addEventListener("click", handleTrainerListAction);
+  el.trainerMeasurements.addEventListener("click", handleTrainerListAction);
+  el.trainerWorkouts.addEventListener("click", handleTrainerListAction);
 
   document.querySelector("#admin-login-form").addEventListener("submit", (event) => {
     event.preventDefault();

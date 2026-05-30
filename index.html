@@ -17,10 +17,10 @@
           </div>
         </div>
 
-        <nav class="menu" aria-label="Áreas do sistema">
+        <nav class="menu" aria-label="Areas do sistema">
           <button class="menu-button active" type="button" data-screen="access">Trocar acesso</button>
-          <button class="menu-button student-nav" type="button" data-screen="student-area">Área Aluno</button>
-          <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Área Treinador</button>
+          <button class="menu-button student-nav" type="button" data-screen="student-area">Area Aluno</button>
+          <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Area Treinador</button>
           <button class="menu-button admin-entry" type="button" data-screen="admin-area">TI/Admin</button>
         </nav>
       </aside>
@@ -43,15 +43,15 @@
             <div class="access-grid">
               <button class="access-button" type="button" data-access-role="student">
                 <strong>Entrar como Aluno</strong>
-                <span>Meu treino, histórico, avaliações e medidas.</span>
+                <span>Meu treino, hist&oacute;rico, avalia&ccedil;&otilde;es e medidas.</span>
               </button>
               <button class="access-button" type="button" data-access-role="trainer">
                 <strong>Entrar como Treinador</strong>
-                <span>Alunos, avaliações, medidas, treinos e exercícios.</span>
+                <span>Alunos, avalia&ccedil;&otilde;es, medidas, treinos e exerc&iacute;cios.</span>
               </button>
               <button class="access-button" type="button" data-access-role="admin">
                 <strong>TI/Admin</strong>
-                <span>Configuração Supabase, diagnóstico e RLS.</span>
+                <span>Configuracao Supabase, diagnostico e RLS.</span>
               </button>
             </div>
           </article>
@@ -62,14 +62,13 @@
             <article class="card">
               <div class="section-title">
                 <div>
-                  <h2>Meu treino atual</h2>
-                  <p>Escolha seu nome para visualizar treino, histórico e evolução.</p>
+                  <h2>Meu treino</h2>
+                  <p>Escolha seu nome para visualizar treino, historico e evolucao.</p>
                 </div>
                 <select id="student-area-select">
                   <option value="">Selecione um aluno</option>
                 </select>
               </div>
-
               <div class="list" id="student-current-workout"></div>
               <button class="primary-button full-width" type="button" id="complete-workout-button">
                 Marcar como feito
@@ -78,7 +77,7 @@
 
             <article class="card">
               <div class="section-title">
-                <h2>Histórico</h2>
+                <h2>Hist&oacute;rico</h2>
               </div>
               <div class="list" id="student-history"></div>
             </article>
@@ -86,7 +85,7 @@
 
           <article class="card">
             <div class="section-title">
-              <h2>Minha evolução</h2>
+              <h2>Minha evolucao</h2>
             </div>
             <div class="grid three-columns" id="student-evolution"></div>
           </article>
@@ -94,7 +93,7 @@
           <div class="grid two-columns">
             <article class="card">
               <div class="section-title">
-                <h2>Minhas avaliações</h2>
+                <h2>Minhas avalia&ccedil;&otilde;es</h2>
               </div>
               <div class="list" id="student-assessments"></div>
             </article>
@@ -114,7 +113,7 @@
               <strong id="total-students">0</strong>
             </article>
             <article class="card stat-card">
-              <span>Exercícios</span>
+              <span>Exerc&iacute;cios</span>
               <strong id="total-exercises">0</strong>
             </article>
             <article class="card stat-card">
@@ -122,7 +121,7 @@
               <strong id="total-workouts">0</strong>
             </article>
             <article class="card stat-card">
-              <span>Concluídos</span>
+              <span>Conclu&iacute;dos</span>
               <strong id="total-logs">0</strong>
             </article>
           </div>
@@ -137,7 +136,7 @@
                 <button class="secondary-button" type="button" id="reload-trainer-data">Atualizar</button>
               </div>
 
-              <input id="student-search" type="search" placeholder="Buscar aluno por nome ou e-mail" />
+              <input id="student-search" type="search" placeholder="Buscar aluno por nome ou objetivo" />
               <div class="list spaced" id="trainer-students-list"></div>
 
               <form class="form-box" id="new-student-form">
@@ -159,22 +158,11 @@
                   <input name="difficulties" type="text" placeholder="Ex: constancia, rotina" />
                 </label>
                 <label>
-                  Restrições
-                  <input name="restrictions" type="text" placeholder="Ex: dores, limitações" />
+                  Restri&ccedil;&otilde;es
+                  <input name="restrictions" type="text" placeholder="Ex: dores, limitacoes" />
                 </label>
                 <button class="primary-button" type="submit">Salvar aluno</button>
               </form>
-
-              <div class="form-box">
-                <div class="section-title compact-title">
-                  <div>
-                    <h3>Biblioteca de exercícios</h3>
-                    <p>Lista real da tabela exercise_library.</p>
-                  </div>
-                </div>
-                <input id="exercise-search" type="search" placeholder="Buscar exercício" />
-                <div class="list spaced" id="trainer-exercise-library"></div>
-              </div>
             </article>
 
             <article class="card">
@@ -187,95 +175,133 @@
 
               <div class="profile-header" id="trainer-profile-summary"></div>
 
-              <div class="grid two-columns">
-                <section>
-                  <h3>Avaliações</h3>
-                  <div class="list" id="trainer-assessments"></div>
-                </section>
-                <section>
-                  <h3>Medidas corporais</h3>
-                  <div class="list" id="trainer-measurements"></div>
-                </section>
+              <div class="tab-row" id="trainer-tabs">
+                <button class="tab-button active" type="button" data-trainer-tab="profile">Perfil</button>
+                <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
+                <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
+                <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
+                <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
+                <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
               </div>
 
-              <div class="grid two-columns">
-                <form class="form-box" id="new-assessment-form">
-                  <h3>Adicionar avaliação física</h3>
-                  <label>
-                    Peso
-                    <input name="weight" type="number" step="0.01" placeholder="Ex: 72.50" />
-                  </label>
-                  <label>
-                    Altura
-                    <input name="height" type="number" step="0.01" placeholder="Ex: 1.70" />
-                  </label>
-                  <label>
-                    Gordura corporal
-                    <input name="body_fat" type="number" step="0.01" placeholder="Ex: 18.5" />
-                  </label>
-                  <label>
-                    Massa muscular
-                    <input name="muscle_mass" type="number" step="0.01" placeholder="Ex: 32.4" />
-                  </label>
-                  <label>
-                    Observações
-                    <input name="notes" type="text" placeholder="Observações da avaliação" />
-                  </label>
-                  <button class="primary-button" type="submit">Salvar avaliação</button>
+              <section class="trainer-tab active" id="trainer-tab-profile">
+                <form class="form-box" id="edit-student-form">
+                  <h3>Editar perfil do aluno</h3>
+                  <div class="mini-grid">
+                    <input name="name" type="text" placeholder="Nome" />
+                    <input name="nickname" type="text" placeholder="Apelido" />
+                    <input name="birth_date" type="date" />
+                    <input name="height_cm" type="number" step="0.01" placeholder="Altura em cm" />
+                    <input name="objective" type="text" placeholder="Objetivo" />
+                    <input name="difficulties" type="text" placeholder="Dificuldades" />
+                    <input name="restrictions" type="text" placeholder="Restri&ccedil;&otilde;es" />
+                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es gerais" />
+                  </div>
+                  <button class="primary-button" type="submit">Salvar perfil</button>
                 </form>
+              </section>
 
+              <section class="trainer-tab" id="trainer-tab-assessments">
+                <form class="form-box" id="new-assessment-form">
+                  <h3>Adicionar avalia&ccedil;&atilde;o f&iacute;sica</h3>
+                  <div class="mini-grid">
+                    <input name="weight" type="number" step="0.01" placeholder="Peso" />
+                    <input name="height" type="number" step="0.01" placeholder="Altura" />
+                    <input name="body_fat" type="number" step="0.01" placeholder="Gordura corporal" />
+                    <input name="muscle_mass" type="number" step="0.01" placeholder="Massa muscular" />
+                    <input name="visceral_fat" type="number" step="0.01" placeholder="Gordura visceral" />
+                    <input name="body_water" type="number" step="0.01" placeholder="Agua corporal" />
+                    <input name="bmi" type="number" step="0.01" placeholder="IMC" />
+                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es" />
+                  </div>
+                  <button class="primary-button" type="submit">Salvar avalia&ccedil;&atilde;o</button>
+                </form>
+                <h3>Hist&oacute;rico de avalia&ccedil;&otilde;es</h3>
+                <div class="list compact-list" id="trainer-assessments"></div>
+              </section>
+
+              <section class="trainer-tab" id="trainer-tab-measurements">
                 <form class="form-box" id="new-measurement-form">
                   <h3>Adicionar medidas</h3>
                   <div class="mini-grid">
                     <input name="waist" type="number" step="0.01" placeholder="Cintura" />
-                    <input name="abdomen" type="number" step="0.01" placeholder="Abdômen" />
+                    <input name="abdomen" type="number" step="0.01" placeholder="Abdomen" />
                     <input name="hip" type="number" step="0.01" placeholder="Quadril" />
-                    <input name="arm" type="number" step="0.01" placeholder="Braços" />
+                    <input name="arm" type="number" step="0.01" placeholder="Bracos" />
                     <input name="thigh" type="number" step="0.01" placeholder="Coxas" />
                     <input name="calf" type="number" step="0.01" placeholder="Panturrilhas" />
-                    <input name="notes" type="text" placeholder="Observações" />
+                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es" />
                   </div>
                   <button class="primary-button" type="submit">Salvar medidas</button>
                 </form>
-              </div>
+                <h3>Hist&oacute;rico de medidas</h3>
+                <div class="list compact-list" id="trainer-measurements"></div>
+              </section>
 
-              <form class="form-box" id="new-workout-form">
-                <h3>Criar treino para aluno</h3>
-                <label>
-                  Nome do treino
-                  <input name="title" type="text" required placeholder="Ex: Treino A - Superiores" />
-                </label>
-                <label>
-                  Objetivo
-                  <input name="goal" type="text" placeholder="Ex: hipertrofia" />
-                </label>
-                <label>
-                  Observações
-                  <input name="notes" type="text" placeholder="Observações do treino" />
-                </label>
-                <button class="primary-button" type="submit">Criar treino</button>
-              </form>
+              <section class="trainer-tab" id="trainer-tab-workouts">
+                <form class="form-box" id="new-workout-form">
+                  <h3>Criar treino para aluno</h3>
+                  <label>
+                    Nome do treino
+                    <input name="title" type="text" required placeholder="Ex: Treino A - Superiores" />
+                  </label>
+                  <label>
+                    Objetivo
+                    <input name="goal" type="text" placeholder="Ex: hipertrofia" />
+                  </label>
+                  <label>
+                    Observa&ccedil;&otilde;es
+                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es do treino" />
+                  </label>
+                  <button class="primary-button" type="submit">Criar treino</button>
+                </form>
 
-              <div class="form-box">
-                <h3>Adicionar exercício ao treino</h3>
-                <label>
-                  Treino
-                  <select id="trainer-workout-select"></select>
-                </label>
-                <label>
-                  Exercício
-                  <select id="trainer-exercise-select"></select>
-                </label>
-                <div class="mini-grid">
-                  <input id="sets-input" type="number" min="1" placeholder="Séries" />
-                  <input id="reps-input" type="text" placeholder="Repetições" />
-                  <input id="rest-input" type="number" min="0" placeholder="Descanso s" />
+                <div class="form-box">
+                  <h3>Adicionar exerc&iacute;cio ao treino</h3>
+                  <label>
+                    Treino
+                    <select id="trainer-workout-select"></select>
+                  </label>
+                  <label>
+                    Exerc&iacute;cio
+                    <select id="trainer-exercise-select"></select>
+                  </label>
+                  <div class="mini-grid">
+                    <input id="sets-input" type="number" min="1" placeholder="Series" />
+                    <input id="reps-input" type="text" placeholder="Repeticoes" />
+                    <input id="load-input" type="text" placeholder="Carga" />
+                    <input id="rest-input" type="number" min="0" placeholder="Descanso s" />
+                    <input id="exercise-notes-input" type="text" placeholder="Instrucoes" />
+                  </div>
+                  <button class="secondary-button" type="button" id="add-exercise-to-workout">Adicionar exerc&iacute;cio</button>
                 </div>
-                <button class="secondary-button" type="button" id="add-exercise-to-workout">Adicionar exercício</button>
-              </div>
 
-              <h3>Treinos do aluno</h3>
-              <div class="list" id="trainer-workouts"></div>
+                <h3>Treinos do aluno</h3>
+                <div class="list compact-list" id="trainer-workouts"></div>
+              </section>
+
+              <section class="trainer-tab" id="trainer-tab-history">
+                <h3>Hist&oacute;rico do aluno</h3>
+                <div class="list compact-list" id="trainer-history"></div>
+              </section>
+
+              <section class="trainer-tab" id="trainer-tab-library">
+                <div class="form-box">
+                  <div class="section-title compact-title">
+                    <div>
+                      <h3>Biblioteca de exerc&iacute;cios</h3>
+                      <p>Lista real da tabela exercise_library, sem duplicados visuais.</p>
+                    </div>
+                  </div>
+                  <div class="mini-grid">
+                    <input id="exercise-search" type="search" placeholder="Buscar exerc&iacute;cio" />
+                    <select id="exercise-group-filter">
+                      <option value="">Todos os grupos</option>
+                    </select>
+                  </div>
+                  <div class="list spaced" id="trainer-exercise-library"></div>
+                </div>
+              </section>
             </article>
           </div>
         </section>
@@ -285,7 +311,7 @@
             <div class="section-title">
               <div>
                 <h2>Controle do Sistema</h2>
-                <p>Área temporariamente protegida por senha para o MVP.</p>
+                <p>Area temporariamente protegida por senha para o MVP.</p>
               </div>
             </div>
             <form class="admin-login" id="admin-login-form">
@@ -318,9 +344,9 @@
                 </label>
                 <div class="button-row">
                   <button class="primary-button" type="submit">Salvar configuracao</button>
-                  <button class="secondary-button" type="button" id="test-connection-button">Testar conexão</button>
+                  <button class="secondary-button" type="button" id="test-connection-button">Testar conexao</button>
                   <button class="secondary-button" type="button" id="admin-reload-data">Recarregar dados</button>
-                  <button class="secondary-button" type="button" id="seed-exercise-library">Inserir biblioteca padrão</button>
+                  <button class="secondary-button" type="button" id="seed-exercise-library">Inserir biblioteca padrao</button>
                 </div>
               </form>
             </article>
@@ -335,7 +361,7 @@
                 <div class="list" id="admin-students-list"></div>
               </article>
               <article class="card">
-                <h2>Exercícios do banco</h2>
+                <h2>Exerc&iacute;cios do banco</h2>
                 <div class="list" id="admin-exercises-list"></div>
               </article>
             </div>
@@ -351,8 +377,8 @@
                 <div class="list" id="admin-errors-list"></div>
               </article>
               <article class="card">
-                <h2>Políticas RLS</h2>
-                <p class="muted-text">A anon key não consegue consultar pg_policies. Esta área mostra as políticas esperadas para o MVP.</p>
+                <h2>Politicas RLS</h2>
+                <p class="muted-text">A anon key nao consegue consultar pg_policies. Esta area mostra as politicas esperadas para o MVP.</p>
                 <div class="list" id="admin-rls-policies"></div>
               </article>
             </div>

@@ -28,11 +28,12 @@ Centralizar o acompanhamento de alunos, treinos, exercicios, avaliacoes fisicas,
 
 - Listar alunos cadastrados no Supabase pela tabela `students`.
 - Buscar aluno por nome ou e-mail.
-- Visualizar perfil do aluno.
+- Visualizar e editar perfil do aluno.
 - Adicionar novo aluno na tabela `students`.
-- Criar treino para aluno na tabela `workouts`.
-- Adicionar exercicios ao treino usando a tabela `exercise_library`.
-- Ver avaliacoes e medidas corporais.
+- Criar, editar e excluir treino para aluno na tabela `workouts`.
+- Adicionar, editar e remover exercicios do treino usando a tabela `exercise_library`.
+- Ver, editar e excluir avaliacoes e medidas corporais.
+- Acompanhar historico do aluno por abas: Perfil, Avaliacoes, Medidas, Treinos, Historico e Biblioteca.
 
 ### TI/Admin ou Controle do Sistema
 
@@ -114,6 +115,14 @@ sql/001_corrige_rls_e_conflitos.sql
 ```
 
 O app tambem foi ajustado para nao usar `ON CONFLICT` ao inserir a biblioteca padrao de exercicios. Ele compara os exercicios ja existentes pelo nome e insere apenas os que faltam.
+
+Para a Area Treinador reestruturada, execute tambem se o seu banco ainda nao tiver os campos opcionais ou policies de edicao/exclusao:
+
+```text
+sql/003_campos_edicao_historico_treinador.sql
+```
+
+Esse script adiciona campos opcionais de perfil, avaliacao, medidas e treino com `add column if not exists`, alem de policies temporarias de `UPDATE` e `DELETE` para o MVP com anon key. Em producao, essas policies devem ser substituidas por regras com Supabase Auth.
 
 ## Tabelas usadas
 
