@@ -87,6 +87,15 @@ button:disabled {
   color: #0369a1;
 }
 
+body[data-role="student"] .trainer-nav,
+body[data-role="student"] .admin-entry,
+body[data-role="trainer"] .student-nav,
+body[data-role="trainer"] .admin-entry,
+body[data-role="admin"] .student-nav,
+body[data-role="admin"] .trainer-nav {
+  display: none;
+}
+
 .content {
   width: min(1280px, 100%);
   margin: 0 auto;
@@ -197,6 +206,38 @@ h3 {
   background: var(--card);
   box-shadow: var(--shadow);
   padding: 16px;
+}
+
+.access-card {
+  display: grid;
+  gap: 18px;
+  min-height: 420px;
+  align-content: center;
+}
+
+.access-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.access-button {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  padding: 16px;
+  text-align: left;
+}
+
+.access-button:hover {
+  border-color: var(--primary);
+  background: #f0fdf4;
+}
+
+.access-button span {
+  color: var(--muted);
 }
 
 .stat-card span,
@@ -486,6 +527,10 @@ label {
 
   .cards {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .access-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .two-columns {

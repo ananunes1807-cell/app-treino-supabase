@@ -55,6 +55,7 @@ const state = {
   studentAreaId: "",
   studentSearch: "",
   exerciseSearch: "",
+  accessRole: "",
   adminUnlocked: false,
   lastError: "",
   tableErrors: {}
@@ -62,6 +63,7 @@ const state = {
 
 const el = {
   pageTitle: document.querySelector("#page-title"),
+  sidebar: document.querySelector("#sidebar"),
   connectionStatus: document.querySelector("#connection-status"),
   toast: document.querySelector("#toast"),
   totalStudents: document.querySelector("#total-students"),
@@ -72,6 +74,8 @@ const el = {
   studentCurrentWorkout: document.querySelector("#student-current-workout"),
   studentHistory: document.querySelector("#student-history"),
   studentEvolution: document.querySelector("#student-evolution"),
+  studentAssessments: document.querySelector("#student-assessments"),
+  studentMeasurements: document.querySelector("#student-measurements"),
   completeWorkoutButton: document.querySelector("#complete-workout-button"),
   trainerStudentsList: document.querySelector("#trainer-students-list"),
   trainerProfileTitle: document.querySelector("#trainer-profile-title"),
@@ -140,7 +144,7 @@ function showToast(message, type = "success") {
 }
 
 /**
- * Retorna HTML padrao para estados vazios.
+ * Retorna HTML padrão para estados vazios.
  */
 function emptyMessage(message) {
   return `<p class="empty">${escapeHtml(message)}</p>`;
@@ -230,7 +234,7 @@ async function loadSupabaseData() {
 }
 
 /**
- * Atualiza o status visual da conexao.
+ * Atualiza o status visual da conexão.
  */
 function setConnectionStatus(message, online) {
   el.connectionStatus.textContent = message;
@@ -280,13 +284,15 @@ function renderStudentOption(student) {
 }
 
 /**
- * Renderiza treino atual, historico e evolucao da area Aluno.
+ * Renderiza treino atual, histórico e evolução da Área Aluno.
  */
 function renderStudentArea() {
   if (!state.studentAreaId) {
     el.studentCurrentWorkout.innerHTML = emptyMessage("Selecione um aluno para visualizar o treino atual.");
-    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o historico.");
-    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolucao.");
+    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o histórico.");
+    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolução.");
+    el.studentAssessments.innerHTML = emptyMessage("Selecione um aluno para visualizar suas avaliações.");
+    el.studentMeasurements.innerHTML = emptyMessage("Selecione um aluno para visualizar suas medidas.");
     el.completeWorkoutButton.disabled = true;
     return;
   }
@@ -300,10 +306,10 @@ function renderStudentArea() {
 
   el.studentHistory.innerHTML = logs.length
     ? logs.map(renderWorkoutLogItem).join("")
-    : emptyMessage("Nenhum treino concluido encontrado.");
+    : emptyMessage("Nenhum treino concluído encontrado.");
 
   el.completeWorkoutButton.disabled = !currentWorkout;
-  renderStudentEvolution();
+  renderStudentDetails();
 }
 
 /**
@@ -317,7 +323,7 @@ function getCurrentWorkout(studentId) {
 }
 
 /**
- * Renderiza um treino com seus exercicios cadastrados.
+ * Renderiza um treino com seus exercícios cadastrados.
  */
 function renderWorkoutWithExercises(workout) {
   const exercises = state.workoutExercises.filter((item) => String(item.workout_id) === String(workout.id));
@@ -326,29 +332,29 @@ function renderWorkoutWithExercises(workout) {
     <article class="list-item workout-highlight">
       <div>
         <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
-        <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo nao informado"))}</span>
+        <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo não informado"))}</span>
       </div>
     </article>
-    ${exercises.length ? exercises.map(renderWorkoutExerciseItem).join("") : emptyMessage("Este treino ainda nao possui exercicios.")}
+    ${exercises.length ? exercises.map(renderWorkoutExerciseItem).join("") : emptyMessage("Este treino ainda não possui exercícios.")}
   `;
 }
 
 /**
- * Renderiza um exercicio vinculado a um treino.
+ * Renderiza um exercício vinculado a um treino.
  */
 function renderWorkoutExerciseItem(item) {
   const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
 
   return `
     <article class="simple-item">
-      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
-      <span>Series: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</strong>
+      <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
     </article>
   `;
 }
 
 /**
- * Renderiza historico de treinos concluidos.
+ * Renderiza histórico de treinos concluídos.
  */
 function renderWorkoutLogItem(log) {
   const workout = state.workouts.find((item) => String(item.id) === String(log.workout_id));
@@ -356,15 +362,15 @@ function renderWorkoutLogItem(log) {
   return `
     <article class="simple-item">
       <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</strong>
-      <span>Concluido em ${formatDate(pick(log, ["completed_at", "created_at"]))}</span>
+      <span>Concluído em ${formatDate(pick(log, ["completed_at", "created_at"]))}</span>
     </article>
   `;
 }
 
 /**
- * Renderiza evolucao simples com ultimo peso, gordura e medidas.
+ * Renderiza evolução, avaliações e medidas do aluno.
  */
-async function renderStudentEvolution() {
+async function renderStudentDetails() {
   if (!state.studentAreaId) return;
 
   try {
@@ -379,11 +385,20 @@ async function renderStudentEvolution() {
     el.studentEvolution.innerHTML = `
       ${renderEvolutionCard("Peso", pick(latestAssessment, ["weight", "weight_kg"], "Sem dado"))}
       ${renderEvolutionCard("Gordura corporal", pick(latestAssessment, ["body_fat", "body_fat_percentage"], "Sem dado"))}
+      ${renderEvolutionCard("Massa muscular", pick(latestAssessment, ["muscle_mass", "lean_mass"], "Sem dado"))}
       ${renderEvolutionCard("Cintura", pick(latestMeasurement, ["waist", "waist_cm"], "Sem dado"))}
     `;
+    el.studentAssessments.innerHTML = assessments.length
+      ? assessments.map(renderAssessmentItem).join("")
+      : emptyMessage("Nenhuma avaliação encontrada.");
+    el.studentMeasurements.innerHTML = measurements.length
+      ? measurements.map(renderMeasurementItem).join("")
+      : emptyMessage("Nenhuma medida corporal encontrada.");
   } catch (error) {
     console.error(error);
     el.studentEvolution.innerHTML = emptyMessage(error.message);
+    el.studentAssessments.innerHTML = emptyMessage(error.message);
+    el.studentMeasurements.innerHTML = emptyMessage(error.message);
   }
 }
 
@@ -412,7 +427,7 @@ function renderTrainerStudents() {
 
   el.trainerStudentsList.innerHTML = students.length
     ? students.map(renderTrainerStudentButton).join("")
-    : emptyMessage(state.tableErrors.students || "Nenhum aluno encontrado na tabela students. Verifique se ha dados no projeto correto e se o RLS permite SELECT para anon.");
+    : emptyMessage(state.tableErrors.students || "Nenhum aluno encontrado na tabela students. Verifique se há dados no projeto correto e se o RLS permite SELECT para anon.");
 }
 
 /**
@@ -456,9 +471,9 @@ async function renderTrainerProfile() {
       <div class="avatar large">${escapeHtml(name.charAt(0).toUpperCase())}</div>
       <div>
         <strong>${escapeHtml(name)}</strong>
-        <span>Objetivo: ${escapeHtml(pick(student, ["objective", "email"], "Nao informado"))}</span>
-        <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Nao informado"))}</small>
-        <small>Restricoes: ${escapeHtml(pick(student, ["restrictions"], "Nao informado"))}</small>
+        <span>Objetivo: ${escapeHtml(pick(student, ["objective", "email"], "Não informado"))}</span>
+        <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Não informado"))}</small>
+        <small>Restrições: ${escapeHtml(pick(student, ["restrictions"], "Não informado"))}</small>
       </div>
     </div>
   `;
@@ -472,7 +487,7 @@ async function renderTrainerProfile() {
 
     el.trainerAssessments.innerHTML = assessments.length
       ? assessments.map(renderAssessmentItem).join("")
-      : emptyMessage("Nenhuma avaliacao encontrada.");
+      : emptyMessage("Nenhuma avaliação encontrada.");
     el.trainerMeasurements.innerHTML = measurements.length
       ? measurements.map(renderMeasurementItem).join("")
       : emptyMessage("Nenhuma medida corporal encontrada.");
@@ -493,14 +508,16 @@ function getStudentWorkouts(studentId) {
 }
 
 /**
- * Renderiza uma avaliacao fisica.
+ * Renderiza uma avaliação física.
  */
 function renderAssessmentItem(assessment) {
   return `
     <article class="simple-item">
       <strong>${formatDate(pick(assessment, ["assessment_date", "assessed_at", "created_at"]))}</strong>
-      <span>Peso: ${escapeHtml(pick(assessment, ["weight", "weight_kg"], "-"))}</span>
-      <span>Gordura: ${escapeHtml(pick(assessment, ["body_fat", "body_fat_percentage"], "-"))}</span>
+      <span>Peso: ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg"], "-")))}</span>
+      <span>Altura: ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm"], "-")))}</span>
+      <span>Gordura corporal: ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage"], "-")))}</span>
+      <span>Massa muscular: ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass"], "-")))}</span>
     </article>
   `;
 }
@@ -512,9 +529,12 @@ function renderMeasurementItem(measurement) {
   return `
     <article class="simple-item">
       <strong>${formatDate(pick(measurement, ["measurement_date", "measured_at", "created_at"]))}</strong>
-      <span>Cintura: ${escapeHtml(pick(measurement, ["waist", "waist_cm"], "-"))}</span>
-      <span>Quadril: ${escapeHtml(pick(measurement, ["hip", "hip_cm"], "-"))}</span>
-      <span>Peito: ${escapeHtml(pick(measurement, ["chest", "chest_cm"], "-"))}</span>
+      <span>Cintura: ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm"], "-")))}</span>
+      <span>Abdômen: ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm"], "-")))}</span>
+      <span>Quadril: ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm"], "-")))}</span>
+      <span>Braços: ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm"], "-")))}</span>
+      <span>Coxas: ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm"], "-")))}</span>
+      <span>Panturrilhas: ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm"], "-")))}</span>
     </article>
   `;
 }
@@ -527,7 +547,7 @@ function renderWorkoutItem(workout) {
     <article class="list-item">
       <div>
         <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
-        <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo nao informado"))}</span>
+        <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo não informado"))}</span>
         <small>Criado em ${formatDate(pick(workout, ["created_at", "start_date"]))}</small>
       </div>
     </article>
@@ -535,7 +555,7 @@ function renderWorkoutItem(workout) {
 }
 
 /**
- * Preenche o select de treinos do aluno para adicionar exercicios.
+ * Preenche o select de treinos do aluno para adicionar exercícios.
  */
 function renderTrainerWorkoutSelect(workouts) {
   el.trainerWorkoutSelect.innerHTML = workouts.length
@@ -544,16 +564,16 @@ function renderTrainerWorkoutSelect(workouts) {
 }
 
 /**
- * Preenche o select com exercicios reais da exercise_library.
+ * Preenche o select com exercícios reais da exercise_library.
  */
 function renderExerciseSelect() {
   el.trainerExerciseSelect.innerHTML = state.exercises.length
-    ? state.exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}">${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</option>`).join("")
-    : `<option value="">Nenhum exercicio encontrado</option>`;
+    ? state.exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}">${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</option>`).join("")
+    : `<option value="">Nenhum exercício encontrado</option>`;
 }
 
 /**
- * Renderiza a biblioteca de exercicios completa para o treinador.
+ * Renderiza a biblioteca de exercícios completa para o treinador.
  */
 function renderExerciseLibrary() {
   const search = state.exerciseSearch.toLowerCase().trim();
@@ -565,19 +585,19 @@ function renderExerciseLibrary() {
 
   el.trainerExerciseLibrary.innerHTML = exercises.length
     ? exercises.map(renderExerciseLibraryItem).join("")
-    : emptyMessage(state.tableErrors.exercise_library || "Nenhum exercicio encontrado na tabela exercise_library. Rode o seed da biblioteca ou verifique o RLS.");
+    : emptyMessage(state.tableErrors.exercise_library || "Nenhum exercício encontrado na tabela exercise_library. Rode o seed da biblioteca ou verifique o RLS.");
 }
 
 /**
- * Renderiza um item da biblioteca de exercicios.
+ * Renderiza um item da biblioteca de exercícios.
  */
 function renderExerciseLibraryItem(exercise) {
   return `
     <article class="simple-item stacked">
-      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
-      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
-      <span>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Equipamento nao informado"))} | ${escapeHtml(pick(exercise, ["difficulty", "difficulty_level", "nivel"], "Nivel nao informado"))}</span>
-      <small>${escapeHtml(pick(exercise, ["instructions", "description", "instrucoes"], "Sem instrucoes cadastradas."))}</small>
+      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</strong>
+      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo não informado"))}</span>
+      <span>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Equipamento não informado"))} | ${escapeHtml(pick(exercise, ["difficulty", "difficulty_level", "nivel"], "Nível não informado"))}</span>
+      <small>${escapeHtml(pick(exercise, ["instructions", "description", "instrucoes"], "Sem instruções cadastradas."))}</small>
     </article>
   `;
 }
@@ -607,18 +627,18 @@ async function createStudent(form) {
 }
 
 /**
- * Tenta cadastrar aluno com telefone e, se o schema nao tiver phone, tenta sem telefone.
+ * Cadastra aluno adaptando o payload ao schema real do banco.
  */
 async function insertStudentWithFallback(payload) {
   return insertWithSchemaFallback("students", payload, "Erro ao adicionar aluno");
 }
 
 /**
- * Adiciona avaliacao fisica para o aluno selecionado.
+ * Adiciona avaliação física para o aluno selecionado.
  */
 async function createAssessment(form) {
   if (!state.selectedStudentId) {
-    showToast("Selecione um aluno antes de salvar a avaliacao.", "error");
+    showToast("Selecione um aluno antes de salvar a avaliação.", "error");
     return;
   }
 
@@ -628,17 +648,20 @@ async function createAssessment(form) {
     weight: numberOrNull(formData.get("weight")),
     height: numberOrNull(formData.get("height")),
     body_fat: numberOrNull(formData.get("body_fat")),
+    muscle_mass: numberOrNull(formData.get("muscle_mass")),
     notes: formData.get("notes") || null
   };
+  setFormLoading(form, true);
 
   try {
-    await insertWithSchemaFallback("assessments", payload, "Erro ao salvar avaliacao");
+    await insertWithSchemaFallback("assessments", payload, "Erro ao salvar avaliação");
     form.reset();
-    showToast("Avaliacao salva com sucesso.");
-    await renderTrainerProfile();
-    await renderStudentEvolution();
+    showToast("Avaliação salva com sucesso.");
+    await refreshSelectedStudentProfile();
   } catch (error) {
     showToast(error.message, "error");
+  } finally {
+    setFormLoading(form, false);
   }
 }
 
@@ -655,21 +678,25 @@ async function createMeasurement(form) {
   const payload = {
     student_id: state.selectedStudentId,
     waist: numberOrNull(formData.get("waist")),
+    abdomen: numberOrNull(formData.get("abdomen")),
     hip: numberOrNull(formData.get("hip")),
     chest: numberOrNull(formData.get("chest")),
     arm: numberOrNull(formData.get("arm")),
     thigh: numberOrNull(formData.get("thigh")),
+    calf: numberOrNull(formData.get("calf")),
     notes: formData.get("notes") || null
   };
+  setFormLoading(form, true);
 
   try {
     await insertWithSchemaFallback("body_measurements", payload, "Erro ao salvar medidas");
     form.reset();
     showToast("Medidas salvas com sucesso.");
-    await renderTrainerProfile();
-    await renderStudentEvolution();
+    await refreshSelectedStudentProfile();
   } catch (error) {
     showToast(error.message, "error");
+  } finally {
+    setFormLoading(form, false);
   }
 }
 
@@ -677,8 +704,48 @@ async function createMeasurement(form) {
  * Converte campos numericos opcionais em numero ou null.
  */
 function numberOrNull(value) {
-  if (value === null || value === "") return null;
-  return Number(value);
+  const normalized = normalizeNumberInput(value);
+  if (normalized === "") return null;
+  return Number(normalized);
+}
+
+/**
+ * Normaliza entrada numerica pt-BR e remove zeros a esquerda.
+ */
+function normalizeNumberInput(value) {
+  if (value === null || value === undefined) return "";
+  const cleaned = String(value).trim().replace(",", ".");
+  if (!cleaned) return "";
+  const number = Number(cleaned);
+  return Number.isNaN(number) ? "" : String(number);
+}
+
+/**
+ * Exibe numeros salvos sem zeros a esquerda.
+ */
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "" || value === "-") return value || "-";
+  const number = Number(value);
+  return Number.isNaN(number) ? value : String(number);
+}
+
+/**
+ * Evita duplo envio enquanto uma operacao de formulario esta em andamento.
+ */
+function setFormLoading(form, loading) {
+  form.querySelectorAll("button, input, select").forEach((element) => {
+    element.disabled = loading;
+  });
+}
+
+/**
+ * Atualiza perfil do treinador e detalhes do aluno sem duplicar itens.
+ */
+async function refreshSelectedStudentProfile() {
+  await renderTrainerProfile();
+  if (String(state.studentAreaId) === String(state.selectedStudentId)) {
+    await renderStudentDetails();
+  }
 }
 
 /**
@@ -710,14 +777,14 @@ async function createWorkout(form) {
 }
 
 /**
- * Adiciona exercicio da exercise_library ao treino selecionado.
+ * Adiciona exercício da exercise_library ao treino selecionado.
  */
 async function addExerciseToWorkout() {
   const workoutId = el.trainerWorkoutSelect.value;
   const exerciseId = el.trainerExerciseSelect.value;
 
   if (!workoutId || !exerciseId) {
-    showToast("Selecione treino e exercicio.", "error");
+    showToast("Selecione treino e exercício.", "error");
     return;
   }
 
@@ -733,7 +800,7 @@ async function addExerciseToWorkout() {
 
   try {
     await insertWorkoutExerciseWithFallback(payload);
-    showToast("Exercicio adicionado ao treino.");
+    showToast("Exercício adicionado ao treino.");
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
@@ -741,14 +808,14 @@ async function addExerciseToWorkout() {
 }
 
 /**
- * Tenta inserir com order_index e, se a coluna nao existir, repete sem ela.
+ * Tenta inserir com order_index e, se a coluna não existir, repete sem ela.
  */
 async function insertWorkoutExerciseWithFallback(payload) {
-  return insertWithSchemaFallback("workout_exercises", payload, "Erro ao adicionar exercicio ao treino");
+  return insertWithSchemaFallback("workout_exercises", payload, "Erro ao adicionar exercício ao treino");
 }
 
 /**
- * Remove automaticamente colunas que nao existem no schema real e tenta inserir novamente.
+ * Remove automaticamente colunas que não existem no schema real e tenta inserir novamente.
  */
 async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
   let currentPayload = { ...payload };
@@ -768,7 +835,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
     }
   }
 
-  throw new Error(`${fallbackMessage}: nao foi possivel adaptar o payload ao schema.`);
+  throw new Error(`${fallbackMessage}: não foi possível adaptar o payload ao schema.`);
 }
 
 /**
@@ -808,7 +875,7 @@ async function completeCurrentWorkout() {
         .select(),
       "Erro ao marcar treino como concluido"
     );
-    showToast("Treino marcado como concluido.");
+    showToast("Treino marcado como concluído.");
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
@@ -829,7 +896,7 @@ function unlockAdminArea(password) {
   el.adminPanel.classList.remove("hidden");
   hydrateAdminConfigForm();
   renderAdminArea();
-  showToast("Area TI/Admin liberada.");
+  showToast("Área TI/Admin liberada.");
 }
 
 /**
@@ -856,16 +923,16 @@ async function saveAdminSupabaseConfig(form) {
 }
 
 /**
- * Testa conexao lendo um registro da tabela students.
+ * Testa conexão lendo um registro da tabela students.
  */
 async function testConnection() {
   try {
     setConnectionStatus("Testando...", false);
-    await runQuery(supabaseClient.from("students").select("id").limit(1), "Erro ao testar conexao");
+    await runQuery(supabaseClient.from("students").select("id").limit(1), "Erro ao testar conexão");
     setConnectionStatus("Supabase conectado", true);
-    showToast("Conexao testada com sucesso.");
+    showToast("Conexão testada com sucesso.");
   } catch (error) {
-    setConnectionStatus("Erro na conexao", false);
+    setConnectionStatus("Erro na conexão", false);
     showToast(error.message, "error");
   }
 }
@@ -892,12 +959,12 @@ function renderAdminArea() {
 
   el.adminExercisesList.innerHTML = state.exercises.length
     ? state.exercises.slice(0, 20).map(renderAdminExerciseItem).join("")
-    : emptyMessage("Nenhum exercicio encontrado.");
+    : emptyMessage("Nenhum exercício encontrado.");
 
   el.adminDiagnostics.innerHTML = `
     ${renderDiagnostic("Status", el.connectionStatus.textContent)}
     ${renderDiagnostic("Alunos carregados", state.students.length)}
-    ${renderDiagnostic("Exercicios carregados", state.exercises.length)}
+    ${renderDiagnostic("Exercícios carregados", state.exercises.length)}
     ${renderDiagnostic("Treinos carregados", state.workouts.length)}
     ${renderDiagnostic("Logs carregados", state.workoutLogs.length)}
     ${renderDiagnostic("Ultimo erro", state.lastError || "Nenhum")}
@@ -934,19 +1001,19 @@ function renderAdminStudentItem(student) {
   return `
     <article class="simple-item">
       <strong>${escapeHtml(pick(student, ["name", "full_name", "nome"], "Aluno"))}</strong>
-      <span>${escapeHtml(pick(student, ["email"], "Sem e-mail"))}</span>
+      <span>${escapeHtml(pick(student, ["objective", "email"], "Sem objetivo informado"))}</span>
     </article>
   `;
 }
 
 /**
- * Renderiza exercicio dentro do painel admin.
+ * Renderiza exercício dentro do painel admin.
  */
 function renderAdminExerciseItem(exercise) {
   return `
     <article class="simple-item">
-      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
-      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle"], "Grupo nao informado"))}</span>
+      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</strong>
+      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle"], "Grupo não informado"))}</span>
     </article>
   `;
 }
@@ -984,7 +1051,7 @@ function renderExpectedRlsPolicies() {
 }
 
 /**
- * Insere a biblioteca padrao de exercicios no Supabase pelo TI/Admin.
+ * Insere a biblioteca padrão de exercícios no Supabase pelo TI/Admin.
  */
 async function seedExerciseLibrary() {
   const payload = DEFAULT_EXERCISES.map(([name, muscle_group, equipment, difficulty, instructions]) => ({
@@ -1003,12 +1070,12 @@ async function seedExerciseLibrary() {
     const missingPayload = payload.filter((exercise) => !existingNames.has(normalizeText(exercise.name)));
 
     if (!missingPayload.length) {
-      showToast("Biblioteca padrao ja esta cadastrada.");
+      showToast("Biblioteca padrão já está cadastrada.");
       return;
     }
 
-    await runQuery(supabaseClient.from("exercise_library").insert(missingPayload).select(), "Erro ao inserir biblioteca padrao");
-    showToast("Biblioteca padrao inserida.");
+    await runQuery(supabaseClient.from("exercise_library").insert(missingPayload).select(), "Erro ao inserir biblioteca padrão");
+    showToast("Biblioteca padrão inserida.");
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
@@ -1038,6 +1105,11 @@ function renderDiagnostic(label, value) {
  * Alterna a area visivel do sistema.
  */
 function changeScreen(screenName) {
+  if (!canAccessScreen(screenName)) {
+    showToast("Acesso visual indisponível para este perfil.", "error");
+    return;
+  }
+
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("active", screen.id === `screen-${screenName}`);
   });
@@ -1047,8 +1119,9 @@ function changeScreen(screenName) {
   });
 
   const labels = {
-    "student-area": "Area Aluno",
-    "trainer-area": "Area Treinador",
+    access: "Como deseja acessar?",
+    "student-area": "Área Aluno",
+    "trainer-area": "Área Treinador",
     "admin-area": "Controle do Sistema"
   };
   el.pageTitle.textContent = labels[screenName] || "GymPulse";
@@ -1059,11 +1132,54 @@ function changeScreen(screenName) {
 }
 
 /**
+ * Define o papel visual escolhido na tela inicial.
+ */
+function setAccessRole(role) {
+  state.accessRole = role;
+  el.sidebar.classList.remove("hidden");
+  document.body.dataset.role = role;
+
+  if (role === "student") {
+    changeScreen("student-area");
+    return;
+  }
+
+  if (role === "trainer") {
+    changeScreen("trainer-area");
+    return;
+  }
+
+  changeScreen("admin-area");
+}
+
+/**
+ * Garante que cada perfil veja apenas sua propria area.
+ */
+function canAccessScreen(screenName) {
+  if (screenName === "access") return true;
+  if (state.accessRole === "student") return screenName === "student-area";
+  if (state.accessRole === "trainer") return screenName === "trainer-area";
+  if (state.accessRole === "admin") return screenName === "admin-area";
+  return false;
+}
+
+/**
  * Registra eventos de interface.
  */
 function bindEvents() {
   document.querySelectorAll("[data-screen]").forEach((button) => {
-    button.addEventListener("click", () => changeScreen(button.dataset.screen));
+    button.addEventListener("click", () => {
+      if (button.dataset.screen === "access") {
+        state.accessRole = "";
+        document.body.dataset.role = "";
+        el.sidebar.classList.add("hidden");
+      }
+      changeScreen(button.dataset.screen);
+    });
+  });
+
+  document.querySelectorAll("[data-access-role]").forEach((button) => {
+    button.addEventListener("click", () => setAccessRole(button.dataset.accessRole));
   });
 
   el.studentAreaSelect.addEventListener("change", (event) => {
