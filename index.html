@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Sistema responsivo para acompanhamento de treinos conectado ao Supabase." />
+  <title>FitTrack Pro | Acompanhamento de Treinos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <span class="brand__icon">⚡</span>
+        <div>
+          <strong>FitTrack Pro</strong>
+          <small>Treinos & Evolução</small>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Menu principal">
+        <button class="nav__item is-active" data-view="dashboard"><span>📊</span> Dashboard</button>
+        <button class="nav__item" data-view="trainer"><span>🧑‍🏫</span> Treinador</button>
+        <button class="nav__item" data-view="student"><span>🏋️</span> Aluno</button>
+        <button class="nav__item" data-view="exercises"><span>💪</span> Exercícios</button>
+        <button class="nav__item" data-view="progress"><span>📈</span> Evolução</button>
+      </nav>
+
+      <div class="sidebar__footer">
+        <p>Conecte seu projeto Supabase em <code>supabase.js</code>.</p>
+      </div>
+    </aside>
+
+    <div class="main-panel">
+      <header class="topbar">
+        <button class="icon-button" id="menuToggle" aria-label="Abrir menu">☰</button>
+        <div>
+          <p class="eyebrow">Academia inteligente</p>
+          <h1 id="pageTitle">Dashboard</h1>
+        </div>
+        <div class="connection-status" id="connectionStatus">Supabase não configurado</div>
+      </header>
+
+      <main>
+        <section class="view is-visible" id="dashboardView">
+          <div class="hero-card">
+            <div>
+              <p class="eyebrow">Visão geral</p>
+              <h2>Acompanhe alunos, treinos e evolução física em tempo real.</h2>
+              <p>Todos os cards abaixo são alimentados pelas tabelas reais do Supabase quando a conexão é configurada.</p>
+            </div>
+            <button class="primary-button" data-view-shortcut="trainer">Cadastrar aluno</button>
+          </div>
+
+          <div class="metrics-grid">
+            <article class="metric-card"><span>👥</span><small>Alunos</small><strong id="studentsCount">--</strong></article>
+            <article class="metric-card"><span>🗓️</span><small>Treinos ativos</small><strong id="workoutsCount">--</strong></article>
+            <article class="metric-card"><span>✅</span><small>Treinos concluídos</small><strong id="logsCount">--</strong></article>
+            <article class="metric-card"><span>💪</span><small>Exercícios</small><strong id="exercisesCount">--</strong></article>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel__header"><h3>Últimos alunos</h3></div>
+              <div class="list" id="recentStudentsList"></div>
+            </section>
+            <section class="panel">
+              <div class="panel__header"><h3>Histórico recente de treinos</h3></div>
+              <div class="list" id="recentLogsList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="trainerView">
+          <div class="content-grid content-grid--wide-left">
+            <section class="panel">
+              <div class="panel__header">
+                <h3>Alunos cadastrados</h3>
+                <button class="secondary-button" id="refreshStudentsButton">Atualizar</button>
+              </div>
+              <form class="inline-form" id="studentForm">
+                <input name="name" type="text" placeholder="Nome do aluno" required>
+                <input name="email" type="email" placeholder="E-mail">
+                <input name="phone" type="tel" placeholder="Telefone">
+                <button class="primary-button" type="submit">Cadastrar</button>
+              </form>
+              <div class="list list--selectable" id="studentsList"></div>
+            </section>
+
+            <section class="panel profile-panel">
+              <div class="panel__header"><h3>Perfil do aluno</h3></div>
+              <div id="studentProfile" class="empty-state">Selecione um aluno para visualizar perfil, avaliações, medidas e histórico.</div>
+            </section>
+          </div>
+
+          <div class="content-grid">
+            <section class="panel">
+              <div class="panel__header"><h3>Criar treino</h3></div>
+              <form class="stack-form" id="workoutForm">
+                <select name="student_id" id="workoutStudentSelect" required><option value="">Selecione um aluno</option></select>
+                <input name="title" type="text" placeholder="Título do treino" required>
+                <textarea name="description" placeholder="Descrição do treino"></textarea>
+                <button class="primary-button" type="submit">Criar treino</button>
+              </form>
+            </section>
+
+            <section class="panel">
+              <div class="panel__header"><h3>Adicionar exercício ao treino</h3></div>
+              <form class="stack-form" id="workoutExerciseForm">
+                <select name="workout_id" id="workoutSelect" required><option value="">Selecione um treino</option></select>
+                <select name="exercise_id" id="exerciseSelect" required><option value="">Selecione um exercício</option></select>
+                <div class="form-row">
+                  <input name="sets" type="number" min="1" placeholder="Séries">
+                  <input name="reps" type="text" placeholder="Repetições">
+                  <input name="rest_seconds" type="number" min="0" placeholder="Descanso (s)">
+                </div>
+                <textarea name="notes" placeholder="Observações do exercício"></textarea>
+                <button class="primary-button" type="submit">Adicionar exercício</button>
+              </form>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel__header"><h3>Observações do aluno</h3></div>
+            <form class="stack-form" id="studentNotesForm">
+              <select name="student_id" id="notesStudentSelect" required><option value="">Selecione um aluno</option></select>
+              <textarea name="notes" placeholder="Registre observações importantes do acompanhamento"></textarea>
+              <button class="primary-button" type="submit">Salvar observações</button>
+            </form>
+          </section>
+        </section>
+
+        <section class="view" id="studentView">
+          <section class="panel">
+            <div class="panel__header">
+              <h3>Área do aluno</h3>
+              <select id="studentAreaSelect"><option value="">Selecione um aluno</option></select>
+            </div>
+            <div class="student-grid">
+              <div>
+                <h4>Treino atual</h4>
+                <div id="currentWorkout" class="empty-state">Selecione um aluno para carregar o treino atual.</div>
+              </div>
+              <div>
+                <h4>Histórico de treinos</h4>
+                <div id="studentWorkoutHistory" class="list"></div>
+              </div>
+              <div>
+                <h4>Avaliações físicas</h4>
+                <div id="studentAssessments" class="list"></div>
+              </div>
+              <div>
+                <h4>Medidas corporais</h4>
+                <div id="studentMeasurements" class="list"></div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="exercisesView">
+          <section class="panel">
+            <div class="panel__header"><h3>Biblioteca de exercícios</h3></div>
+            <div class="filters">
+              <input id="exerciseSearch" type="search" placeholder="Buscar por nome">
+              <select id="muscleGroupFilter"><option value="">Todos os grupos musculares</option></select>
+            </div>
+            <div class="exercise-grid" id="exerciseLibraryGrid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="progressView">
+          <section class="panel">
+            <div class="panel__header">
+              <h3>Evolução corporal</h3>
+              <select id="progressStudentSelect"><option value="">Selecione um aluno</option></select>
+            </div>
+            <div class="charts-grid">
+              <div class="chart-card"><h4>Peso</h4><canvas id="weightChart" height="220"></canvas></div>
+              <div class="chart-card"><h4>Gordura corporal</h4><canvas id="fatChart" height="220"></canvas></div>
+              <div class="chart-card chart-card--wide"><h4>Medidas corporais</h4><canvas id="measurementsChart" height="260"></canvas></div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
