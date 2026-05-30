@@ -1,4 +1,6 @@
-const ADMIN_TEMP_PASSWORD = "ac741"; // MVP apenas: substituir futuramente por autenticacao real com Supabase Auth.
+// Senhas temporárias apenas para o MVP. Futuramente substituir por autenticação real com Supabase Auth.
+const TRAINER_TEMP_PASSWORD = "123ac";
+const ADMIN_TEMP_PASSWORD = "ac741";
 const REQUIRED_TABLES = [
   "students",
   "assessments",
@@ -52,6 +54,7 @@ const state = {
   workoutExercises: [],
   workoutLogs: [],
   selectedStudentId: "",
+  selectedWorkoutId: "",
   studentAreaId: "",
   studentSearch: "",
   exerciseSearch: "",
@@ -512,12 +515,12 @@ function getStudentWorkouts(studentId) {
  */
 function renderAssessmentItem(assessment) {
   return `
-    <article class="simple-item">
+    <article class="data-record">
       <strong>${formatDate(pick(assessment, ["assessment_date", "assessed_at", "created_at"]))}</strong>
-      <span>Peso: ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg"], "-")))}</span>
-      <span>Altura: ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm"], "-")))}</span>
-      <span>Gordura corporal: ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage"], "-")))}</span>
-      <span>Massa muscular: ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass"], "-")))}</span>
+      <span><b>Peso:</b> ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg"], "-")))} kg</span>
+      <span><b>Altura:</b> ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm"], "-")))} cm</span>
+      <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage"], "-")))}</span>
+      <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass"], "-")))}</span>
     </article>
   `;
 }
@@ -527,14 +530,14 @@ function renderAssessmentItem(assessment) {
  */
 function renderMeasurementItem(measurement) {
   return `
-    <article class="simple-item">
+    <article class="data-record">
       <strong>${formatDate(pick(measurement, ["measurement_date", "measured_at", "created_at"]))}</strong>
-      <span>Cintura: ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm"], "-")))}</span>
-      <span>Abdômen: ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm"], "-")))}</span>
-      <span>Quadril: ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm"], "-")))}</span>
-      <span>Braços: ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm"], "-")))}</span>
-      <span>Coxas: ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm"], "-")))}</span>
-      <span>Panturrilhas: ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm"], "-")))}</span>
+      <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm"], "-")))} cm</span>
+      <span><b>Abdômen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm"], "-")))} cm</span>
+      <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm"], "-")))} cm</span>
+      <span><b>Braços:</b> ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm"], "-")))} cm</span>
+      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm"], "-")))} cm</span>
+      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm"], "-")))} cm</span>
     </article>
   `;
 }
@@ -561,6 +564,10 @@ function renderTrainerWorkoutSelect(workouts) {
   el.trainerWorkoutSelect.innerHTML = workouts.length
     ? workouts.map((workout) => `<option value="${escapeHtml(workout.id)}">${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</option>`).join("")
     : `<option value="">Crie um treino primeiro</option>`;
+
+  if (state.selectedWorkoutId && workouts.some((workout) => String(workout.id) === String(state.selectedWorkoutId))) {
+    el.trainerWorkoutSelect.value = state.selectedWorkoutId;
+  }
 }
 
 /**
@@ -767,10 +774,12 @@ async function createWorkout(form) {
   };
 
   try {
-    await insertWithSchemaFallback("workouts", payload, "Erro ao criar treino");
+    const created = await insertWithSchemaFallback("workouts", payload, "Erro ao criar treino");
+    state.selectedWorkoutId = created[0]?.id || "";
     form.reset();
     showToast("Treino criado com sucesso.");
     await loadSupabaseData();
+    await renderTrainerProfile();
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -1065,9 +1074,9 @@ async function seedExerciseLibrary() {
   try {
     const existingExercises = await safeFetchTable("exercise_library");
     const existingNames = new Set(
-      existingExercises.map((exercise) => normalizeText(pick(exercise, ["name", "title", "nome"])))
+      existingExercises.map((exercise) => getExerciseKey(exercise))
     );
-    const missingPayload = payload.filter((exercise) => !existingNames.has(normalizeText(exercise.name)));
+    const missingPayload = payload.filter((exercise) => !existingNames.has(getExerciseKey(exercise)));
 
     if (!missingPayload.length) {
       showToast("Biblioteca padrão já está cadastrada.");
@@ -1087,6 +1096,13 @@ async function seedExerciseLibrary() {
  */
 function normalizeText(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+/**
+ * Cria chave local para evitar repetição por nome + grupo muscular.
+ */
+function getExerciseKey(exercise) {
+  return `${normalizeText(pick(exercise, ["name", "title", "nome"]))}::${normalizeText(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"]))}`;
 }
 
 /**
@@ -1135,9 +1151,24 @@ function changeScreen(screenName) {
  * Define o papel visual escolhido na tela inicial.
  */
 function setAccessRole(role) {
+  if (role === "trainer" && !validateTemporaryPassword(TRAINER_TEMP_PASSWORD, "Senha do Treinador")) {
+    return;
+  }
+
+  if (role === "admin" && !validateTemporaryPassword(ADMIN_TEMP_PASSWORD, "Senha TI/Admin")) {
+    return;
+  }
+
   state.accessRole = role;
   el.sidebar.classList.remove("hidden");
   document.body.dataset.role = role;
+
+  if (role === "admin") {
+    state.adminUnlocked = true;
+    el.adminLock.classList.add("hidden");
+    el.adminPanel.classList.remove("hidden");
+    hydrateAdminConfigForm();
+  }
 
   if (role === "student") {
     changeScreen("student-area");
@@ -1150,6 +1181,20 @@ function setAccessRole(role) {
   }
 
   changeScreen("admin-area");
+}
+
+/**
+ * Solicita senha temporária antes de abrir áreas restritas.
+ */
+function validateTemporaryPassword(expectedPassword, label) {
+  const password = window.prompt(label);
+
+  if (password !== expectedPassword) {
+    showToast("Senha incorreta.", "error");
+    return false;
+  }
+
+  return true;
 }
 
 /**
