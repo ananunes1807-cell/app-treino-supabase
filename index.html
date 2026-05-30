@@ -300,6 +300,18 @@
               <h2>Diagnostico do sistema</h2>
               <div class="diagnostic-grid" id="admin-diagnostics"></div>
             </article>
+
+            <div class="grid two-columns">
+              <article class="card">
+                <h2>Erros do Supabase</h2>
+                <div class="list" id="admin-errors-list"></div>
+              </article>
+              <article class="card">
+                <h2>Politicas RLS</h2>
+                <p class="muted-text">A anon key nao consegue consultar pg_policies. Esta area mostra as politicas esperadas para o MVP.</p>
+                <div class="list" id="admin-rls-policies"></div>
+              </article>
+            </div>
           </div>
         </section>
       </main>

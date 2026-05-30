@@ -8,6 +8,22 @@ const REQUIRED_TABLES = [
   "workout_exercises",
   "workout_logs"
 ];
+const EXPECTED_RLS_POLICIES = [
+  ["students", "SELECT anon", "mvp_anon_select_students"],
+  ["students", "INSERT anon", "mvp_anon_insert_students"],
+  ["assessments", "SELECT anon", "mvp_anon_select_assessments"],
+  ["assessments", "INSERT anon", "mvp_anon_insert_assessments"],
+  ["body_measurements", "SELECT anon", "mvp_anon_select_body_measurements"],
+  ["body_measurements", "INSERT anon", "mvp_anon_insert_body_measurements"],
+  ["exercise_library", "SELECT anon", "mvp_anon_select_exercise_library"],
+  ["exercise_library", "INSERT anon", "mvp_anon_insert_exercise_library"],
+  ["workouts", "SELECT anon", "mvp_anon_select_workouts"],
+  ["workouts", "INSERT anon", "mvp_anon_insert_workouts"],
+  ["workout_exercises", "SELECT anon", "mvp_anon_select_workout_exercises"],
+  ["workout_exercises", "INSERT anon", "mvp_anon_insert_workout_exercises"],
+  ["workout_logs", "SELECT anon", "mvp_anon_select_workout_logs"],
+  ["workout_logs", "INSERT anon", "mvp_anon_insert_workout_logs"]
+];
 const DEFAULT_EXERCISES = [
   ["Agachamento livre", "Pernas", "Barra livre", "Intermediario", "Manter tronco firme, descer com controle e subir empurrando o chao."],
   ["Leg press 45", "Pernas", "Leg press", "Iniciante", "Flexionar os joelhos com controle e manter os pes firmes na plataforma."],
@@ -76,7 +92,9 @@ const el = {
   adminTablesList: document.querySelector("#admin-tables-list"),
   adminStudentsList: document.querySelector("#admin-students-list"),
   adminExercisesList: document.querySelector("#admin-exercises-list"),
-  adminDiagnostics: document.querySelector("#admin-diagnostics")
+  adminDiagnostics: document.querySelector("#admin-diagnostics"),
+  adminErrorsList: document.querySelector("#admin-errors-list"),
+  adminRlsPolicies: document.querySelector("#admin-rls-policies")
 };
 
 /**
@@ -885,6 +903,9 @@ function renderAdminArea() {
     ${renderDiagnostic("Ultimo erro", state.lastError || "Nenhum")}
     ${renderDiagnostic("Erros por tabela", Object.keys(state.tableErrors).length ? Object.values(state.tableErrors).join(" | ") : "Nenhum")}
   `;
+
+  renderAdminErrors();
+  renderExpectedRlsPolicies();
 }
 
 /**
@@ -931,6 +952,38 @@ function renderAdminExerciseItem(exercise) {
 }
 
 /**
+ * Renderiza erros atuais retornados pelo Supabase.
+ */
+function renderAdminErrors() {
+  const errors = Object.entries(state.tableErrors);
+
+  if (state.lastError && !errors.some(([, message]) => message === state.lastError)) {
+    errors.push(["ultima_operacao", state.lastError]);
+  }
+
+  el.adminErrorsList.innerHTML = errors.length
+    ? errors.map(([source, message]) => `
+      <article class="simple-item stacked">
+        <strong>${escapeHtml(source)}</strong>
+        <span>${escapeHtml(message)}</span>
+      </article>
+    `).join("")
+    : emptyMessage("Nenhum erro Supabase registrado nesta sessao.");
+}
+
+/**
+ * Mostra as politicas RLS que devem existir no banco para o MVP.
+ */
+function renderExpectedRlsPolicies() {
+  el.adminRlsPolicies.innerHTML = EXPECTED_RLS_POLICIES.map(([tableName, action, policyName]) => `
+    <article class="simple-item stacked">
+      <strong>${escapeHtml(tableName)} - ${escapeHtml(action)}</strong>
+      <span>${escapeHtml(policyName)}</span>
+    </article>
+  `).join("");
+}
+
+/**
  * Insere a biblioteca padrao de exercicios no Supabase pelo TI/Admin.
  */
 async function seedExerciseLibrary() {
@@ -943,12 +996,30 @@ async function seedExerciseLibrary() {
   }));
 
   try {
-    await runQuery(supabaseClient.from("exercise_library").upsert(payload, { onConflict: "name,muscle_group" }).select(), "Erro ao inserir biblioteca padrao");
-    showToast("Biblioteca padrao inserida/atualizada.");
+    const existingExercises = await safeFetchTable("exercise_library");
+    const existingNames = new Set(
+      existingExercises.map((exercise) => normalizeText(pick(exercise, ["name", "title", "nome"])))
+    );
+    const missingPayload = payload.filter((exercise) => !existingNames.has(normalizeText(exercise.name)));
+
+    if (!missingPayload.length) {
+      showToast("Biblioteca padrao ja esta cadastrada.");
+      return;
+    }
+
+    await runQuery(supabaseClient.from("exercise_library").insert(missingPayload).select(), "Erro ao inserir biblioteca padrao");
+    showToast("Biblioteca padrao inserida.");
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
   }
+}
+
+/**
+ * Normaliza texto para comparacao local sem usar ON CONFLICT.
+ */
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 /**

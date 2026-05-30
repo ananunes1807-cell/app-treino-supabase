@@ -99,6 +99,22 @@ with check (true);
 
 Essas policies sao apenas para MVP sem login. Quando o projeto usar Supabase Auth, substitua por policies baseadas no usuario autenticado.
 
+## Script de correcao RLS e exercise_library
+
+O arquivo abaixo corrige os erros conhecidos de MVP:
+
+- `new row violates row-level security policy for table "assessments"`
+- `new row violates row-level security policy for table "body_measurements"`
+- `there is no unique or exclusion constraint matching the ON CONFLICT specification`
+
+Execute no Supabase SQL Editor:
+
+```text
+sql/001_corrige_rls_e_conflitos.sql
+```
+
+O app tambem foi ajustado para nao usar `ON CONFLICT` ao inserir a biblioteca padrao de exercicios. Ele compara os exercicios ja existentes pelo nome e insere apenas os que faltam.
+
 ## Tabelas usadas
 
 Banco existente:

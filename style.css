@@ -147,6 +147,11 @@ h3 {
   color: var(--muted);
 }
 
+.muted-text {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .connection {
   min-width: max-content;
   border: 1px solid var(--line);
