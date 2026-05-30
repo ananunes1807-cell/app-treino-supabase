@@ -1,64 +1,63 @@
-const SUPABASE_CONFIG = {
-  url: "https://wkxfaogfwowdauxlscux.supabase.co",
-  anonKey: "sb_publishable_NdscXIppRgUHxFCUg2qb-w_gMmgKFYh"
-};
+/*
+  CONFIGURACAO DO SUPABASE
 
-const CONFIG_STORAGE_KEY = "gym-tracker-supabase-config";
+  Coloque aqui as credenciais publicas do projeto Supabase.
+
+  SUPABASE_URL:
+  - Supabase > Project Settings > API > Project URL
+
+  SUPABASE_ANON_KEY:
+  - Supabase > Project Settings > API > Project API keys > anon/public
+
+  Observacao:
+  - A anon/public key pode ficar no frontend, mas o banco deve ser protegido
+    por Row Level Security (RLS) e policies no Supabase.
+*/
+const DEFAULT_SUPABASE_URL = "https://wkxfaogfwowdauxlscux.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_NdscXIppRgUHxFCUg2qb-w_gMmgKFYh";
+const SUPABASE_CONFIG_STORAGE_KEY = "app-treino-supabase-config";
 
 /**
- * Lê a configuração salva no navegador ou usa os valores deste arquivo.
+ * Retorna as credenciais salvas no navegador ou as credenciais padrao do arquivo.
  */
 function getSupabaseConfig() {
-  const savedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+  const savedConfig = localStorage.getItem(SUPABASE_CONFIG_STORAGE_KEY);
 
   if (!savedConfig) {
-    return SUPABASE_CONFIG;
+    return {
+      url: DEFAULT_SUPABASE_URL,
+      anonKey: DEFAULT_SUPABASE_ANON_KEY
+    };
   }
 
   try {
-    return { ...SUPABASE_CONFIG, ...JSON.parse(savedConfig) };
+    const parsedConfig = JSON.parse(savedConfig);
+    return {
+      url: parsedConfig.url || DEFAULT_SUPABASE_URL,
+      anonKey: parsedConfig.anonKey || DEFAULT_SUPABASE_ANON_KEY
+    };
   } catch (error) {
-    console.warn("Configuração local do Supabase inválida.", error);
-    return SUPABASE_CONFIG;
+    console.warn("Configuracao local do Supabase invalida.", error);
+    return {
+      url: DEFAULT_SUPABASE_URL,
+      anonKey: DEFAULT_SUPABASE_ANON_KEY
+    };
   }
 }
 
 /**
- * Salva URL e chave pública para testar o app sem alterar o código.
+ * Salva credenciais no navegador para testes do MVP pelo TI/Admin.
  */
 function saveSupabaseConfig(config) {
-  localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+  localStorage.setItem(SUPABASE_CONFIG_STORAGE_KEY, JSON.stringify(config));
 }
 
 /**
- * Verifica se a configuração já foi preenchida.
- */
-function hasValidSupabaseConfig(config = getSupabaseConfig()) {
-  return Boolean(
-    config.url &&
-      config.anonKey &&
-      !config.url.includes("COLE_AQUI") &&
-      !config.anonKey.includes("COLE_AQUI")
-  );
-}
-
-/**
- * Cria o cliente Supabase usado por todo o aplicativo.
+ * Cria o cliente Supabase usado pelo app inteiro.
  */
 function createSupabaseClient() {
   const config = getSupabaseConfig();
-
-  if (!hasValidSupabaseConfig(config)) {
-    return null;
-  }
-
   return supabase.createClient(config.url, config.anonKey);
 }
 
-window.GymSupabase = {
-  CONFIG_STORAGE_KEY,
-  createSupabaseClient,
-  getSupabaseConfig,
-  hasValidSupabaseConfig,
-  saveSupabaseConfig
-};
+let supabaseClient = createSupabaseClient();

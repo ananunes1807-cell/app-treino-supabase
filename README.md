@@ -1,47 +1,107 @@
-# GymPulse
+# GymPulse / app-treino-supabase
 
-Aplicativo web responsivo para acompanhamento de treinos de academia, feito com HTML, CSS e JavaScript puro, conectado ao Supabase.
+Aplicativo web simples para acompanhamento de treinos de academia, conectado ao Supabase.
 
-## Funcionalidades
+O projeto usa apenas:
 
-- Dashboard com totais de alunos, treinos, exercícios e treinos concluídos.
-- Área do treinador para listar/cadastrar alunos, ver perfil, avaliações, medidas, histórico e criar treinos.
-- Inclusão de exercícios no treino usando a tabela `exercise_library`.
-- Área do aluno para ver treino atual, concluir treino e consultar histórico.
-- Biblioteca de exercícios com busca por nome e filtro por grupo muscular.
-- Gráficos em canvas para peso, gordura corporal e medidas corporais.
-- Layout mobile first com menu lateral no desktop e navegação inferior no celular.
+- HTML
+- CSS
+- JavaScript puro
+- Supabase
 
-## Estrutura
+Nao usa frameworks, nao usa Firebase como banco e permanece compativel com GitHub Pages.
+
+## Objetivo
+
+Centralizar o acompanhamento de alunos, treinos, exercicios, avaliacoes fisicas, medidas corporais e historico de treinos realizados.
+
+## Areas do sistema
+
+### Area Aluno
+
+- Visualizar treino atual.
+- Marcar treino como concluido.
+- Ver historico de treinos.
+- Ver evolucao corporal simples.
+
+### Area Treinador
+
+- Listar alunos cadastrados no Supabase pela tabela `students`.
+- Buscar aluno por nome ou e-mail.
+- Visualizar perfil do aluno.
+- Adicionar novo aluno na tabela `students`.
+- Criar treino para aluno na tabela `workouts`.
+- Adicionar exercicios ao treino usando a tabela `exercise_library`.
+- Ver avaliacoes e medidas corporais.
+
+### TI/Admin ou Controle do Sistema
+
+Area protegida por senha simples temporaria:
 
 ```text
-gym-tracker-supabase/
-  index.html
-  style.css
-  app.js
-  supabase.js
-  README.md
+ac741
 ```
 
-## Configuração do Supabase
+Essa senha e apenas provisoria para o MVP. Futuramente deve ser substituida por autenticacao real com Supabase Auth.
 
-1. No painel do Supabase, abra **Project Settings > API**.
-2. Copie a **Project URL**.
-3. Copie a chave **anon public**.
-4. Edite `supabase.js`:
+Essa area contem:
+
+- Configuracao do Supabase.
+- Project URL.
+- Anon/Public Key.
+- Status de conexao.
+- Testar conexao.
+- Ver tabelas existentes.
+- Listar alunos do banco.
+- Listar exercicios do banco.
+- Diagnostico do sistema.
+- Botao para recarregar dados do Supabase.
+
+## Configuracao do Supabase
+
+A conexao principal fica em `supabase.js`.
 
 ```js
-const SUPABASE_CONFIG = {
-  url: "https://seu-projeto.supabase.co",
-  anonKey: "sua-chave-anon-publica"
-};
+const DEFAULT_SUPABASE_URL = "https://seu-projeto.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "sua-chave-anon-publica";
 ```
 
-Também é possível abrir a tela **Supabase** dentro do app e salvar esses dados no navegador para testar localmente.
+Tambem e possivel alterar a configuracao pela area TI/Admin. A tela de configuracao nao aparece no menu publico e so fica disponivel depois de digitar a senha temporaria.
 
-## Tabelas esperadas
+Importante: a chave anon/public pode ficar no frontend, mas as permissoes reais devem ser protegidas por Row Level Security (RLS) e policies no Supabase.
 
-O app consome dados reais das tabelas já existentes:
+## Diagnostico: alunos nao aparecem
+
+Se alunos como Ana Carolina ou Carlos existem no painel do Supabase, mas nao aparecem no app, verifique:
+
+- Se o app esta usando o mesmo projeto Supabase onde os dados foram cadastrados.
+- Se a tabela `students` esta no schema `public`.
+- Se a anon/public key tem permissao de `SELECT` na tabela `students`.
+- Se existe policy de `INSERT` para permitir cadastrar alunos pela versao MVP sem login.
+
+No Supabase, quando RLS esta ativo e nao existe policy de leitura para `anon`, a chamada pode retornar lista vazia mesmo com dados na tabela.
+
+Exemplo temporario para MVP, ajuste conforme sua regra de seguranca:
+
+```sql
+create policy "Permitir leitura publica temporaria de students"
+on public.students
+for select
+to anon
+using (true);
+
+create policy "Permitir cadastro publico temporario de students"
+on public.students
+for insert
+to anon
+with check (true);
+```
+
+Essas policies sao apenas para MVP sem login. Quando o projeto usar Supabase Auth, substitua por policies baseadas no usuario autenticado.
+
+## Tabelas usadas
+
+Banco existente:
 
 - `students`
 - `assessments`
@@ -51,39 +111,34 @@ O app consome dados reais das tabelas já existentes:
 - `workout_exercises`
 - `workout_logs`
 
-As funções usam nomes comuns de colunas, como `name`, `full_name`, `student_id`, `created_at`, `weight`, `body_fat_percentage`, `muscle_group`, `equipment`, `difficulty_level`, `instructions`, `title`, `goal`, `sets`, `reps`, `rest_seconds` e `completed_at`.
+## Banco de Dados
 
-Se o seu banco tiver nomes diferentes, ajuste o payload das funções em `app.js` e os nomes auxiliares dentro de `valueOf(...)`.
+Este repositorio contem somente o aplicativo web.
 
-## Políticas RLS
+O projeto esta preparado para ter um segundo repositorio separado chamado `database-app-treino`, responsavel pelos scripts SQL, migrations, seeds e documentacao do banco de dados.
 
-Se Row Level Security estiver ativo, crie políticas que permitam leitura e escrita conforme seu modelo de autenticação. Para uma versão inicial sem login, as tabelas precisam permitir operações para a role `anon`, ou as consultas serão bloqueadas pelo Supabase.
+Quando o repositorio do banco existir, adicione o link aqui:
 
-## Rodando localmente
-
-Como é um app estático, você pode publicar os arquivos diretamente. Para testar com servidor local:
-
-```bash
-npx serve gym-tracker-supabase
+```text
+Repositorio do banco de dados: adicionar link do database-app-treino
 ```
 
-Ou use qualquer servidor estático:
+## Como rodar localmente
+
+Por ser um projeto estatico, voce pode abrir o `index.html` no navegador.
+
+Se preferir usar servidor local:
 
 ```bash
 python -m http.server 5500
 ```
 
-Depois acesse `http://localhost:5500/gym-tracker-supabase`.
+Depois acesse:
 
-## Publicação no GitHub
+```text
+http://localhost:5500
+```
 
-1. Crie um repositório no GitHub.
-2. Faça commit da pasta `gym-tracker-supabase`.
-3. Publique com GitHub Pages, Netlify, Vercel ou outro host estático.
-4. Garanta que `supabase.js` esteja configurado ou que a configuração seja feita pela tela **Supabase** do app.
+## Publicacao
 
-## Observações
-
-- Não há dados simulados no projeto.
-- Os estados vazios aparecem quando as tabelas ainda não possuem registros.
-- A chave `anon public` pode ficar no frontend, mas as permissões reais devem ser controladas por RLS no Supabase.
+O projeto pode ser publicado no GitHub Pages, Netlify, Vercel ou qualquer hospedagem de site estatico.
