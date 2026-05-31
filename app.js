@@ -227,7 +227,7 @@ async function fetchTable(tableName, options = {}) {
 /**
  * Carrega dados reais do Supabase usados pelas areas Aluno, Treinador e Admin.
  */
-async function loadSupabaseData() {
+async function loadSupabaseData(options = {}) {
   setConnectionStatus("Conectando...", false);
 
   const [students, exercises, workouts, workoutExercises, workoutLogs] = await Promise.all([
@@ -250,6 +250,8 @@ async function loadSupabaseData() {
   const hasBlockingError = Boolean(state.tableErrors.students || state.tableErrors.exercise_library);
   setConnectionStatus(hasBlockingError ? "Conexao parcial" : "Supabase conectado", !hasBlockingError);
   renderAll();
+
+  if (options.silent) return;
 
   if (hasBlockingError) {
     showToast(state.tableErrors.students || state.tableErrors.exercise_library, "error");
@@ -1775,8 +1777,14 @@ async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage)
  * Exclui registros do Supabase sem depender de retorno select.
  */
 async function deleteById(tableName, id, fallbackMessage) {
+  if (!id || id === "undefined") {
+    throw new Error(`${fallbackMessage}: id nao informado.`);
+  }
+
+  console.log(`[GymPulse] DELETE em ${tableName}:`, { id });
   const { error } = await supabaseClient.from(tableName).delete().eq("id", id);
   if (error) {
+    console.error(`[GymPulse] Erro DELETE em ${tableName}:`, error);
     state.lastError = error.message;
     throw new Error(`${fallbackMessage}: ${error.message}`);
   }
@@ -1786,8 +1794,8 @@ async function deleteById(tableName, id, fallbackMessage) {
  * Recarrega dados e atualiza o perfil selecionado depois de uma exclusao.
  */
 async function reloadAfterDelete() {
-  await loadSupabaseData();
-  await refreshSelectedStudentProfile();
+  await loadSupabaseData({ silent: true });
+  await renderTrainerProfile();
 }
 
 /**
@@ -1846,7 +1854,7 @@ async function deleteWorkout(id) {
   console.log("[GymPulse] deleteWorkout(id):", id);
 
   try {
-    await supabaseClient.from("workout_exercises").delete().eq("workout_id", id);
+    await deleteByColumn("workout_exercises", "workout_id", id, "Erro ao excluir exercicios do treino");
     await deleteById("workouts", id, "Erro ao excluir treino");
     if (String(state.selectedWorkoutId) === String(id)) state.selectedWorkoutId = "";
     showToast("Treino excluido.");
@@ -1872,12 +1880,13 @@ async function deleteStudent(id = state.selectedStudentId) {
     const studentWorkouts = getStudentWorkouts(id);
     const workoutIds = studentWorkouts.map((workout) => workout.id).filter(Boolean);
     if (workoutIds.length) {
-      await supabaseClient.from("workout_exercises").delete().in("workout_id", workoutIds);
+      const { error } = await supabaseClient.from("workout_exercises").delete().in("workout_id", workoutIds);
+      if (error) throw new Error(`Erro ao excluir exercicios do aluno: ${error.message}`);
     }
-    await supabaseClient.from("workout_logs").delete().eq("student_id", id);
-    await supabaseClient.from("assessments").delete().eq("student_id", id);
-    await supabaseClient.from("body_measurements").delete().eq("student_id", id);
-    await supabaseClient.from("workouts").delete().eq("student_id", id);
+    await deleteByColumn("workout_logs", "student_id", id, "Erro ao excluir logs do aluno");
+    await deleteByColumn("assessments", "student_id", id, "Erro ao excluir avaliacoes do aluno");
+    await deleteByColumn("body_measurements", "student_id", id, "Erro ao excluir medidas do aluno");
+    await deleteByColumn("workouts", "student_id", id, "Erro ao excluir treinos do aluno");
     await deleteById("students", id, "Erro ao excluir aluno");
 
     state.selectedStudentId = "";
@@ -1889,6 +1898,19 @@ async function deleteStudent(id = state.selectedStudentId) {
     await renderTrainerProfile();
   } catch (error) {
     showToast(error.message, "error");
+  }
+}
+
+/**
+ * Exclui registros por uma coluna especifica e mostra erro real do Supabase.
+ */
+async function deleteByColumn(tableName, column, value, fallbackMessage) {
+  console.log(`[GymPulse] DELETE em ${tableName} por ${column}:`, value);
+  const { error } = await supabaseClient.from(tableName).delete().eq(column, value);
+  if (error) {
+    console.error(`[GymPulse] Erro DELETE em ${tableName}:`, error);
+    state.lastError = error.message;
+    throw new Error(`${fallbackMessage}: ${error.message}`);
   }
 }
 
