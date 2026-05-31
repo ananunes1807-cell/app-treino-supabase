@@ -1317,9 +1317,9 @@ function renderMeasurementItem(measurement) {
       <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist_cm", "waist", "cintura"], "-")))} cm</span>
       <span><b>Abdomen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm", "abdome"], "-")))} cm</span>
       <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm", "quadril"], "-")))} cm</span>
-      <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm", "arms_cm", "bracos"], "-")))} cm</span>
-      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], "-")))} cm</span>
-      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], "-")))} cm</span>
+      <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["right_arm_cm", "left_arm_cm", "arm", "arms", "arm_cm", "arms_cm", "bracos"], "-")))} cm</span>
+      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["right_thigh_cm", "left_thigh_cm", "thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], "-")))} cm</span>
+      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["right_calf_cm", "left_calf_cm", "calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], "-")))} cm</span>
       ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
     </article>
   `;
@@ -1612,16 +1612,22 @@ async function createMeasurement(form) {
     hip,
     hip_cm: hip,
     quadril: hip,
+    right_arm_cm: arm,
+    left_arm_cm: arm,
     arm,
     arm_cm: arm,
     arms_cm: arm,
     arms: arm,
     bracos: arm,
+    right_thigh_cm: thigh,
+    left_thigh_cm: thigh,
     thigh,
     thigh_cm: thigh,
     thighs_cm: thigh,
     thighs: thigh,
     coxas: thigh,
+    right_calf_cm: calf,
+    left_calf_cm: calf,
     calf,
     calf_cm: calf,
     calves_cm: calf,
@@ -1984,9 +1990,9 @@ function editMeasurement(id) {
   form.elements.waist_cm.value = normalizeNumberInput(pick(record, ["waist_cm", "waist", "cintura"], ""));
   form.elements.abdomen_cm.value = normalizeNumberInput(pick(record, ["abdomen_cm", "abdomen", "abdome"], ""));
   form.elements.hip_cm.value = normalizeNumberInput(pick(record, ["hip_cm", "hip", "quadril"], ""));
-  form.elements.arm_cm.value = normalizeNumberInput(pick(record, ["arm_cm", "arms_cm", "arm", "arms", "bracos"], ""));
-  form.elements.thigh_cm.value = normalizeNumberInput(pick(record, ["thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], ""));
-  form.elements.calf_cm.value = normalizeNumberInput(pick(record, ["calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], ""));
+  form.elements.arm_cm.value = normalizeNumberInput(pick(record, ["right_arm_cm", "left_arm_cm", "arm_cm", "arms_cm", "arm", "arms", "bracos"], ""));
+  form.elements.thigh_cm.value = normalizeNumberInput(pick(record, ["right_thigh_cm", "left_thigh_cm", "thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], ""));
+  form.elements.calf_cm.value = normalizeNumberInput(pick(record, ["right_calf_cm", "left_calf_cm", "calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar medidas";
   switchTrainerTab("measurements");
