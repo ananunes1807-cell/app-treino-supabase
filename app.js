@@ -409,10 +409,10 @@ async function renderStudentDetails() {
     const latestMeasurement = measurements[0] || {};
 
     el.studentEvolution.innerHTML = `
-      ${renderEvolutionCard("Peso", pick(latestAssessment, ["weight", "weight_kg"], "Sem dado"))}
-      ${renderEvolutionCard("Gordura corporal", pick(latestAssessment, ["body_fat", "body_fat_percentage"], "Sem dado"))}
-      ${renderEvolutionCard("Massa muscular", pick(latestAssessment, ["muscle_mass", "lean_mass"], "Sem dado"))}
-      ${renderEvolutionCard("Cintura", pick(latestMeasurement, ["waist", "waist_cm"], "Sem dado"))}
+      ${renderEvolutionCard("Peso", pick(latestAssessment, ["weight", "weight_kg", "peso"], "Sem dado"))}
+      ${renderEvolutionCard("Gordura corporal", pick(latestAssessment, ["body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], "Sem dado"))}
+      ${renderEvolutionCard("Massa muscular", pick(latestAssessment, ["muscle_mass", "lean_mass", "muscle_mass_kg", "massa_muscular"], "Sem dado"))}
+      ${renderEvolutionCard("Cintura", pick(latestMeasurement, ["waist", "waist_cm", "cintura"], "Sem dado"))}
     `;
     el.studentAssessments.innerHTML = assessments.length
       ? assessments.map(renderAssessmentReadOnlyItem).join("")
@@ -543,7 +543,7 @@ function renderAssessmentItem(assessment) {
       <span><b>Peso:</b> ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg"], "-")))} kg</span>
       <span><b>Altura:</b> ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm"], "-")))} cm</span>
       <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage"], "-")))}</span>
-      <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass"], "-")))}</span>
+      <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass", "muscle_mass_kg"], "-")))}</span>
     </article>
   `;
 }
@@ -851,9 +851,13 @@ async function insertWorkoutExerciseWithFallback(payload) {
  */
 async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
   let currentPayload = { ...payload };
+  const maxAttempts = Object.keys(currentPayload).length + 2;
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
+      if (["assessments", "body_measurements", "workouts"].includes(tableName)) {
+        console.log(`[GymPulse] INSERT final em ${tableName}:`, currentPayload);
+      }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
     } catch (error) {
       const missingColumn = getMissingColumnFromError(error.message);
@@ -1247,13 +1251,13 @@ function renderAssessmentItem(assessment) {
         <strong>${formatDate(pick(assessment, ["assessment_date", "assessed_at", "created_at"]))}</strong>
         ${renderRecordActions("assessment", assessment.id)}
       </div>
-      <span><b>Peso:</b> ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg"], "-")))} kg</span>
-      <span><b>Altura:</b> ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm"], "-")))} cm</span>
-      <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage"], "-")))}</span>
-      <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass"], "-")))}</span>
-      <span><b>Gordura visceral:</b> ${escapeHtml(formatNumber(pick(assessment, ["visceral_fat"], "-")))}</span>
-      <span><b>Agua corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_water"], "-")))}</span>
-      <span><b>IMC:</b> ${escapeHtml(formatNumber(pick(assessment, ["bmi"], "-")))}</span>
+      <span><b>Peso:</b> ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg", "peso"], "-")))} kg</span>
+      <span><b>Altura:</b> ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm", "altura"], "-")))} cm</span>
+      <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], "-")))}</span>
+      <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass", "muscle_mass_kg", "massa_muscular"], "-")))}</span>
+      <span><b>Gordura visceral:</b> ${escapeHtml(formatNumber(pick(assessment, ["visceral_fat", "gordura_visceral"], "-")))}</span>
+      <span><b>Agua corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_water", "body_water_percentage", "agua_corporal"], "-")))}</span>
+      <span><b>IMC:</b> ${escapeHtml(formatNumber(pick(assessment, ["bmi", "imc"], "-")))}</span>
       ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
     </article>
   `;
@@ -1270,12 +1274,12 @@ function renderMeasurementItem(measurement) {
         <strong>${formatDate(pick(measurement, ["measurement_date", "measured_at", "created_at"]))}</strong>
         ${renderRecordActions("measurement", measurement.id)}
       </div>
-      <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm"], "-")))} cm</span>
-      <span><b>Abdomen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm"], "-")))} cm</span>
-      <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm"], "-")))} cm</span>
-      <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm"], "-")))} cm</span>
-      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm"], "-")))} cm</span>
-      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm"], "-")))} cm</span>
+      <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm", "cintura"], "-")))} cm</span>
+      <span><b>Abdomen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm", "abdome"], "-")))} cm</span>
+      <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm", "quadril"], "-")))} cm</span>
+      <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm", "arms_cm", "bracos"], "-")))} cm</span>
+      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], "-")))} cm</span>
+      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], "-")))} cm</span>
       ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
     </article>
   `;
@@ -1473,18 +1477,44 @@ async function createAssessment(form) {
   }
 
   const formData = new FormData(form);
+  const weight = numberOrNull(formData.get("weight"));
+  const height = numberOrNull(formData.get("height"));
+  const bodyFat = numberOrNull(formData.get("body_fat"));
+  const muscleMass = numberOrNull(formData.get("muscle_mass"));
+  const visceralFat = numberOrNull(formData.get("visceral_fat"));
+  const bodyWater = numberOrNull(formData.get("body_water"));
+  const bmi = numberOrNull(formData.get("bmi"));
   const payload = {
     student_id: state.selectedStudentId,
-    weight: numberOrNull(formData.get("weight")),
-    height: numberOrNull(formData.get("height")),
-    body_fat: numberOrNull(formData.get("body_fat")),
-    muscle_mass: numberOrNull(formData.get("muscle_mass")),
-    visceral_fat: numberOrNull(formData.get("visceral_fat")),
-    body_water: numberOrNull(formData.get("body_water")),
-    bmi: numberOrNull(formData.get("bmi")),
+    weight,
+    weight_kg: weight,
+    peso: weight,
+    height,
+    height_cm: height,
+    altura: height,
+    body_fat: bodyFat,
+    body_fat_percentage: bodyFat,
+    body_fat_percent: bodyFat,
+    gordura_corporal: bodyFat,
+    muscle_mass: muscleMass,
+    lean_mass: muscleMass,
+    muscle_mass_kg: muscleMass,
+    massa_muscular: muscleMass,
+    visceral_fat: visceralFat,
+    gordura_visceral: visceralFat,
+    body_water: bodyWater,
+    body_water_percentage: bodyWater,
+    agua_corporal: bodyWater,
+    bmi,
+    imc: bmi,
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
+  console.log("[GymPulse] Enviando assessment para Supabase:", {
+    mode: editId ? "update" : "insert",
+    id: editId || null,
+    payload
+  });
   setFormLoading(form, true);
 
   try {
@@ -1516,17 +1546,46 @@ async function createMeasurement(form) {
   }
 
   const formData = new FormData(form);
+  const waist = numberOrNull(formData.get("waist"));
+  const abdomen = numberOrNull(formData.get("abdomen"));
+  const hip = numberOrNull(formData.get("hip"));
+  const arm = numberOrNull(formData.get("arm"));
+  const thigh = numberOrNull(formData.get("thigh"));
+  const calf = numberOrNull(formData.get("calf"));
   const payload = {
     student_id: state.selectedStudentId,
-    waist: numberOrNull(formData.get("waist")),
-    abdomen: numberOrNull(formData.get("abdomen")),
-    hip: numberOrNull(formData.get("hip")),
-    arm: numberOrNull(formData.get("arm")),
-    thigh: numberOrNull(formData.get("thigh")),
-    calf: numberOrNull(formData.get("calf")),
+    waist,
+    waist_cm: waist,
+    cintura: waist,
+    abdomen,
+    abdomen_cm: abdomen,
+    abdome: abdomen,
+    hip,
+    hip_cm: hip,
+    quadril: hip,
+    arm,
+    arm_cm: arm,
+    arms_cm: arm,
+    arms: arm,
+    bracos: arm,
+    thigh,
+    thigh_cm: thigh,
+    thighs_cm: thigh,
+    thighs: thigh,
+    coxas: thigh,
+    calf,
+    calf_cm: calf,
+    calves_cm: calf,
+    calves: calf,
+    panturrilhas: calf,
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
+  console.log("[GymPulse] Enviando body_measurement para Supabase:", {
+    mode: editId ? "update" : "insert",
+    id: editId || null,
+    payload
+  });
   setFormLoading(form, true);
 
   try {
@@ -1558,14 +1617,28 @@ async function createWorkout(form) {
   }
 
   const formData = new FormData(form);
+  const workoutName = String(formData.get("title") || "").trim();
+
+  if (!workoutName) {
+    showToast("Informe o nome do treino.", "error");
+    return;
+  }
+
   const payload = {
     student_id: state.selectedStudentId,
-    title: formData.get("title"),
+    name: workoutName,
+    title: workoutName,
     goal: formData.get("goal") || null,
+    description: formData.get("goal") || null,
     notes: formData.get("notes") || null,
     status: "active"
   };
   const editId = form.dataset.editId;
+  console.log("[GymPulse] Enviando workout para Supabase:", {
+    mode: editId ? "update" : "insert",
+    id: editId || null,
+    payload
+  });
   setFormLoading(form, true);
 
   try {
@@ -1647,9 +1720,13 @@ function clearWorkoutExerciseForm() {
  */
 async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage) {
   let currentPayload = { ...payload };
+  const maxAttempts = Object.keys(currentPayload).length + 2;
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
+      if (["assessments", "body_measurements", "workouts"].includes(tableName)) {
+        console.log(`[GymPulse] UPDATE final em ${tableName}:`, { id, payload: currentPayload });
+      }
       return await runQuery(supabaseClient.from(tableName).update(currentPayload).eq("id", id).select(), fallbackMessage);
     } catch (error) {
       const missingColumn = getMissingColumnFromError(error.message);
@@ -1707,13 +1784,13 @@ function editAssessment(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.weight.value = normalizeNumberInput(pick(record, ["weight", "weight_kg"], ""));
-  form.elements.height.value = normalizeNumberInput(pick(record, ["height", "height_cm"], ""));
-  form.elements.body_fat.value = normalizeNumberInput(pick(record, ["body_fat", "body_fat_percentage"], ""));
-  form.elements.muscle_mass.value = normalizeNumberInput(pick(record, ["muscle_mass", "lean_mass"], ""));
-  form.elements.visceral_fat.value = normalizeNumberInput(pick(record, ["visceral_fat"], ""));
-  form.elements.body_water.value = normalizeNumberInput(pick(record, ["body_water"], ""));
-  form.elements.bmi.value = normalizeNumberInput(pick(record, ["bmi"], ""));
+  form.elements.weight.value = normalizeNumberInput(pick(record, ["weight", "weight_kg", "peso"], ""));
+  form.elements.height.value = normalizeNumberInput(pick(record, ["height", "height_cm", "altura"], ""));
+  form.elements.body_fat.value = normalizeNumberInput(pick(record, ["body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], ""));
+  form.elements.muscle_mass.value = normalizeNumberInput(pick(record, ["muscle_mass", "lean_mass", "muscle_mass_kg", "massa_muscular"], ""));
+  form.elements.visceral_fat.value = normalizeNumberInput(pick(record, ["visceral_fat", "gordura_visceral"], ""));
+  form.elements.body_water.value = normalizeNumberInput(pick(record, ["body_water", "body_water_percentage", "agua_corporal"], ""));
+  form.elements.bmi.value = normalizeNumberInput(pick(record, ["bmi", "imc"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar avaliacao";
   switchTrainerTab("assessments");
@@ -1728,12 +1805,12 @@ function editMeasurement(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.waist.value = normalizeNumberInput(pick(record, ["waist", "waist_cm"], ""));
-  form.elements.abdomen.value = normalizeNumberInput(pick(record, ["abdomen", "abdomen_cm"], ""));
-  form.elements.hip.value = normalizeNumberInput(pick(record, ["hip", "hip_cm"], ""));
-  form.elements.arm.value = normalizeNumberInput(pick(record, ["arm", "arms", "arm_cm"], ""));
-  form.elements.thigh.value = normalizeNumberInput(pick(record, ["thigh", "thighs", "thigh_cm"], ""));
-  form.elements.calf.value = normalizeNumberInput(pick(record, ["calf", "calves", "calf_cm"], ""));
+  form.elements.waist.value = normalizeNumberInput(pick(record, ["waist", "waist_cm", "cintura"], ""));
+  form.elements.abdomen.value = normalizeNumberInput(pick(record, ["abdomen", "abdomen_cm", "abdome"], ""));
+  form.elements.hip.value = normalizeNumberInput(pick(record, ["hip", "hip_cm", "quadril"], ""));
+  form.elements.arm.value = normalizeNumberInput(pick(record, ["arm", "arms", "arm_cm", "arms_cm", "bracos"], ""));
+  form.elements.thigh.value = normalizeNumberInput(pick(record, ["thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], ""));
+  form.elements.calf.value = normalizeNumberInput(pick(record, ["calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar medidas";
   switchTrainerTab("measurements");
@@ -1808,13 +1885,13 @@ function renderTrainerHistory() {
 
   const blocks = [
     renderHistoryBlock("Inicio", [
-      `Peso inicial: ${formatNumber(pick(firstAssessment, ["weight", "weight_kg"], "-"))} kg`,
-      `Cintura inicial: ${formatNumber(pick(firstMeasurement, ["waist", "waist_cm"], "-"))} cm`,
+      `Peso inicial: ${formatNumber(pick(firstAssessment, ["weight", "weight_kg", "peso"], "-"))} kg`,
+      `Cintura inicial: ${formatNumber(pick(firstMeasurement, ["waist", "waist_cm", "cintura"], "-"))} cm`,
       `Primeiro treino: ${escapeHtml(pick(workouts.at(-1), ["title", "name", "nome"], "-"))}`
     ]),
     renderHistoryBlock("Agora", [
-      `Peso atual: ${formatNumber(pick(latestAssessment, ["weight", "weight_kg"], "-"))} kg`,
-      `Cintura atual: ${formatNumber(pick(latestMeasurement, ["waist", "waist_cm"], "-"))} cm`,
+      `Peso atual: ${formatNumber(pick(latestAssessment, ["weight", "weight_kg", "peso"], "-"))} kg`,
+      `Cintura atual: ${formatNumber(pick(latestMeasurement, ["waist", "waist_cm", "cintura"], "-"))} cm`,
       `Treino atual: ${escapeHtml(pick(workouts[0], ["title", "name", "nome"], "-"))}`
     ]),
     renderHistoryBlock("Treinos concluidos", logs.length
