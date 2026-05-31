@@ -68,6 +68,7 @@ const state = {
   trainerAssessmentsCache: [],
   trainerMeasurementsCache: [],
   studentAreaId: "",
+  studentExerciseCompletion: {},
   studentSearch: "",
   exerciseSearch: "",
   exerciseGroupFilter: "",
@@ -372,14 +373,30 @@ function renderWorkoutWithExercises(workout) {
 /**
  * Renderiza um exercício vinculado a um treino.
  */
+function getStudentExerciseCompleted(exerciseId) {
+  const key = String(exerciseId);
+  if (!(key in state.studentExerciseCompletion)) {
+    state.studentExerciseCompletion[key] = true;
+  }
+
+  return state.studentExerciseCompletion[key];
+}
+
 function renderWorkoutExerciseItem(item) {
   const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
+  const completed = getStudentExerciseCompleted(item.id);
 
   return `
-    <article class="simple-item">
-      <strong>${escapeHtml(exerciseName)}</strong>
+    <article class="simple-item workout-execution-item">
+      <div>
+        <strong>${escapeHtml(exerciseName)}</strong>
       <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+      </div>
+      <label class="exercise-complete-toggle">
+        <input type="checkbox" data-workout-exercise-completed="${escapeHtml(item.id)}" ${completed ? "checked" : ""} />
+        Feito
+      </label>
     </article>
   `;
 }
@@ -420,10 +437,12 @@ function normalizeExercisesSnapshot(value) {
  * Renderiza um exercicio salvo dentro do snapshot do historico.
  */
 function renderSnapshotExerciseItem(exercise, index) {
+  const completed = "completed" in exercise ? Boolean(exercise.completed) : true;
   return `
     <div class="exercise-history-card">
       <strong>${index + 1}. ${escapeHtml(pick(exercise, ["exercise_name"], "Exercicio"))}</strong>
       <span>Series: ${escapeHtml(formatNumber(pick(exercise, ["sets"], "-")))} | Reps: ${escapeHtml(pick(exercise, ["reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(exercise, ["rest_seconds"], "-")))}s</span>
+      <span>Feito: ${completed ? "Sim" : "Nao"}</span>
     </div>
   `;
 }
@@ -957,7 +976,8 @@ async function completeCurrentWorkout() {
       sets: numberOrNull(pick(exercise, ["sets"], "")),
       reps: pick(exercise, ["reps"], null),
       weight: pick(exercise, ["weight"], null),
-      rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], ""))
+      rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+      completed: getStudentExerciseCompleted(exercise.id)
     }));
     console.log("[GymPulse] workout_logs exercises_snapshot:", exercisesSnapshot);
 
@@ -2261,6 +2281,16 @@ function canAccessScreen(screenName) {
 }
 
 /**
+ * Atualiza o status individual de conclusao de um exercicio no treino atual.
+ */
+function handleStudentWorkoutExecutionChange(event) {
+  const input = event.target.closest("[data-workout-exercise-completed]");
+  if (!input) return;
+
+  state.studentExerciseCompletion[String(input.dataset.workoutExerciseCompleted)] = input.checked;
+}
+
+/**
  * Registra eventos de interface.
  */
 function bindEvents() {
@@ -2285,6 +2315,7 @@ function bindEvents() {
   });
 
   el.completeWorkoutButton.addEventListener("click", completeCurrentWorkout);
+  el.studentCurrentWorkout.addEventListener("change", handleStudentWorkoutExecutionChange);
 
   el.studentSearch.addEventListener("input", (event) => {
     state.studentSearch = event.target.value;

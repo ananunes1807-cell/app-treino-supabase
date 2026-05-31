@@ -529,6 +529,26 @@ label {
   padding: 10px;
 }
 
+.workout-execution-item {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.exercise-complete-toggle {
+  display: inline-flex;
+  width: auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.exercise-complete-toggle input {
+  width: 18px;
+  height: 18px;
+}
+
 .library-item {
   padding: 10px;
 }
