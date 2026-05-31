@@ -184,6 +184,7 @@ async function runQuery(query, fallbackMessage) {
   const { data, error } = await query;
 
   if (error) {
+    console.error("[GymPulse] Erro Supabase:", error);
     state.lastError = error.message;
     throw new Error(`${fallbackMessage}: ${error.message}`);
   }
@@ -1175,6 +1176,25 @@ function formatInputDate(value) {
 }
 
 /**
+ * Calcula idade a partir de birth_date sem salvar idade no banco.
+ */
+function calculateAgeFromBirthDate(value) {
+  if (!value) return "";
+  const birthDate = new Date(value);
+  if (Number.isNaN(birthDate.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : "";
+}
+
+/**
  * Preenche o formulario de edicao do perfil do aluno.
  */
 function fillStudentProfileForm(student) {
@@ -1211,6 +1231,8 @@ async function renderTrainerProfile() {
   }
 
   const name = pick(student, ["name", "full_name", "nome"], "Aluno sem nome");
+  const birthDate = pick(student, ["birth_date"], "");
+  const age = calculateAgeFromBirthDate(birthDate);
   el.trainerProfileTitle.textContent = name;
   el.trainerProfileSummary.innerHTML = `
     <div class="profile-card">
@@ -1218,6 +1240,8 @@ async function renderTrainerProfile() {
       <div>
         <strong>${escapeHtml(name)}</strong>
         <span>Apelido: ${escapeHtml(pick(student, ["nickname", "apelido"], "Nao informado"))}</span>
+        <span>Nascimento: ${escapeHtml(birthDate ? formatDate(birthDate) : "Nao informado")}</span>
+        <span>Idade: ${escapeHtml(age !== "" ? `${age} anos` : "Nao informada")}</span>
         <span>Altura: ${escapeHtml(formatNumber(pick(student, ["height_cm", "height"], "-")))} cm</span>
         <small>Objetivo: ${escapeHtml(pick(student, ["objective", "email"], "Nao informado"))}</small>
         <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Nao informado"))}</small>
@@ -1366,7 +1390,7 @@ function renderTrainerWorkoutExerciseItem(item) {
   return `
     <article class="exercise-row" data-workout-exercise-id="${escapeHtml(item.id)}">
       <div>
-        <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
+        <strong>${escapeHtml(pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio")))}</strong>
         <span>Series: ${escapeHtml(formatNumber(pick(item, ["sets"], "-")))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(item, ["rest_seconds"], "-")))}s</span>
         <small>${escapeHtml(pick(item, ["notes", "instructions"], ""))}</small>
       </div>
@@ -1693,15 +1717,23 @@ async function createWorkout(form) {
 async function addExerciseToWorkout() {
   const workoutId = el.trainerWorkoutSelect.value;
   const exerciseId = el.trainerExerciseSelect.value;
+  const selectedExercise = state.exercises.find((exercise) => String(exercise.id) === String(exerciseId));
+  const exerciseName = pick(selectedExercise, ["name", "title", "nome"], "");
 
   if (!workoutId || !exerciseId) {
     showToast("Selecione treino e exercicio.", "error");
     return;
   }
 
+  if (!exerciseName) {
+    showToast("Exercicio selecionado nao possui nome cadastrado.", "error");
+    return;
+  }
+
   const currentCount = getWorkoutExercises(workoutId).length;
   const payload = {
     workout_id: workoutId,
+    exercise_name: exerciseName,
     exercise_id: exerciseId,
     sets: numberOrNull(el.setsInput.value),
     reps: el.repsInput.value || null,
@@ -1881,7 +1913,10 @@ async function deleteStudent(id = state.selectedStudentId) {
     const workoutIds = studentWorkouts.map((workout) => workout.id).filter(Boolean);
     if (workoutIds.length) {
       const { error } = await supabaseClient.from("workout_exercises").delete().in("workout_id", workoutIds);
-      if (error) throw new Error(`Erro ao excluir exercicios do aluno: ${error.message}`);
+      if (error) {
+        console.error("[GymPulse] Erro DELETE em workout_exercises do aluno:", error);
+        throw new Error(`Erro ao excluir exercicios do aluno: ${error.message}`);
+      }
     }
     await deleteByColumn("workout_logs", "student_id", id, "Erro ao excluir logs do aluno");
     await deleteByColumn("assessments", "student_id", id, "Erro ao excluir avaliacoes do aluno");
@@ -2064,7 +2099,8 @@ function renderExerciseEvolution(workouts) {
   workouts.forEach((workout) => {
     getWorkoutExercises(workout.id).forEach((item) => {
       const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
-      lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))}`);
+      const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
+      lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(exerciseName)} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))}`);
     });
   });
   return lines.length ? lines.slice(0, 12) : ["Nenhum exercicio cadastrado nos treinos."];
