@@ -534,6 +534,30 @@ label {
   justify-content: space-between;
 }
 
+.exercise-execution-main {
+  display: grid;
+  flex: 1;
+  gap: 10px;
+}
+
+.exercise-execution-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.exercise-execution-grid label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.exercise-execution-grid input {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
 .exercise-complete-toggle {
   display: inline-flex;
   width: auto;

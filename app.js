@@ -1,6 +1,8 @@
 // Senhas temporárias apenas para o MVP. Futuramente substituir por autenticação real com Supabase Auth.
 const TRAINER_TEMP_PASSWORD = "123ac";
 const ADMIN_TEMP_PASSWORD = "ac741";
+const EXECUTION_DRAFT_PREFIX = "gympulse_execution_draft";
+const PENDING_WORKOUT_LOGS_KEY = "gympulse_pending_workout_logs";
 const REQUIRED_TABLES = [
   "students",
   "assessments",
@@ -68,7 +70,7 @@ const state = {
   trainerAssessmentsCache: [],
   trainerMeasurementsCache: [],
   studentAreaId: "",
-  studentExerciseCompletion: {},
+  studentExerciseExecution: {},
   studentSearch: "",
   exerciseSearch: "",
   exerciseGroupFilter: "",
@@ -179,6 +181,30 @@ function emptyMessage(message) {
 }
 
 /**
+ * Le JSON do localStorage com fallback seguro.
+ */
+function readLocalJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    console.error("[GymPulse] Erro ao ler localStorage:", error);
+    return fallback;
+  }
+}
+
+/**
+ * Salva JSON no localStorage para preservar execucoes offline.
+ */
+function writeLocalJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error("[GymPulse] Erro ao salvar localStorage:", error);
+  }
+}
+
+/**
  * Executa uma consulta Supabase e padroniza o tratamento de erro.
  */
 async function runQuery(query, fallbackMessage) {
@@ -248,9 +274,13 @@ async function loadSupabaseData(options = {}) {
 
   if (!state.studentAreaId && students[0]) state.studentAreaId = students[0].id;
   if (!state.selectedStudentId && students[0]) state.selectedStudentId = students[0].id;
+  loadCurrentExecutionDraft();
 
   const hasBlockingError = Boolean(state.tableErrors.students || state.tableErrors.exercise_library);
   setConnectionStatus(hasBlockingError ? "Conexao parcial" : "Supabase conectado", !hasBlockingError);
+  if (!hasBlockingError) {
+    syncPendingWorkoutLogs();
+  }
   renderAll();
 
   if (options.silent) return;
@@ -373,29 +403,81 @@ function renderWorkoutWithExercises(workout) {
 /**
  * Renderiza um exercício vinculado a um treino.
  */
-function getStudentExerciseCompleted(exerciseId) {
+function getExecutionDraftKey(workoutId = getCurrentWorkout(state.studentAreaId)?.id) {
+  return workoutId && state.studentAreaId
+    ? `${EXECUTION_DRAFT_PREFIX}:${state.studentAreaId}:${workoutId}`
+    : "";
+}
+
+function loadCurrentExecutionDraft() {
+  const key = getExecutionDraftKey();
+  state.studentExerciseExecution = key ? readLocalJson(key, {}) : {};
+}
+
+function saveCurrentExecutionDraft() {
+  const key = getExecutionDraftKey();
+  if (!key) return;
+  writeLocalJson(key, state.studentExerciseExecution);
+}
+
+function getStudentExerciseExecution(exerciseId) {
   const key = String(exerciseId);
-  if (!(key in state.studentExerciseCompletion)) {
-    state.studentExerciseCompletion[key] = true;
+  if (!(key in state.studentExerciseExecution)) {
+    state.studentExerciseExecution[key] = {
+      completed: true,
+      skipped: false,
+      actual_weight: "",
+      actual_reps: "",
+      actual_sets: "",
+      pain_level: "",
+      difficulty: "",
+      notes: ""
+    };
   }
 
-  return state.studentExerciseCompletion[key];
+  return state.studentExerciseExecution[key];
+}
+
+function serializeExerciseExecution(exerciseId) {
+  const execution = getStudentExerciseExecution(exerciseId);
+  return {
+    completed: Boolean(execution.completed),
+    skipped: Boolean(execution.skipped),
+    actual_weight: execution.actual_weight || null,
+    actual_reps: execution.actual_reps || null,
+    actual_sets: execution.actual_sets || null,
+    pain_level: execution.pain_level === "" ? null : numberOrNull(execution.pain_level),
+    difficulty: execution.difficulty || null,
+    notes: execution.notes || null
+  };
 }
 
 function renderWorkoutExerciseItem(item) {
   const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
-  const completed = getStudentExerciseCompleted(item.id);
+  const execution = getStudentExerciseExecution(item.id);
 
   return `
     <article class="simple-item workout-execution-item">
-      <div>
+      <div class="exercise-execution-main">
         <strong>${escapeHtml(exerciseName)}</strong>
-      <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+      <span>Planejado: Series: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+        <div class="exercise-execution-grid">
+          <label>Carga usada<input data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" /></label>
+          <label>Reps feitas<input data-workout-exercise-field="actual_reps" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_reps)}" /></label>
+          <label>Series feitas<input data-workout-exercise-field="actual_sets" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_sets)}" /></label>
+          <label>Dor 0-10<input data-workout-exercise-field="pain_level" data-workout-exercise-id="${escapeHtml(item.id)}" type="number" min="0" max="10" value="${escapeHtml(execution.pain_level)}" /></label>
+          <label>Dificuldade<input data-workout-exercise-field="difficulty" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.difficulty)}" /></label>
+          <label>Observacao<input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.notes)}" /></label>
+        </div>
       </div>
       <label class="exercise-complete-toggle">
-        <input type="checkbox" data-workout-exercise-completed="${escapeHtml(item.id)}" ${completed ? "checked" : ""} />
+        <input type="checkbox" data-workout-exercise-field="completed" data-workout-exercise-id="${escapeHtml(item.id)}" ${execution.completed ? "checked" : ""} />
         Feito
+      </label>
+      <label class="exercise-complete-toggle">
+        <input type="checkbox" data-workout-exercise-field="skipped" data-workout-exercise-id="${escapeHtml(item.id)}" ${execution.skipped ? "checked" : ""} />
+        Pulado
       </label>
     </article>
   `;
@@ -438,11 +520,17 @@ function normalizeExercisesSnapshot(value) {
  */
 function renderSnapshotExerciseItem(exercise, index) {
   const completed = "completed" in exercise ? Boolean(exercise.completed) : true;
+  const skipped = Boolean(exercise.skipped);
   return `
     <div class="exercise-history-card">
       <strong>${index + 1}. ${escapeHtml(pick(exercise, ["exercise_name"], "Exercicio"))}</strong>
-      <span>Series: ${escapeHtml(formatNumber(pick(exercise, ["sets"], "-")))} | Reps: ${escapeHtml(pick(exercise, ["reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(exercise, ["rest_seconds"], "-")))}s</span>
+      <span>Planejado: Series: ${escapeHtml(formatNumber(pick(exercise, ["planned_sets", "sets"], "-")))} | Reps: ${escapeHtml(pick(exercise, ["planned_reps", "reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["planned_weight", "weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(exercise, ["planned_rest_seconds", "rest_seconds"], "-")))}s</span>
+      <span>Realizado: Series: ${escapeHtml(pick(exercise, ["actual_sets"], "-"))} | Reps: ${escapeHtml(pick(exercise, ["actual_reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["actual_weight"], "-"))}</span>
       <span>Feito: ${completed ? "Sim" : "Nao"}</span>
+      <span>Pulado: ${skipped ? "Sim" : "Nao"}</span>
+      ${pick(exercise, ["pain_level"], "") !== "" ? `<span>Dor: ${escapeHtml(pick(exercise, ["pain_level"], ""))}/10</span>` : ""}
+      ${pick(exercise, ["difficulty"], "") ? `<span>Dificuldade: ${escapeHtml(pick(exercise, ["difficulty"], ""))}</span>` : ""}
+      ${pick(exercise, ["notes"], "") ? `<span>Obs: ${escapeHtml(pick(exercise, ["notes"], ""))}</span>` : ""}
     </div>
   `;
 }
@@ -955,6 +1043,43 @@ function getMissingColumnFromError(message) {
   return "";
 }
 
+async function insertWorkoutLog(payload) {
+  return runQuery(
+    supabaseClient
+      .from("workout_logs")
+      .insert(payload)
+      .select(),
+    "Erro ao marcar treino como concluido"
+  );
+}
+
+function enqueuePendingWorkoutLog(payload) {
+  const pending = readLocalJson(PENDING_WORKOUT_LOGS_KEY, []);
+  pending.push({ ...payload, pending_id: crypto.randomUUID?.() || String(Date.now()) });
+  writeLocalJson(PENDING_WORKOUT_LOGS_KEY, pending);
+}
+
+async function syncPendingWorkoutLogs() {
+  const pending = readLocalJson(PENDING_WORKOUT_LOGS_KEY, []);
+  if (!pending.length) return;
+
+  const failed = [];
+  for (const item of pending) {
+    const { pending_id: _pendingId, ...payload } = item;
+    try {
+      await insertWorkoutLog(payload);
+    } catch (error) {
+      console.error("[GymPulse] Erro ao sincronizar log pendente:", error);
+      failed.push(item);
+    }
+  }
+
+  writeLocalJson(PENDING_WORKOUT_LOGS_KEY, failed);
+  if (failed.length < pending.length) {
+    showToast("Treinos pendentes sincronizados.");
+  }
+}
+
 /**
  * Marca o treino atual do aluno como concluido em workout_logs.
  */
@@ -977,25 +1102,48 @@ async function completeCurrentWorkout() {
       reps: pick(exercise, ["reps"], null),
       weight: pick(exercise, ["weight"], null),
       rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
-      completed: getStudentExerciseCompleted(exercise.id)
+      planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
+      planned_reps: pick(exercise, ["reps"], null),
+      planned_weight: pick(exercise, ["weight"], null),
+      planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+      ...serializeExerciseExecution(exercise.id)
     }));
     console.log("[GymPulse] workout_logs exercises_snapshot:", exercisesSnapshot);
 
-    await runQuery(
-      supabaseClient
-        .from("workout_logs")
-        .insert({
-          workout_id: workout.id,
-          student_id: state.studentAreaId,
-          completed_at: new Date().toISOString(),
-          exercises_snapshot: exercisesSnapshot
-        })
-        .select(),
-      "Erro ao marcar treino como concluido"
-    );
+    await insertWorkoutLog({
+      workout_id: workout.id,
+      student_id: state.studentAreaId,
+      completed_at: new Date().toISOString(),
+      exercises_snapshot: exercisesSnapshot
+    });
+    localStorage.removeItem(getExecutionDraftKey(workout.id));
+    state.studentExerciseExecution = {};
     showToast("Treino marcado como concluído.");
     await loadSupabaseData();
   } catch (error) {
+    const isNetworkError = !navigator.onLine || String(error.message).toLowerCase().includes("failed to fetch");
+    if (isNetworkError) {
+      const fallbackExercises = state.workoutExercises
+        .filter((exercise) => String(exercise.workout_id) === String(workout.id))
+        .map((exercise) => ({
+          exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
+          planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
+          planned_reps: pick(exercise, ["reps"], null),
+          planned_weight: pick(exercise, ["weight"], null),
+          planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+          ...serializeExerciseExecution(exercise.id)
+        }));
+
+      enqueuePendingWorkoutLog({
+        workout_id: workout.id,
+        student_id: state.studentAreaId,
+        completed_at: new Date().toISOString(),
+        exercises_snapshot: fallbackExercises
+      });
+      showToast("Sem conexao. Treino salvo como pendente de sincronizacao.", "error");
+      return;
+    }
+
     showToast(error.message, "error");
   }
 }
@@ -2284,10 +2432,25 @@ function canAccessScreen(screenName) {
  * Atualiza o status individual de conclusao de um exercicio no treino atual.
  */
 function handleStudentWorkoutExecutionChange(event) {
-  const input = event.target.closest("[data-workout-exercise-completed]");
+  const input = event.target.closest("[data-workout-exercise-field]");
   if (!input) return;
 
-  state.studentExerciseCompletion[String(input.dataset.workoutExerciseCompleted)] = input.checked;
+  const execution = getStudentExerciseExecution(input.dataset.workoutExerciseId);
+  const field = input.dataset.workoutExerciseField;
+  execution[field] = input.type === "checkbox" ? input.checked : input.value;
+
+  if (field === "skipped" && input.checked) {
+    execution.completed = false;
+  }
+
+  if (field === "completed" && input.checked) {
+    execution.skipped = false;
+  }
+
+  saveCurrentExecutionDraft();
+  if (event.type === "change") {
+    renderStudentArea();
+  }
 }
 
 /**
@@ -2311,11 +2474,13 @@ function bindEvents() {
 
   el.studentAreaSelect.addEventListener("change", (event) => {
     state.studentAreaId = event.target.value;
+    loadCurrentExecutionDraft();
     renderStudentArea();
   });
 
   el.completeWorkoutButton.addEventListener("click", completeCurrentWorkout);
   el.studentCurrentWorkout.addEventListener("change", handleStudentWorkoutExecutionChange);
+  el.studentCurrentWorkout.addEventListener("input", handleStudentWorkoutExecutionChange);
 
   el.studentSearch.addEventListener("input", (event) => {
     state.studentSearch = event.target.value;
@@ -2387,6 +2552,7 @@ function bindEvents() {
   document.querySelector("#test-connection-button").addEventListener("click", testConnection);
   document.querySelector("#admin-reload-data").addEventListener("click", loadSupabaseData);
   document.querySelector("#seed-exercise-library").addEventListener("click", seedExerciseLibrary);
+  window.addEventListener("online", syncPendingWorkoutLogs);
 }
 
 /**
