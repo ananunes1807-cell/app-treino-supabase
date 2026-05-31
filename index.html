@@ -205,13 +205,13 @@
                 <form class="form-box" id="new-assessment-form">
                   <h3>Adicionar avalia&ccedil;&atilde;o f&iacute;sica</h3>
                   <div class="mini-grid">
-                    <input name="weight" type="number" step="0.01" placeholder="Peso" />
+                    <input name="weight_kg" type="number" step="0.01" placeholder="Peso" />
                     <input name="height" type="number" step="0.01" placeholder="Altura" />
-                    <input name="body_fat" type="number" step="0.01" placeholder="Gordura corporal" />
-                    <input name="muscle_mass" type="number" step="0.01" placeholder="Massa muscular" />
+                    <input name="body_fat_percent" type="number" step="0.01" placeholder="Gordura corporal" />
+                    <input name="muscle_mass_kg" type="number" step="0.01" placeholder="Massa muscular" />
                     <input name="visceral_fat" type="number" step="0.01" placeholder="Gordura visceral" />
-                    <input name="body_water" type="number" step="0.01" placeholder="Agua corporal" />
-                    <input name="bmi" type="number" step="0.01" placeholder="IMC" />
+                    <input name="body_water_percent" type="number" step="0.01" placeholder="Agua corporal" />
+                    <input name="imc" type="number" step="0.01" placeholder="IMC" />
                     <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es" />
                   </div>
                   <button class="primary-button" type="submit">Salvar avalia&ccedil;&atilde;o</button>
@@ -224,12 +224,14 @@
                 <form class="form-box" id="new-measurement-form">
                   <h3>Adicionar medidas</h3>
                   <div class="mini-grid">
-                    <input name="waist" type="number" step="0.01" placeholder="Cintura" />
-                    <input name="abdomen" type="number" step="0.01" placeholder="Abdomen" />
-                    <input name="hip" type="number" step="0.01" placeholder="Quadril" />
-                    <input name="arm" type="number" step="0.01" placeholder="Bracos" />
-                    <input name="thigh" type="number" step="0.01" placeholder="Coxas" />
-                    <input name="calf" type="number" step="0.01" placeholder="Panturrilhas" />
+                    <input name="neck_cm" type="number" step="0.01" placeholder="Pescoco" />
+                    <input name="chest_cm" type="number" step="0.01" placeholder="Peitoral" />
+                    <input name="waist_cm" type="number" step="0.01" placeholder="Cintura" />
+                    <input name="abdomen_cm" type="number" step="0.01" placeholder="Abdomen" />
+                    <input name="hip_cm" type="number" step="0.01" placeholder="Quadril" />
+                    <input name="arm_cm" type="number" step="0.01" placeholder="Bracos" />
+                    <input name="thigh_cm" type="number" step="0.01" placeholder="Coxas" />
+                    <input name="calf_cm" type="number" step="0.01" placeholder="Panturrilhas" />
                     <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es" />
                   </div>
                   <button class="primary-button" type="submit">Salvar medidas</button>
@@ -243,7 +245,7 @@
                   <h3>Criar treino para aluno</h3>
                   <label>
                     Nome do treino
-                    <input name="title" type="text" required placeholder="Ex: Treino A - Superiores" />
+                    <input name="name" type="text" required placeholder="Ex: Treino A - Superiores" />
                   </label>
                   <label>
                     Objetivo

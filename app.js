@@ -666,7 +666,7 @@ async function insertStudentWithFallback(payload) {
 /**
  * Adiciona avaliação física para o aluno selecionado.
  */
-async function createAssessment(form) {
+async function createAssessmentLegacy(form) {
   if (!state.selectedStudentId) {
     showToast("Selecione um aluno antes de salvar a avaliação.", "error");
     return;
@@ -698,7 +698,7 @@ async function createAssessment(form) {
 /**
  * Adiciona medidas corporais para o aluno selecionado.
  */
-async function createMeasurement(form) {
+async function createMeasurementLegacy(form) {
   if (!state.selectedStudentId) {
     showToast("Selecione um aluno antes de salvar medidas.", "error");
     return;
@@ -737,6 +737,17 @@ function numberOrNull(value) {
   const normalized = normalizeNumberInput(value);
   if (normalized === "") return null;
   return Number(normalized);
+}
+
+/**
+ * Le o primeiro campo existente no FormData.
+ */
+function getFormValue(formData, names) {
+  for (const name of names) {
+    const value = formData.get(name);
+    if (value !== null && value !== undefined && value !== "") return value;
+  }
+  return "";
 }
 
 /**
@@ -781,7 +792,7 @@ async function refreshSelectedStudentProfile() {
 /**
  * Cria um treino para o aluno selecionado.
  */
-async function createWorkout(form) {
+async function createWorkoutLegacy(form) {
   if (!state.selectedStudentId) {
     showToast("Selecione um aluno antes de criar o treino.", "error");
     return;
@@ -811,7 +822,7 @@ async function createWorkout(form) {
 /**
  * Adiciona exercício da exercise_library ao treino selecionado.
  */
-async function addExerciseToWorkout() {
+async function addExerciseToWorkoutLegacy() {
   const workoutId = el.trainerWorkoutSelect.value;
   const exerciseId = el.trainerExerciseSelect.value;
 
@@ -1256,7 +1267,7 @@ function renderAssessmentItem(assessment) {
       <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], "-")))}</span>
       <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass", "muscle_mass_kg", "massa_muscular"], "-")))}</span>
       <span><b>Gordura visceral:</b> ${escapeHtml(formatNumber(pick(assessment, ["visceral_fat", "gordura_visceral"], "-")))}</span>
-      <span><b>Agua corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_water", "body_water_percentage", "agua_corporal"], "-")))}</span>
+      <span><b>Agua corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_water_percent", "body_water", "body_water_percentage", "agua_corporal"], "-")))}</span>
       <span><b>IMC:</b> ${escapeHtml(formatNumber(pick(assessment, ["bmi", "imc"], "-")))}</span>
       ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
     </article>
@@ -1274,7 +1285,9 @@ function renderMeasurementItem(measurement) {
         <strong>${formatDate(pick(measurement, ["measurement_date", "measured_at", "created_at"]))}</strong>
         ${renderRecordActions("measurement", measurement.id)}
       </div>
-      <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist", "waist_cm", "cintura"], "-")))} cm</span>
+      <span><b>Pescoco:</b> ${escapeHtml(formatNumber(pick(measurement, ["neck_cm"], "-")))} cm</span>
+      <span><b>Peitoral:</b> ${escapeHtml(formatNumber(pick(measurement, ["chest_cm", "chest"], "-")))} cm</span>
+      <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist_cm", "waist", "cintura"], "-")))} cm</span>
       <span><b>Abdomen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm", "abdome"], "-")))} cm</span>
       <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm", "quadril"], "-")))} cm</span>
       <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["arm", "arms", "arm_cm", "arms_cm", "bracos"], "-")))} cm</span>
@@ -1477,13 +1490,13 @@ async function createAssessment(form) {
   }
 
   const formData = new FormData(form);
-  const weight = numberOrNull(formData.get("weight"));
+  const weight = numberOrNull(getFormValue(formData, ["weight_kg", "weight"]));
   const height = numberOrNull(formData.get("height"));
-  const bodyFat = numberOrNull(formData.get("body_fat"));
-  const muscleMass = numberOrNull(formData.get("muscle_mass"));
+  const bodyFat = numberOrNull(getFormValue(formData, ["body_fat_percent", "body_fat"]));
+  const muscleMass = numberOrNull(getFormValue(formData, ["muscle_mass_kg", "muscle_mass"]));
   const visceralFat = numberOrNull(formData.get("visceral_fat"));
-  const bodyWater = numberOrNull(formData.get("body_water"));
-  const bmi = numberOrNull(formData.get("bmi"));
+  const bodyWater = numberOrNull(getFormValue(formData, ["body_water_percent", "body_water"]));
+  const imc = numberOrNull(getFormValue(formData, ["imc", "bmi"]));
   const payload = {
     student_id: state.selectedStudentId,
     weight,
@@ -1503,10 +1516,11 @@ async function createAssessment(form) {
     visceral_fat: visceralFat,
     gordura_visceral: visceralFat,
     body_water: bodyWater,
+    body_water_percent: bodyWater,
     body_water_percentage: bodyWater,
     agua_corporal: bodyWater,
-    bmi,
-    imc: bmi,
+    bmi: imc,
+    imc,
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
@@ -1546,14 +1560,18 @@ async function createMeasurement(form) {
   }
 
   const formData = new FormData(form);
-  const waist = numberOrNull(formData.get("waist"));
-  const abdomen = numberOrNull(formData.get("abdomen"));
-  const hip = numberOrNull(formData.get("hip"));
-  const arm = numberOrNull(formData.get("arm"));
-  const thigh = numberOrNull(formData.get("thigh"));
-  const calf = numberOrNull(formData.get("calf"));
+  const neck = numberOrNull(formData.get("neck_cm"));
+  const chest = numberOrNull(formData.get("chest_cm"));
+  const waist = numberOrNull(getFormValue(formData, ["waist_cm", "waist"]));
+  const abdomen = numberOrNull(getFormValue(formData, ["abdomen_cm", "abdomen"]));
+  const hip = numberOrNull(getFormValue(formData, ["hip_cm", "hip"]));
+  const arm = numberOrNull(getFormValue(formData, ["arm_cm", "arm"]));
+  const thigh = numberOrNull(getFormValue(formData, ["thigh_cm", "thigh"]));
+  const calf = numberOrNull(getFormValue(formData, ["calf_cm", "calf"]));
   const payload = {
     student_id: state.selectedStudentId,
+    neck_cm: neck,
+    chest_cm: chest,
     waist,
     waist_cm: waist,
     cintura: waist,
@@ -1617,7 +1635,7 @@ async function createWorkout(form) {
   }
 
   const formData = new FormData(form);
-  const workoutName = String(formData.get("title") || "").trim();
+  const workoutName = String(getFormValue(formData, ["name", "title"]) || "").trim();
 
   if (!workoutName) {
     showToast("Informe o nome do treino.", "error");
@@ -1784,13 +1802,13 @@ function editAssessment(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.weight.value = normalizeNumberInput(pick(record, ["weight", "weight_kg", "peso"], ""));
+  form.elements.weight_kg.value = normalizeNumberInput(pick(record, ["weight_kg", "weight", "peso"], ""));
   form.elements.height.value = normalizeNumberInput(pick(record, ["height", "height_cm", "altura"], ""));
-  form.elements.body_fat.value = normalizeNumberInput(pick(record, ["body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], ""));
-  form.elements.muscle_mass.value = normalizeNumberInput(pick(record, ["muscle_mass", "lean_mass", "muscle_mass_kg", "massa_muscular"], ""));
+  form.elements.body_fat_percent.value = normalizeNumberInput(pick(record, ["body_fat_percent", "body_fat", "body_fat_percentage", "gordura_corporal"], ""));
+  form.elements.muscle_mass_kg.value = normalizeNumberInput(pick(record, ["muscle_mass_kg", "muscle_mass", "lean_mass", "massa_muscular"], ""));
   form.elements.visceral_fat.value = normalizeNumberInput(pick(record, ["visceral_fat", "gordura_visceral"], ""));
-  form.elements.body_water.value = normalizeNumberInput(pick(record, ["body_water", "body_water_percentage", "agua_corporal"], ""));
-  form.elements.bmi.value = normalizeNumberInput(pick(record, ["bmi", "imc"], ""));
+  form.elements.body_water_percent.value = normalizeNumberInput(pick(record, ["body_water_percent", "body_water", "body_water_percentage", "agua_corporal"], ""));
+  form.elements.imc.value = normalizeNumberInput(pick(record, ["imc", "bmi"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar avaliacao";
   switchTrainerTab("assessments");
@@ -1805,12 +1823,14 @@ function editMeasurement(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.waist.value = normalizeNumberInput(pick(record, ["waist", "waist_cm", "cintura"], ""));
-  form.elements.abdomen.value = normalizeNumberInput(pick(record, ["abdomen", "abdomen_cm", "abdome"], ""));
-  form.elements.hip.value = normalizeNumberInput(pick(record, ["hip", "hip_cm", "quadril"], ""));
-  form.elements.arm.value = normalizeNumberInput(pick(record, ["arm", "arms", "arm_cm", "arms_cm", "bracos"], ""));
-  form.elements.thigh.value = normalizeNumberInput(pick(record, ["thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], ""));
-  form.elements.calf.value = normalizeNumberInput(pick(record, ["calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], ""));
+  form.elements.neck_cm.value = normalizeNumberInput(pick(record, ["neck_cm"], ""));
+  form.elements.chest_cm.value = normalizeNumberInput(pick(record, ["chest_cm", "chest"], ""));
+  form.elements.waist_cm.value = normalizeNumberInput(pick(record, ["waist_cm", "waist", "cintura"], ""));
+  form.elements.abdomen_cm.value = normalizeNumberInput(pick(record, ["abdomen_cm", "abdomen", "abdome"], ""));
+  form.elements.hip_cm.value = normalizeNumberInput(pick(record, ["hip_cm", "hip", "quadril"], ""));
+  form.elements.arm_cm.value = normalizeNumberInput(pick(record, ["arm_cm", "arms_cm", "arm", "arms", "bracos"], ""));
+  form.elements.thigh_cm.value = normalizeNumberInput(pick(record, ["thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], ""));
+  form.elements.calf_cm.value = normalizeNumberInput(pick(record, ["calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar medidas";
   switchTrainerTab("measurements");
@@ -1825,7 +1845,7 @@ function editWorkout(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.title.value = pick(record, ["title", "name", "nome"], "");
+  form.elements.name.value = pick(record, ["name", "title", "nome"], "");
   form.elements.goal.value = pick(record, ["goal", "description"], "");
   form.elements.notes.value = pick(record, ["notes"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar treino";
