@@ -829,20 +829,22 @@ async function createWorkoutLegacy(form) {
 async function addExerciseToWorkoutLegacy() {
   const workoutId = el.trainerWorkoutSelect.value;
   const exerciseId = el.trainerExerciseSelect.value;
+  const selectedExercise = state.exercises.find((exercise) => String(exercise.id) === String(exerciseId));
+  const exerciseName = pick(selectedExercise, ["name", "title", "nome"], "");
 
   if (!workoutId || !exerciseId) {
     showToast("Selecione treino e exercício.", "error");
     return;
   }
 
-  const currentCount = state.workoutExercises.filter((item) => String(item.workout_id) === String(workoutId)).length;
   const payload = {
     workout_id: workoutId,
-    exercise_id: exerciseId,
+    exercise_name: exerciseName,
     sets: Number(document.querySelector("#sets-input").value) || null,
     reps: document.querySelector("#reps-input").value || null,
+    weight: document.querySelector("#load-input").value || null,
     rest_seconds: Number(document.querySelector("#rest-input").value) || null,
-    order_index: currentCount + 1
+    instructions: document.querySelector("#exercise-notes-input").value || null
   };
 
   try {
@@ -1391,8 +1393,8 @@ function renderTrainerWorkoutExerciseItem(item) {
     <article class="exercise-row" data-workout-exercise-id="${escapeHtml(item.id)}">
       <div>
         <strong>${escapeHtml(pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio")))}</strong>
-        <span>Series: ${escapeHtml(formatNumber(pick(item, ["sets"], "-")))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(item, ["rest_seconds"], "-")))}s</span>
-        <small>${escapeHtml(pick(item, ["notes", "instructions"], ""))}</small>
+        <span>Series: ${escapeHtml(formatNumber(pick(item, ["sets"], "-")))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(item, ["rest_seconds"], "-")))}s</span>
+        <small>${escapeHtml(pick(item, ["instructions"], ""))}</small>
       </div>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-action="edit-workout-exercise" data-id="${escapeHtml(item.id)}">Editar</button>
@@ -1736,17 +1738,14 @@ async function addExerciseToWorkout() {
     return;
   }
 
-  const currentCount = getWorkoutExercises(workoutId).length;
   const payload = {
     workout_id: workoutId,
     exercise_name: exerciseName,
-    exercise_id: exerciseId,
     sets: numberOrNull(el.setsInput.value),
     reps: el.repsInput.value || null,
-    load_description: el.loadInput.value || null,
+    weight: el.loadInput.value || null,
     rest_seconds: numberOrNull(el.restInput.value),
-    notes: el.exerciseNotesInput.value || null,
-    order_index: currentCount + 1
+    instructions: el.exerciseNotesInput.value || null
   };
   const editId = el.addExerciseButton.dataset.editId;
   console.log("[GymPulse] addExerciseToWorkout(payload):", {
@@ -2025,12 +2024,13 @@ function editWorkoutExercise(id) {
 
   state.selectedWorkoutId = record.workout_id;
   el.trainerWorkoutSelect.value = record.workout_id;
-  el.trainerExerciseSelect.value = record.exercise_id;
+  const exerciseByName = state.exercises.find((exercise) => pick(exercise, ["name", "title", "nome"], "") === pick(record, ["exercise_name"], ""));
+  el.trainerExerciseSelect.value = record.exercise_id || exerciseByName?.id || "";
   el.setsInput.value = normalizeNumberInput(pick(record, ["sets"], ""));
   el.repsInput.value = pick(record, ["reps"], "");
-  el.loadInput.value = pick(record, ["load_description", "load", "weight"], "");
+  el.loadInput.value = pick(record, ["weight"], "");
   el.restInput.value = normalizeNumberInput(pick(record, ["rest_seconds"], ""));
-  el.exerciseNotesInput.value = pick(record, ["notes", "instructions"], "");
+  el.exerciseNotesInput.value = pick(record, ["instructions"], "");
   el.addExerciseButton.dataset.editId = id;
   el.addExerciseButton.textContent = "Atualizar exercicio";
   switchTrainerTab("workouts");
@@ -2106,7 +2106,7 @@ function renderExerciseEvolution(workouts) {
     getWorkoutExercises(workout.id).forEach((item) => {
       const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
       const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
-      lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(exerciseName)} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["load_description", "load", "weight"], "-"))}`);
+      lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(exerciseName)} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["weight"], "-"))}`);
     });
   });
   return lines.length ? lines.slice(0, 12) : ["Nenhum exercicio cadastrado nos treinos."];
