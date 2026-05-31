@@ -109,6 +109,7 @@ const el = {
   trainerWorkouts: document.querySelector("#trainer-workouts"),
   studentSearch: document.querySelector("#student-search"),
   addExerciseButton: document.querySelector("#add-exercise-to-workout"),
+  deleteStudentButton: document.querySelector("#delete-student-button"),
   setsInput: document.querySelector("#sets-input"),
   repsInput: document.querySelector("#reps-input"),
   loadInput: document.querySelector("#load-input"),
@@ -866,7 +867,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["assessments", "body_measurements", "workouts"].includes(tableName)) {
+      if (["students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[GymPulse] INSERT final em ${tableName}:`, currentPayload);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
@@ -1467,6 +1468,10 @@ async function updateStudentProfile(form) {
     restrictions: formData.get("restrictions") || null,
     notes: formData.get("notes") || null
   };
+  console.log("[GymPulse] updateStudent(id, payload):", {
+    id: state.selectedStudentId,
+    payload
+  });
 
   setFormLoading(form, true);
   try {
@@ -1704,6 +1709,11 @@ async function addExerciseToWorkout() {
     order_index: currentCount + 1
   };
   const editId = el.addExerciseButton.dataset.editId;
+  console.log("[GymPulse] addExerciseToWorkout(payload):", {
+    mode: editId ? "update" : "insert",
+    id: editId || null,
+    payload
+  });
 
   try {
     if (editId) {
@@ -1742,7 +1752,7 @@ async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage)
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["assessments", "body_measurements", "workouts"].includes(tableName)) {
+      if (["students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[GymPulse] UPDATE final em ${tableName}:`, { id, payload: currentPayload });
       }
       return await runQuery(supabaseClient.from(tableName).update(currentPayload).eq("id", id).select(), fallbackMessage);
@@ -1762,32 +1772,121 @@ async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage)
 }
 
 /**
- * Exclui um registro apos confirmacao visual.
+ * Exclui registros do Supabase sem depender de retorno select.
  */
-async function deleteRecord(tableName, id, successMessage) {
+async function deleteById(tableName, id, fallbackMessage) {
+  const { error } = await supabaseClient.from(tableName).delete().eq("id", id);
+  if (error) {
+    state.lastError = error.message;
+    throw new Error(`${fallbackMessage}: ${error.message}`);
+  }
+}
+
+/**
+ * Recarrega dados e atualiza o perfil selecionado depois de uma exclusao.
+ */
+async function reloadAfterDelete() {
+  await loadSupabaseData();
+  await refreshSelectedStudentProfile();
+}
+
+/**
+ * Exclui uma avaliacao pelo id.
+ */
+async function deleteAssessment(id) {
   if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  console.log("[GymPulse] deleteAssessment(id):", id);
 
   try {
-    await runQuery(supabaseClient.from(tableName).delete().eq("id", id).select(), "Erro ao excluir registro");
-    showToast(successMessage);
-    await loadSupabaseData();
+    await deleteById("assessments", id, "Erro ao excluir avaliacao");
+    showToast("Avaliacao excluida.");
+    await reloadAfterDelete();
   } catch (error) {
     showToast(error.message, "error");
   }
 }
 
 /**
- * Exclui treino e seus exercicios antes, caso a foreign key nao esteja com cascade.
+ * Exclui uma medida corporal pelo id.
  */
-async function deleteWorkoutWithExercises(id) {
+async function deleteBodyMeasurement(id) {
   if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  console.log("[GymPulse] deleteBodyMeasurement(id):", id);
 
   try {
-    await runQuery(supabaseClient.from("workout_exercises").delete().eq("workout_id", id).select(), "Erro ao excluir exercicios do treino");
-    await runQuery(supabaseClient.from("workouts").delete().eq("id", id).select(), "Erro ao excluir treino");
+    await deleteById("body_measurements", id, "Erro ao excluir medida");
+    showToast("Medida excluida.");
+    await reloadAfterDelete();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Exclui exercicio dentro de treino pelo id.
+ */
+async function deleteWorkoutExercise(id) {
+  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  console.log("[GymPulse] deleteWorkoutExercise(id):", id);
+
+  try {
+    await deleteById("workout_exercises", id, "Erro ao remover exercicio do treino");
+    showToast("Exercicio removido do treino.");
+    await reloadAfterDelete();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Exclui treino pelo id e remove seus exercicios caso nao exista cascade.
+ */
+async function deleteWorkout(id) {
+  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  console.log("[GymPulse] deleteWorkout(id):", id);
+
+  try {
+    await supabaseClient.from("workout_exercises").delete().eq("workout_id", id);
+    await deleteById("workouts", id, "Erro ao excluir treino");
     if (String(state.selectedWorkoutId) === String(id)) state.selectedWorkoutId = "";
     showToast("Treino excluido.");
+    await reloadAfterDelete();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Exclui aluno selecionado e limpa o perfil.
+ */
+async function deleteStudent(id = state.selectedStudentId) {
+  if (!id) {
+    showToast("Selecione um aluno antes de excluir.", "error");
+    return;
+  }
+
+  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  console.log("[GymPulse] deleteStudent(id):", id);
+
+  try {
+    const studentWorkouts = getStudentWorkouts(id);
+    const workoutIds = studentWorkouts.map((workout) => workout.id).filter(Boolean);
+    if (workoutIds.length) {
+      await supabaseClient.from("workout_exercises").delete().in("workout_id", workoutIds);
+    }
+    await supabaseClient.from("workout_logs").delete().eq("student_id", id);
+    await supabaseClient.from("assessments").delete().eq("student_id", id);
+    await supabaseClient.from("body_measurements").delete().eq("student_id", id);
+    await supabaseClient.from("workouts").delete().eq("student_id", id);
+    await deleteById("students", id, "Erro ao excluir aluno");
+
+    state.selectedStudentId = "";
+    state.selectedWorkoutId = "";
+    showToast("Aluno excluido.");
     await loadSupabaseData();
+    state.selectedStudentId = "";
+    renderTrainerStudents();
+    await renderTrainerProfile();
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -1883,13 +1982,13 @@ function handleTrainerListAction(event) {
   const { action, id } = button.dataset;
 
   if (action === "edit-assessment") editAssessment(id);
-  if (action === "delete-assessment") deleteRecord("assessments", id, "Avaliacao excluida.");
+  if (action === "delete-assessment") deleteAssessment(id);
   if (action === "edit-measurement") editMeasurement(id);
-  if (action === "delete-measurement") deleteRecord("body_measurements", id, "Medida excluida.");
+  if (action === "delete-measurement") deleteBodyMeasurement(id);
   if (action === "edit-workout") editWorkout(id);
-  if (action === "delete-workout") deleteWorkoutWithExercises(id);
+  if (action === "delete-workout") deleteWorkout(id);
   if (action === "edit-workout-exercise") editWorkoutExercise(id);
-  if (action === "delete-workout-exercise") deleteRecord("workout_exercises", id, "Exercicio removido do treino.");
+  if (action === "delete-workout-exercise") deleteWorkoutExercise(id);
 }
 
 /**
@@ -2116,6 +2215,7 @@ function bindEvents() {
     event.preventDefault();
     updateStudentProfile(event.currentTarget);
   });
+  el.deleteStudentButton.addEventListener("click", () => deleteStudent());
   document.querySelector("#new-workout-form").addEventListener("submit", (event) => {
     event.preventDefault();
     createWorkout(event.currentTarget);
