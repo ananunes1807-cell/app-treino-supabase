@@ -374,11 +374,12 @@ function renderWorkoutWithExercises(workout) {
  */
 function renderWorkoutExerciseItem(item) {
   const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
+  const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
 
   return `
     <article class="simple-item">
-      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</strong>
-      <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+      <strong>${escapeHtml(exerciseName)}</strong>
+      <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
     </article>
   `;
 }
@@ -388,12 +389,44 @@ function renderWorkoutExerciseItem(item) {
  */
 function renderWorkoutLogItem(log) {
   const workout = state.workouts.find((item) => String(item.id) === String(log.workout_id));
+  const snapshot = normalizeExercisesSnapshot(pick(log, ["exercises_snapshot"], []));
 
   return `
     <article class="simple-item">
       <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</strong>
       <span>Concluído em ${formatDate(pick(log, ["completed_at", "created_at"]))}</span>
+      ${snapshot.length ? `<div class="snapshot-list">${snapshot.map(renderSnapshotExerciseItem).join("")}</div>` : `<small>Nenhum exercicio salvo neste historico.</small>`}
     </article>
+  `;
+}
+
+/**
+ * Normaliza o snapshot salvo no workout_logs para exibicao segura.
+ */
+function normalizeExercisesSnapshot(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("[GymPulse] Erro ao ler exercises_snapshot:", error);
+    return [];
+  }
+}
+
+/**
+ * Renderiza um exercicio salvo dentro do snapshot do historico.
+ */
+function renderSnapshotExerciseItem(exercise) {
+  return `
+    <small>
+      ${escapeHtml(pick(exercise, ["exercise_name"], "Exercicio"))}
+      - ${escapeHtml(formatNumber(pick(exercise, ["sets"], "-")))}x${escapeHtml(pick(exercise, ["reps"], "-"))}
+      - Carga: ${escapeHtml(pick(exercise, ["weight"], "-"))}
+      - Descanso: ${escapeHtml(formatNumber(pick(exercise, ["rest_seconds"], "-")))}s
+    </small>
   `;
 }
 
@@ -917,13 +950,27 @@ async function completeCurrentWorkout() {
   }
 
   try {
+    const workoutExercises = await fetchTable("workout_exercises", {
+      eq: { column: "workout_id", value: workout.id },
+      orderBy: "created_at"
+    });
+    const exercisesSnapshot = workoutExercises.map((exercise) => ({
+      exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
+      sets: numberOrNull(pick(exercise, ["sets"], "")),
+      reps: pick(exercise, ["reps"], null),
+      weight: pick(exercise, ["weight"], null),
+      rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], ""))
+    }));
+    console.log("[GymPulse] workout_logs exercises_snapshot:", exercisesSnapshot);
+
     await runQuery(
       supabaseClient
         .from("workout_logs")
         .insert({
           workout_id: workout.id,
           student_id: state.studentAreaId,
-          completed_at: new Date().toISOString()
+          completed_at: new Date().toISOString(),
+          exercises_snapshot: exercisesSnapshot
         })
         .select(),
       "Erro ao marcar treino como concluido"
