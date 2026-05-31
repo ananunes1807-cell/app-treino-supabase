@@ -538,6 +538,38 @@ label {
   word-break: normal;
 }
 
+.snapshot-list {
+  display: grid;
+  width: 100%;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.snapshot-list > b {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.snapshot-exercise {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 2px);
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.snapshot-exercise strong,
+.snapshot-exercise span {
+  display: block;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.snapshot-exercise span {
+  color: var(--muted);
+}
+
 .stacked {
   display: grid;
   align-items: start;

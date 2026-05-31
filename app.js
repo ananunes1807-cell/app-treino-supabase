@@ -395,7 +395,7 @@ function renderWorkoutLogItem(log) {
     <article class="simple-item">
       <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</strong>
       <span>Concluído em ${formatDate(pick(log, ["completed_at", "created_at"]))}</span>
-      ${snapshot.length ? `<div class="snapshot-list">${snapshot.map(renderSnapshotExerciseItem).join("")}</div>` : `<small>Nenhum exercicio salvo neste historico.</small>`}
+      ${snapshot.length ? `<div class="snapshot-list"><b>Exercicios:</b>${snapshot.map(renderSnapshotExerciseItem).join("")}</div>` : `<small>Nenhum exercicio salvo neste historico.</small>`}
     </article>
   `;
 }
@@ -419,14 +419,15 @@ function normalizeExercisesSnapshot(value) {
 /**
  * Renderiza um exercicio salvo dentro do snapshot do historico.
  */
-function renderSnapshotExerciseItem(exercise) {
+function renderSnapshotExerciseItem(exercise, index) {
   return `
-    <small>
-      ${escapeHtml(pick(exercise, ["exercise_name"], "Exercicio"))}
-      - ${escapeHtml(formatNumber(pick(exercise, ["sets"], "-")))}x${escapeHtml(pick(exercise, ["reps"], "-"))}
-      - Carga: ${escapeHtml(pick(exercise, ["weight"], "-"))}
-      - Descanso: ${escapeHtml(formatNumber(pick(exercise, ["rest_seconds"], "-")))}s
-    </small>
+    <div class="snapshot-exercise">
+      <strong>${index + 1}. ${escapeHtml(pick(exercise, ["exercise_name"], "Exercicio"))}</strong>
+      <span>Series: ${escapeHtml(formatNumber(pick(exercise, ["sets"], "-")))}</span>
+      <span>Reps: ${escapeHtml(pick(exercise, ["reps"], "-"))}</span>
+      <span>Carga: ${escapeHtml(pick(exercise, ["weight"], "-"))}</span>
+      <span>Descanso: ${escapeHtml(formatNumber(pick(exercise, ["rest_seconds"], "-")))}s</span>
+    </div>
   `;
 }
 
