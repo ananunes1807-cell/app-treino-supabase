@@ -70,6 +70,7 @@ const state = {
   authProfile: null,
   selectedAdminStudentId: "",
   preferredLoginRole: "student",
+  passwordRecoveryMode: false,
   students: [],
   exercises: [],
   workouts: [],
@@ -154,6 +155,9 @@ const el = {
   loginHelperTitle: document.querySelector("#login-helper-title"),
   loginHelperDescription: document.querySelector("#login-helper-description"),
   firstAccessForm: document.querySelector("#first-access-form"),
+  passwordFlowSubtitle: document.querySelector("#password-flow-subtitle"),
+  passwordFlowTitle: document.querySelector("#password-flow-title"),
+  passwordFlowDescription: document.querySelector("#password-flow-description"),
   studentAccessResult: document.querySelector("#student-access-result")
 };
 
@@ -3192,11 +3196,55 @@ function needsFirstAccessPasswordChange() {
   );
 }
 
+function getSupabaseUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const hashParams = new URLSearchParams(hash);
+
+  hashParams.forEach((value, key) => {
+    if (!params.has(key)) params.set(key, value);
+  });
+
+  return params;
+}
+
+function urlIndicatesPasswordRecovery() {
+  const params = getSupabaseUrlParams();
+  const type = normalizeText(params.get("type") || "");
+  const href = normalizeText(window.location.href || "");
+  return type === "recovery" || href.includes("type=recovery");
+}
+
+function clearAuthUrlParams() {
+  window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
+}
+
+function renderPasswordFlowText() {
+  const isRecovery = state.passwordRecoveryMode;
+  el.passwordFlowSubtitle.textContent = isRecovery ? "Recuperacao de senha" : "Primeiro acesso";
+  el.passwordFlowTitle.textContent = isRecovery ? "Criar nova senha" : "Crie sua nova senha";
+  el.passwordFlowDescription.textContent = isRecovery
+    ? "Informe uma nova senha para recuperar seu acesso ao app."
+    : "Sua senha temporaria precisa ser substituida antes de usar o app.";
+}
+
 async function applyAuthenticatedSession(session) {
   if (!session?.user) return;
 
   state.authUser = session.user;
   state.authProfile = await fetchAuthProfile(session.user);
+
+  if (state.passwordRecoveryMode) {
+    renderPasswordFlowText();
+    el.sidebar.classList.add("hidden");
+    document.body.dataset.role = "";
+    renderAuthStatus();
+    changeScreen("first-access");
+    return;
+  }
+
   const role = getCurrentRole();
 
   if (!role) {
@@ -3224,6 +3272,7 @@ async function applyAuthenticatedSession(session) {
   renderAuthStatus();
 
   if (needsFirstAccessPasswordChange()) {
+    renderPasswordFlowText();
     changeScreen("first-access");
     return;
   }
@@ -3356,8 +3405,29 @@ async function handleFirstAccessPasswordChange(form) {
   setFormLoading(form, true);
 
   try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData.session) {
+      throw new Error("Sessao de recuperacao nao encontrada. Abra novamente o link enviado por e-mail.");
+    }
+
     const { error } = await supabaseClient.auth.updateUser({ password });
     if (error) throw error;
+
+    if (state.passwordRecoveryMode) {
+      form.reset();
+      state.passwordRecoveryMode = false;
+      clearAuthUrlParams();
+      await supabaseClient.auth.signOut();
+      state.authUser = null;
+      state.authProfile = null;
+      state.accessRole = "";
+      document.body.dataset.role = "";
+      el.sidebar.classList.add("hidden");
+      renderAuthStatus();
+      showToast("Senha alterada com sucesso. Entre novamente com e-mail e senha.");
+      changeScreen("access");
+      return;
+    }
 
     const profilePayload = {
       status_usuario: "ativo",
@@ -3387,6 +3457,8 @@ async function handleFirstAccessPasswordChange(form) {
 
 async function initAuthSession() {
   renderAuthStatus();
+  state.passwordRecoveryMode = urlIndicatesPasswordRecovery();
+  renderPasswordFlowText();
 
   try {
     const { data } = await supabaseClient.auth.getSession();
@@ -3398,7 +3470,25 @@ async function initAuthSession() {
     console.warn("[GymPulse] Nao foi possivel restaurar sessao Auth.", error);
   }
 
+  if (state.passwordRecoveryMode) {
+    changeScreen("first-access");
+  }
+
   await loadSupabaseData({ silent: true });
+}
+
+function bindAuthRecoveryEvents() {
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event !== "PASSWORD_RECOVERY") return;
+    state.passwordRecoveryMode = true;
+    renderPasswordFlowText();
+    if (session?.user) {
+      state.authUser = session.user;
+      state.authProfile = await fetchAuthProfile(session.user);
+    }
+    showToast("Link de recuperacao validado. Crie sua nova senha.");
+    changeScreen("first-access");
+  });
 }
 
 /**
@@ -3406,7 +3496,7 @@ async function initAuthSession() {
  */
 function canAccessScreen(screenName) {
   if (screenName === "access") return true;
-  if (screenName === "first-access") return needsFirstAccessPasswordChange();
+  if (screenName === "first-access") return state.passwordRecoveryMode || needsFirstAccessPasswordChange();
   if (state.accessRole === "student") return screenName === "student-area";
   if (state.accessRole === "trainer") return screenName === "trainer-area";
   if (state.accessRole === "admin") return ["admin-area", "trainer-area", "student-area"].includes(screenName);
@@ -3676,6 +3766,7 @@ function renderWorkoutActions(workout, hasLogs) {
  */
 async function init() {
   bindEvents();
+  bindAuthRecoveryEvents();
   hydrateAdminConfigForm();
   updateLoginRoleHelper(state.preferredLoginRole);
   await initAuthSession();

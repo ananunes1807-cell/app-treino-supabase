@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-authredirect" />
+    <link rel="stylesheet" href="style.css?v=20260601-recovery" />
   </head>
   <body>
     <div class="app">
@@ -78,9 +78,9 @@
         <section class="screen" id="screen-first-access">
           <article class="card access-card">
             <div>
-              <p class="subtitle">Primeiro acesso</p>
-              <h2>Crie sua nova senha</h2>
-              <p class="muted-text">Sua senha temporaria precisa ser substituida antes de usar o app.</p>
+              <p class="subtitle" id="password-flow-subtitle">Primeiro acesso</p>
+              <h2 id="password-flow-title">Crie sua nova senha</h2>
+              <p class="muted-text" id="password-flow-description">Sua senha temporaria precisa ser substituida antes de usar o app.</p>
             </div>
             <form class="auth-login" id="first-access-form">
               <label>
@@ -475,7 +475,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-authredirect"></script>
-    <script src="app.js?v=20260601-authredirect"></script>
+    <script src="supabase.js?v=20260601-recovery"></script>
+    <script src="app.js?v=20260601-recovery"></script>
   </body>
 </html>
