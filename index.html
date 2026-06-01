@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-firstaccess" />
+    <link rel="stylesheet" href="style.css?v=20260601-loginfix" />
   </head>
   <body>
     <div class="app">
@@ -68,21 +68,6 @@
             <div class="login-helper">
               <strong id="login-helper-title">&Aacute;rea do aluno</strong>
               <span id="login-helper-description">Acesse seus treinos, registre exerc&iacute;cios, cargas, repeti&ccedil;&otilde;es e observa&ccedil;&otilde;es.</span>
-            </div>
-            <div class="access-divider">Acesso temporario de suporte</div>
-            <div class="access-grid compact-access">
-              <button class="access-button" type="button" data-access-role="student">
-                <strong>Entrar como Aluno</strong>
-                <span>Meu treino, hist&oacute;rico, avalia&ccedil;&otilde;es e medidas.</span>
-              </button>
-              <button class="access-button" type="button" data-access-role="trainer">
-                <strong>Entrar como Treinador</strong>
-                <span>Alunos, avalia&ccedil;&otilde;es, medidas, treinos e exerc&iacute;cios.</span>
-              </button>
-              <button class="access-button" type="button" data-access-role="admin">
-                <strong>TI/Admin</strong>
-                <span>Configuracao Supabase, diagnostico e RLS.</span>
-              </button>
             </div>
           </article>
         </section>
@@ -487,7 +472,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-firstaccess"></script>
-    <script src="app.js?v=20260601-firstaccess"></script>
+    <script src="supabase.js?v=20260601-loginfix"></script>
+    <script src="app.js?v=20260601-loginfix"></script>
   </body>
 </html>

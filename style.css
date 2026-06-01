@@ -386,14 +386,6 @@ label {
   color: var(--primary-dark);
 }
 
-.access-divider {
-  margin: 16px 0 8px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
 .role-picker {
   display: inline-grid;
   grid-template-columns: repeat(3, auto);
@@ -432,15 +424,6 @@ label {
 
 .login-helper strong {
   color: var(--text);
-}
-
-.compact-access {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.compact-access .access-button {
-  min-height: 92px;
-  padding: 12px;
 }
 
 .segmented-filter {
@@ -887,10 +870,6 @@ label {
   .role-picker {
     width: 100%;
     grid-template-columns: repeat(3, 1fr);
-  }
-
-  .compact-access {
-    grid-template-columns: 1fr;
   }
 
   .primary-button,

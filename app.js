@@ -1603,26 +1603,51 @@ function getSelectedAdminStudentId() {
 
 async function updateStudentStatus(id, status) {
   if (!id) throw new Error("Selecione um aluno antes de alterar status.");
-  await updateWithSchemaFallback("students", id, { status }, "Erro ao atualizar status do aluno");
+  try {
+    await updateWithSchemaFallback("students", id, { status }, "Erro ao atualizar status do aluno");
+  } catch (error) {
+    const rpcByStatus = {
+      excluido: "admin_soft_delete_student",
+      arquivado: "admin_archive_student",
+      ativo: "admin_restore_student"
+    };
+    if (!isAdmin() || !rpcByStatus[status]) throw error;
+    await runAdminMaintenanceRpc(rpcByStatus[status], id, error.message);
+  }
 }
 
 async function updateStudentWorkoutsStatus(studentId, status) {
   if (!studentId) throw new Error("Selecione um aluno antes de alterar treinos.");
   const workouts = state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
-  for (const workout of workouts) {
-    await updateWithSchemaFallback("workouts", workout.id, { status }, "Erro ao atualizar treinos do aluno");
+  try {
+    for (const workout of workouts) {
+      await updateWithSchemaFallback("workouts", workout.id, { status }, "Erro ao atualizar treinos do aluno");
+    }
+  } catch (error) {
+    if (!isAdmin() || status !== "excluido") throw error;
+    await runAdminMaintenanceRpc("admin_clear_student_workouts", studentId, error.message);
   }
   return workouts.length;
 }
 
 async function clearStudentLogs(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar sessoes.");
-  await deleteByColumn("workout_logs", "student_id", studentId, "Erro ao excluir sessoes do aluno");
+  try {
+    await deleteByColumn("workout_logs", "student_id", studentId, "Erro ao excluir sessoes do aluno");
+  } catch (error) {
+    if (!isAdmin()) throw error;
+    await runAdminMaintenanceRpc("admin_clear_student_sessions", studentId, error.message);
+  }
 }
 
 async function clearStudentMeasurements(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar medidas.");
-  await deleteByColumn("body_measurements", "student_id", studentId, "Erro ao excluir medidas do aluno");
+  try {
+    await deleteByColumn("body_measurements", "student_id", studentId, "Erro ao excluir medidas do aluno");
+  } catch (error) {
+    if (!isAdmin()) throw error;
+    await runAdminMaintenanceRpc("admin_clear_student_measurements", studentId, error.message);
+  }
 }
 
 async function clearStudentAssessments(studentId) {
@@ -1631,10 +1656,23 @@ async function clearStudentAssessments(studentId) {
 }
 
 async function resetStudentData(studentId) {
-  await clearStudentLogs(studentId);
-  await clearStudentMeasurements(studentId);
-  await clearStudentAssessments(studentId);
-  await updateStudentWorkoutsStatus(studentId, "arquivado");
+  try {
+    await clearStudentLogs(studentId);
+    await clearStudentMeasurements(studentId);
+    await clearStudentAssessments(studentId);
+    await updateStudentWorkoutsStatus(studentId, "arquivado");
+  } catch (error) {
+    if (!isAdmin()) throw error;
+    await runAdminMaintenanceRpc("admin_reset_student_for_tests", studentId, error.message);
+  }
+}
+
+async function runAdminMaintenanceRpc(functionName, studentId, originalMessage) {
+  const { error } = await supabaseClient.rpc(functionName, { target_student_id: studentId });
+  if (error) {
+    console.error(`[GymPulse] Erro RPC ${functionName}:`, error);
+    throw new Error(`${originalMessage}. RPC ${functionName}: ${error.message}`);
+  }
 }
 
 function renderAdminStudentRecords(studentId) {

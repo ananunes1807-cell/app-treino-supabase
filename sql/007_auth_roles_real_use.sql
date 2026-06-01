@@ -273,9 +273,20 @@ using (
 );
 
 drop policy if exists assessments_real_write_admin_personal on public.assessments;
-create policy assessments_real_write_admin_personal
+drop policy if exists assessments_real_insert_admin_personal on public.assessments;
+create policy assessments_real_insert_admin_personal
 on public.assessments
-for all
+for insert
+to authenticated
+with check (
+  public.current_app_role() = 'admin'
+  or student_id in (select id from public.students where personal_id = public.current_app_profile_id())
+);
+
+drop policy if exists assessments_real_update_admin_personal on public.assessments;
+create policy assessments_real_update_admin_personal
+on public.assessments
+for update
 to authenticated
 using (
   public.current_app_role() = 'admin'
@@ -285,6 +296,13 @@ with check (
   public.current_app_role() = 'admin'
   or student_id in (select id from public.students where personal_id = public.current_app_profile_id())
 );
+
+drop policy if exists assessments_real_delete_admin on public.assessments;
+create policy assessments_real_delete_admin
+on public.assessments
+for delete
+to authenticated
+using (public.current_app_role() = 'admin');
 
 drop policy if exists body_measurements_real_select on public.body_measurements;
 create policy body_measurements_real_select
@@ -298,9 +316,20 @@ using (
 );
 
 drop policy if exists body_measurements_real_write_admin_personal on public.body_measurements;
-create policy body_measurements_real_write_admin_personal
+drop policy if exists body_measurements_real_insert_admin_personal on public.body_measurements;
+create policy body_measurements_real_insert_admin_personal
 on public.body_measurements
-for all
+for insert
+to authenticated
+with check (
+  public.current_app_role() = 'admin'
+  or student_id in (select id from public.students where personal_id = public.current_app_profile_id())
+);
+
+drop policy if exists body_measurements_real_update_admin_personal on public.body_measurements;
+create policy body_measurements_real_update_admin_personal
+on public.body_measurements
+for update
 to authenticated
 using (
   public.current_app_role() = 'admin'
@@ -310,6 +339,13 @@ with check (
   public.current_app_role() = 'admin'
   or student_id in (select id from public.students where personal_id = public.current_app_profile_id())
 );
+
+drop policy if exists body_measurements_real_delete_admin on public.body_measurements;
+create policy body_measurements_real_delete_admin
+on public.body_measurements
+for delete
+to authenticated
+using (public.current_app_role() = 'admin');
 
 drop policy if exists exercise_library_real_select on public.exercise_library;
 create policy exercise_library_real_select
