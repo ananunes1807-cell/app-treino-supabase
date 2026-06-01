@@ -3120,6 +3120,32 @@ function renderAuthStatus() {
   el.bootstrapAdminButton.classList.toggle("hidden", state.preferredLoginRole !== "admin" || Boolean(state.authUser));
 }
 
+function formatSupabaseAuthError(error) {
+  if (!error) return "erro desconhecido";
+
+  const details = [
+    error.message ? `message=${error.message}` : "",
+    error.status ? `status=${error.status}` : "",
+    error.code ? `code=${error.code}` : "",
+    error.name ? `name=${error.name}` : ""
+  ].filter(Boolean);
+
+  return details.join(" | ") || String(error);
+}
+
+function showAuthError(context, error) {
+  const formatted = formatSupabaseAuthError(error);
+  console.error(`[GymPulse] ${context}:`, {
+    message: error?.message || null,
+    status: error?.status || null,
+    code: error?.code || null,
+    name: error?.name || null,
+    error
+  });
+  el.authStatus.textContent = `${context}: ${formatted}`;
+  showToast(`${context}: ${formatted}`, "error");
+}
+
 function formatRoleLabel(role) {
   const labels = {
     admin: "Admin TI",
@@ -3189,6 +3215,7 @@ async function applyAuthenticatedSession(session) {
 async function handleAuthLogin(form) {
   const formData = new FormData(form);
   setFormLoading(form, true);
+  el.authStatus.textContent = "Entrando...";
 
   try {
     const { data, error } = await supabaseClient.auth.signInWithPassword({
@@ -3196,11 +3223,14 @@ async function handleAuthLogin(form) {
       password: formData.get("password")
     });
 
-    if (error) throw error;
+    if (error) {
+      showAuthError("Erro exato do Supabase Auth no login", error);
+      return;
+    }
     await applyAuthenticatedSession(data.session);
     showToast("Login realizado.");
   } catch (error) {
-    showToast(`Erro no login: ${error.message}`, "error");
+    showAuthError("Excecao capturada no login", error);
   } finally {
     setFormLoading(form, false);
   }
