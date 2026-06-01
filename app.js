@@ -4,6 +4,7 @@ const ADMIN_TEMP_PASSWORD = "ac741";
 const EXECUTION_DRAFT_PREFIX = "gympulse_execution_draft";
 const PENDING_WORKOUT_LOGS_KEY = "gympulse_pending_workout_logs";
 const REQUIRED_TABLES = [
+  "app_profiles",
   "students",
   "assessments",
   "body_measurements",
@@ -13,6 +14,8 @@ const REQUIRED_TABLES = [
   "workout_logs"
 ];
 const EXPECTED_RLS_POLICIES = [
+  ["app_profiles", "SELECT authenticated", "app_profiles_read_own_or_admin"],
+  ["app_profiles", "ALL admin", "app_profiles_admin_write"],
   ["students", "SELECT anon", "mvp_anon_select_students"],
   ["students", "INSERT anon", "mvp_anon_insert_students"],
   ["students", "UPDATE anon", "mvp_anon_update_students"],
@@ -60,8 +63,12 @@ const DEFAULT_EXERCISES = [
   ["Elevacao lateral", "Ombro", "Halteres", "Iniciante", "Elevar os bracos ate a linha dos ombros."],
   ["Face pull", "Ombro", "Cabo", "Iniciante", "Puxar a corda em direcao ao rosto contraindo deltoide posterior."]
 ];
+const DELETE_CONFIRMATION = "Tem certeza que deseja excluir? Esta acao nao podera ser desfeita.";
 
 const state = {
+  authUser: null,
+  authProfile: null,
+  selectedAdminStudentId: "",
   students: [],
   exercises: [],
   workouts: [],
@@ -75,6 +82,7 @@ const state = {
   trainerMeasurementsCache: [],
   studentAreaId: "",
   studentExerciseExecution: {},
+  studentExerciseIndex: 0,
   studentSearch: "",
   exerciseSearch: "",
   exerciseGroupFilter: "",
@@ -134,7 +142,12 @@ const el = {
   adminDiagnostics: document.querySelector("#admin-diagnostics"),
   adminErrorsList: document.querySelector("#admin-errors-list"),
   adminRlsPolicies: document.querySelector("#admin-rls-policies"),
-  adminMaintenanceLog: document.querySelector("#admin-maintenance-log")
+  adminMaintenanceLog: document.querySelector("#admin-maintenance-log"),
+  authLoginForm: document.querySelector("#auth-login-form"),
+  authEmail: document.querySelector("#auth-email"),
+  authPassword: document.querySelector("#auth-password"),
+  authLogoutButton: document.querySelector("#auth-logout-button"),
+  authStatus: document.querySelector("#auth-status")
 };
 
 /**
@@ -278,8 +291,16 @@ async function loadSupabaseData(options = {}) {
   state.workoutExercises = workoutExercises;
   state.workoutLogs = workoutLogs;
 
-  if (!state.studentAreaId && students[0]) state.studentAreaId = students[0].id;
-  if (!state.selectedStudentId && students[0]) state.selectedStudentId = students[0].id;
+  const accessibleStudents = getAccessibleStudents();
+  if (isStudent() && state.authProfile?.student_id) state.studentAreaId = state.authProfile.student_id;
+  if (!state.studentAreaId && accessibleStudents[0]) state.studentAreaId = accessibleStudents[0].id;
+  if (!accessibleStudents.some((student) => String(student.id) === String(state.studentAreaId))) {
+    state.studentAreaId = accessibleStudents[0]?.id || "";
+  }
+  if (!state.selectedStudentId && accessibleStudents[0]) state.selectedStudentId = accessibleStudents[0].id;
+  if (!canManageStudent(state.selectedStudentId)) {
+    state.selectedStudentId = accessibleStudents[0]?.id || "";
+  }
   loadCurrentExecutionDraft();
 
   const hasBlockingError = Boolean(state.tableErrors.students || state.tableErrors.exercise_library);
@@ -338,8 +359,10 @@ function renderMetrics() {
  * Preenche o seletor da area Aluno.
  */
 function renderStudentAreaSelect() {
-  el.studentAreaSelect.innerHTML = `<option value="">Selecione um aluno</option>${state.students.map(renderStudentOption).join("")}`;
+  const students = getAccessibleStudents();
+  el.studentAreaSelect.innerHTML = `<option value="">Selecione um aluno</option>${students.map(renderStudentOption).join("")}`;
   el.studentAreaSelect.value = state.studentAreaId;
+  el.studentAreaSelect.disabled = isStudent() && Boolean(state.authProfile?.student_id);
 }
 
 /**
@@ -394,22 +417,39 @@ function getCurrentWorkout(studentId) {
  */
 function renderWorkoutWithExercises(workout) {
   const exercises = state.workoutExercises.filter((item) => String(item.workout_id) === String(workout.id));
+  const safeIndex = Math.min(Math.max(state.studentExerciseIndex, 0), Math.max(exercises.length - 1, 0));
+  state.studentExerciseIndex = safeIndex;
+  const currentExercise = exercises[safeIndex];
 
   return `
     <article class="list-item workout-highlight student-workout-start">
       <div>
-        <small>Comecar treino</small>
+        <small>Treino do dia</small>
         <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
         <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo não informado"))}</span>
       </div>
     </article>
-    ${exercises.length ? exercises.map(renderWorkoutExerciseItem).join("") : emptyMessage("Este treino ainda não possui exercícios.")}
+    ${exercises.length ? renderStudentExerciseStep(currentExercise, safeIndex, exercises.length) : emptyMessage("Este treino ainda não possui exercícios.")}
   `;
 }
 
 /**
  * Renderiza um exercício vinculado a um treino.
  */
+function renderStudentExerciseStep(exercise, index, total) {
+  return `
+    <div class="student-exercise-progress">
+      <strong>Exercicio ${index + 1} de ${total}</strong>
+      <span>Faca na ordem que preferir. Os dados ficam salvos no aparelho.</span>
+    </div>
+    ${renderWorkoutExerciseItem(exercise)}
+    <div class="student-exercise-nav">
+      <button class="secondary-button" type="button" data-student-exercise-nav="prev" ${index === 0 ? "disabled" : ""}>Anterior</button>
+      <button class="primary-button" type="button" data-student-exercise-nav="next" ${index >= total - 1 ? "disabled" : ""}>Proximo exercicio</button>
+    </div>
+  `;
+}
+
 function getExecutionDraftKey(workoutId = getCurrentWorkout(state.studentAreaId)?.id) {
   return workoutId && state.studentAreaId
     ? `${EXECUTION_DRAFT_PREFIX}:${state.studentAreaId}:${workoutId}`
@@ -604,10 +644,11 @@ function renderEvolutionCard(label, value) {
  */
 function renderTrainerStudents() {
   const search = state.studentSearch.toLowerCase().trim();
-  const students = state.students.filter((student) => {
+  const students = getAccessibleStudents().filter((student) => {
     const name = pick(student, ["name", "full_name", "nome"], "").toLowerCase();
     const email = pick(student, ["email"], "").toLowerCase();
-    return !search || name.includes(search) || email.includes(search);
+    const objective = pick(student, ["objective"], "").toLowerCase();
+    return !search || name.includes(search) || email.includes(search) || objective.includes(search);
   });
 
   el.trainerStudentsList.innerHTML = students.length
@@ -840,7 +881,11 @@ async function createStudent(form) {
     height_cm: numberOrNull(formData.get("height_cm")),
     objective: formData.get("objective") || null,
     difficulties: formData.get("difficulties") || null,
-    restrictions: formData.get("restrictions") || null
+    restrictions: formData.get("restrictions") || null,
+    status: "ativo",
+    personal_id: isTrainer() ? (state.authProfile?.id || null) : null,
+    trainer_id: isTrainer() ? (state.authProfile?.id || state.authUser?.id || null) : null,
+    created_by: state.authUser?.id || null
   };
 
   try {
@@ -966,6 +1011,76 @@ function formatNumber(value) {
   if (value === null || value === undefined || value === "" || value === "-") return value || "-";
   const number = Number(value);
   return Number.isNaN(number) ? value : String(number);
+}
+
+function normalizeRole(role) {
+  const value = normalizeText(role || "");
+  if (["admin", "admin_ti", "ti", "controle"].includes(value)) return "admin";
+  if (["personal", "trainer", "treinador"].includes(value)) return "trainer";
+  if (["student", "aluno"].includes(value)) return "student";
+  return "";
+}
+
+function getCurrentRole() {
+  return normalizeRole(state.authProfile?.role) || normalizeRole(state.accessRole);
+}
+
+function isAdmin() {
+  return getCurrentRole() === "admin";
+}
+
+function isTrainer() {
+  return getCurrentRole() === "trainer";
+}
+
+function isStudent() {
+  return getCurrentRole() === "student";
+}
+
+function getProfileOwnerIds() {
+  return [
+    state.authProfile?.id,
+    state.authProfile?.user_id,
+    state.authProfile?.trainer_id,
+    state.authUser?.id
+  ].filter(Boolean).map(String);
+}
+
+function getEntityStatus(record) {
+  return normalizeWorkoutStatus(pick(record, ["status"], "ativo"));
+}
+
+function isDeletedRecord(record) {
+  return getEntityStatus(record) === "excluido";
+}
+
+function getAccessibleStudents() {
+  const visibleStudents = isAdmin()
+    ? state.students
+    : state.students.filter((student) => !isDeletedRecord(student));
+
+  if (isStudent()) {
+    const studentId = state.authProfile?.student_id || state.studentAreaId;
+    return visibleStudents.filter((student) => String(student.id) === String(studentId));
+  }
+
+  if (isTrainer()) {
+    const ownerIds = getProfileOwnerIds();
+    const hasOwnershipColumns = state.students.some((student) => (
+      pick(student, ["personal_id", "trainer_id", "owner_id", "created_by"], "") !== ""
+    ));
+
+    if (!hasOwnershipColumns) return visibleStudents;
+
+    return visibleStudents.filter((student) => ownerIds.includes(String(pick(student, ["personal_id", "trainer_id", "owner_id", "created_by"], ""))));
+  }
+
+  return visibleStudents;
+}
+
+function canManageStudent(studentId) {
+  if (isAdmin()) return true;
+  return getAccessibleStudents().some((student) => String(student.id) === String(studentId));
 }
 
 /**
@@ -1302,6 +1417,7 @@ function renderAdminArea() {
  */
 function getTableStatus(tableName) {
   const map = {
+    app_profiles: state.authProfile ? "perfil autenticado carregado" : 0,
     students: state.students.length,
     exercise_library: state.exercises.length,
     workouts: state.workouts.length,
@@ -1313,17 +1429,34 @@ function getTableStatus(tableName) {
     return state.tableErrors[tableName] || "Consultada por aluno no perfil";
   }
 
-  return state.tableErrors[tableName] || `${map[tableName] ?? 0} registros carregados`;
+  const value = map[tableName] ?? 0;
+  return state.tableErrors[tableName] || (typeof value === "number" ? `${value} registros carregados` : value);
 }
 
 /**
  * Renderiza aluno dentro do painel admin.
  */
 function renderAdminStudentItem(student) {
+  const status = getEntityStatus(student);
+  const selected = String(student.id) === String(state.selectedAdminStudentId) ? " active" : "";
+  const archiveAction = status === "arquivado"
+    ? `<button class="tiny-button" type="button" data-admin-student-action="restore" data-student-id="${escapeHtml(student.id)}">Restaurar</button>`
+    : `<button class="tiny-button" type="button" data-admin-student-action="archive" data-student-id="${escapeHtml(student.id)}">Arquivar</button>`;
+
   return `
-    <article class="simple-item">
+    <article class="simple-item stacked admin-student-item${selected}">
       <strong>${escapeHtml(pick(student, ["name", "full_name", "nome"], "Aluno"))}</strong>
       <span>${escapeHtml(pick(student, ["objective", "email"], "Sem objetivo informado"))}</span>
+      <small>Status: ${escapeHtml(formatWorkoutStatus(status))}</small>
+      <div class="record-actions">
+        <button class="tiny-button" type="button" data-admin-student-action="select" data-student-id="${escapeHtml(student.id)}">Ver registros</button>
+        <button class="tiny-button" type="button" data-admin-student-action="edit" data-student-id="${escapeHtml(student.id)}">Editar</button>
+        <button class="tiny-button" type="button" data-admin-student-action="clear-logs" data-student-id="${escapeHtml(student.id)}">Excluir sessoes</button>
+        <button class="tiny-button" type="button" data-admin-student-action="clear-workouts" data-student-id="${escapeHtml(student.id)}">Excluir treinos</button>
+        <button class="tiny-button" type="button" data-admin-student-action="reset" data-student-id="${escapeHtml(student.id)}">Resetar perfil</button>
+        ${archiveAction}
+        <button class="tiny-button danger" type="button" data-admin-student-action="delete" data-student-id="${escapeHtml(student.id)}">Excluir</button>
+      </div>
     </article>
   `;
 }
@@ -1385,6 +1518,119 @@ function renderAdminMaintenanceLog(message) {
   `;
 }
 
+function getSelectedAdminStudentId() {
+  return state.selectedAdminStudentId || state.selectedStudentId || state.students[0]?.id || "";
+}
+
+async function updateStudentStatus(id, status) {
+  if (!id) throw new Error("Selecione um aluno antes de alterar status.");
+  await updateWithSchemaFallback("students", id, { status }, "Erro ao atualizar status do aluno");
+}
+
+async function updateStudentWorkoutsStatus(studentId, status) {
+  if (!studentId) throw new Error("Selecione um aluno antes de alterar treinos.");
+  const workouts = state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
+  for (const workout of workouts) {
+    await updateWithSchemaFallback("workouts", workout.id, { status }, "Erro ao atualizar treinos do aluno");
+  }
+  return workouts.length;
+}
+
+async function clearStudentLogs(studentId) {
+  if (!studentId) throw new Error("Selecione um aluno antes de limpar sessoes.");
+  await deleteByColumn("workout_logs", "student_id", studentId, "Erro ao excluir sessoes do aluno");
+}
+
+async function clearStudentMeasurements(studentId) {
+  if (!studentId) throw new Error("Selecione um aluno antes de limpar medidas.");
+  await deleteByColumn("body_measurements", "student_id", studentId, "Erro ao excluir medidas do aluno");
+}
+
+async function clearStudentAssessments(studentId) {
+  if (!studentId) throw new Error("Selecione um aluno antes de limpar avaliacoes.");
+  await deleteByColumn("assessments", "student_id", studentId, "Erro ao excluir avaliacoes do aluno");
+}
+
+async function resetStudentData(studentId) {
+  await clearStudentLogs(studentId);
+  await clearStudentMeasurements(studentId);
+  await clearStudentAssessments(studentId);
+  await updateStudentWorkoutsStatus(studentId, "arquivado");
+}
+
+function renderAdminStudentRecords(studentId) {
+  const student = state.students.find((item) => String(item.id) === String(studentId));
+  const logs = state.workoutLogs.filter((log) => String(log.student_id) === String(studentId));
+  const workouts = state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
+
+  renderAdminMaintenanceLog(`${pick(student, ["name"], "Aluno")}: ${workouts.length} treinos e ${logs.length} sessoes registradas.`);
+}
+
+async function handleAdminStudentAction(action, studentId) {
+  if (!isAdmin()) {
+    showToast("Apenas Admin TI pode executar esta acao.", "error");
+    return;
+  }
+
+  state.selectedAdminStudentId = studentId;
+
+  try {
+    if (action === "select") {
+      renderAdminArea();
+      renderAdminStudentRecords(studentId);
+      return;
+    }
+
+    if (action === "edit") {
+      state.selectedStudentId = studentId;
+      renderTrainerStudents();
+      await renderTrainerProfile();
+      changeScreen("trainer-area");
+      switchTrainerTab("profile");
+      return;
+    }
+
+    if (!window.confirm(DELETE_CONFIRMATION)) return;
+
+    if (action === "clear-logs") {
+      await clearStudentLogs(studentId);
+      renderAdminMaintenanceLog("Sessoes do aluno excluidas.");
+    }
+
+    if (action === "clear-workouts") {
+      const count = await updateStudentWorkoutsStatus(studentId, "excluido");
+      renderAdminMaintenanceLog(`Treinos ocultados como excluidos: ${count}.`);
+    }
+
+    if (action === "reset") {
+      await resetStudentData(studentId);
+      renderAdminMaintenanceLog("Aluno resetado para estado inicial.");
+    }
+
+    if (action === "archive") {
+      await updateStudentStatus(studentId, "arquivado");
+      renderAdminMaintenanceLog("Aluno arquivado.");
+    }
+
+    if (action === "restore") {
+      await updateStudentStatus(studentId, "ativo");
+      renderAdminMaintenanceLog("Aluno restaurado.");
+    }
+
+    if (action === "delete") {
+      await updateStudentStatus(studentId, "excluido");
+      await updateStudentWorkoutsStatus(studentId, "excluido");
+      renderAdminMaintenanceLog("Aluno marcado como excluido.");
+    }
+
+    await loadSupabaseData({ silent: true });
+    renderAdminArea();
+  } catch (error) {
+    console.error("[GymPulse] Erro na acao Admin aluno:", error);
+    showToast(error.message, "error");
+  }
+}
+
 function isTestRecord(record, fields) {
   const text = fields.map((field) => pick(record, [field], "")).join(" ");
   const normalized = normalizeText(text);
@@ -1397,7 +1643,7 @@ async function handleAdminMaintenance(action) {
     return;
   }
 
-  if (!window.confirm("Tem certeza que deseja executar esta manutencao?")) return;
+  if (!window.confirm(DELETE_CONFIRMATION)) return;
 
   try {
     let result = "";
@@ -1426,6 +1672,30 @@ async function handleAdminMaintenance(action) {
     if (action === "orphans") {
       const removed = await removeOrphanWorkoutData();
       result = `Dados orfaos removidos: ${removed}.`;
+    }
+
+    if (action === "selected-sessions") {
+      const studentId = getSelectedAdminStudentId();
+      await clearStudentLogs(studentId);
+      result = "Sessoes do aluno selecionado excluidas.";
+    }
+
+    if (action === "selected-measurements") {
+      const studentId = getSelectedAdminStudentId();
+      await clearStudentMeasurements(studentId);
+      result = "Medidas do aluno selecionado excluidas.";
+    }
+
+    if (action === "selected-workouts") {
+      const studentId = getSelectedAdminStudentId();
+      const count = await updateStudentWorkoutsStatus(studentId, "excluido");
+      result = `Treinos do aluno selecionado ocultados: ${count}.`;
+    }
+
+    if (action === "selected-reset") {
+      const studentId = getSelectedAdminStudentId();
+      await resetStudentData(studentId);
+      result = "Aluno selecionado resetado para estado inicial.";
     }
 
     await loadSupabaseData({ silent: true });
@@ -2117,7 +2387,9 @@ async function createWorkout(form) {
     goal: formData.get("goal") || null,
     description: formData.get("goal") || null,
     notes: formData.get("notes") || null,
-    status: "ativo"
+    status: "ativo",
+    personal_id: state.authProfile?.id || null,
+    created_by: state.authUser?.id || null
   };
   const editId = form.dataset.editId;
   console.log("[GymPulse] Enviando workout para Supabase:", {
@@ -2268,7 +2540,7 @@ async function reloadAfterDelete() {
  * Exclui uma avaliacao pelo id.
  */
 async function deleteAssessment(id) {
-  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  if (!window.confirm(DELETE_CONFIRMATION)) return;
   console.log("[GymPulse] deleteAssessment(id):", id);
 
   try {
@@ -2284,7 +2556,7 @@ async function deleteAssessment(id) {
  * Exclui uma medida corporal pelo id.
  */
 async function deleteBodyMeasurement(id) {
-  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  if (!window.confirm(DELETE_CONFIRMATION)) return;
   console.log("[GymPulse] deleteBodyMeasurement(id):", id);
 
   try {
@@ -2300,7 +2572,7 @@ async function deleteBodyMeasurement(id) {
  * Exclui exercicio dentro de treino pelo id.
  */
 async function deleteWorkoutExercise(id) {
-  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  if (!window.confirm(DELETE_CONFIRMATION)) return;
   console.log("[GymPulse] deleteWorkoutExercise(id):", id);
 
   try {
@@ -2316,12 +2588,12 @@ async function deleteWorkoutExercise(id) {
  * Exclui treino pelo id e remove seus exercicios caso nao exista cascade.
  */
 async function deleteWorkout(id) {
-  if (state.accessRole !== "admin") {
+  if (!isAdmin()) {
     showToast("Exclusao permanente de treinos e permitida apenas para TI/Admin. Use arquivar ou desativar.", "error");
     return;
   }
 
-  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  if (!window.confirm(DELETE_CONFIRMATION)) return;
   console.log("[GymPulse] deleteWorkout(id):", id);
 
   try {
@@ -2368,7 +2640,7 @@ async function updateWorkoutStatus(id, status) {
  * Exclui aluno selecionado e limpa o perfil.
  */
 async function deleteStudent(id = state.selectedStudentId) {
-  if (state.accessRole !== "admin") {
+  if (!isAdmin()) {
     showToast("Exclusao permanente de alunos e permitida apenas para TI/Admin.", "error");
     return;
   }
@@ -2378,28 +2650,16 @@ async function deleteStudent(id = state.selectedStudentId) {
     return;
   }
 
-  if (!window.confirm("Tem certeza que deseja excluir?")) return;
+  if (!window.confirm(DELETE_CONFIRMATION)) return;
   console.log("[GymPulse] deleteStudent(id):", id);
 
   try {
-    const studentWorkouts = getStudentWorkouts(id);
-    const workoutIds = studentWorkouts.map((workout) => workout.id).filter(Boolean);
-    if (workoutIds.length) {
-      const { error } = await supabaseClient.from("workout_exercises").delete().in("workout_id", workoutIds);
-      if (error) {
-        console.error("[GymPulse] Erro DELETE em workout_exercises do aluno:", error);
-        throw new Error(`Erro ao excluir exercicios do aluno: ${error.message}`);
-      }
-    }
-    await deleteByColumn("workout_logs", "student_id", id, "Erro ao excluir logs do aluno");
-    await deleteByColumn("assessments", "student_id", id, "Erro ao excluir avaliacoes do aluno");
-    await deleteByColumn("body_measurements", "student_id", id, "Erro ao excluir medidas do aluno");
-    await deleteByColumn("workouts", "student_id", id, "Erro ao excluir treinos do aluno");
-    await deleteById("students", id, "Erro ao excluir aluno");
+    await updateStudentStatus(id, "excluido");
+    await updateStudentWorkoutsStatus(id, "excluido");
 
     state.selectedStudentId = "";
     state.selectedWorkoutId = "";
-    showToast("Aluno excluido.");
+    showToast("Aluno marcado como excluido.");
     await loadSupabaseData();
     state.selectedStudentId = "";
     renderTrainerStudents();
@@ -2639,8 +2899,10 @@ function setAccessRole(role) {
   }
 
   state.accessRole = role;
+  state.authProfile = state.authProfile || { role };
   el.sidebar.classList.remove("hidden");
   document.body.dataset.role = role;
+  renderAuthStatus();
 
   if (role === "admin") {
     state.adminUnlocked = true;
@@ -2676,6 +2938,141 @@ function validateTemporaryPassword(expectedPassword, label) {
   return true;
 }
 
+async function fetchAuthProfile(user) {
+  if (!user) return null;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("app_profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || {
+      user_id: user.id,
+      role: user.user_metadata?.role || "",
+      student_id: user.user_metadata?.student_id || null
+    };
+  } catch (error) {
+    console.warn("[GymPulse] app_profiles indisponivel. Usando metadados do Auth.", error);
+    state.lastError = error.message;
+    return {
+      user_id: user.id,
+      role: user.user_metadata?.role || "",
+      student_id: user.user_metadata?.student_id || null
+    };
+  }
+}
+
+function renderAuthStatus() {
+  if (!el.authStatus) return;
+  const role = getCurrentRole();
+  const email = state.authUser?.email;
+  el.authStatus.textContent = email
+    ? `Logado como ${email} (${formatRoleLabel(role)})`
+    : "Use o login criado no Supabase Auth.";
+}
+
+function formatRoleLabel(role) {
+  const labels = {
+    admin: "Admin TI",
+    trainer: "Personal",
+    student: "Aluno"
+  };
+  return labels[normalizeRole(role)] || "perfil nao definido";
+}
+
+async function applyAuthenticatedSession(session) {
+  if (!session?.user) return;
+
+  state.authUser = session.user;
+  state.authProfile = await fetchAuthProfile(session.user);
+  const role = getCurrentRole();
+
+  if (!role) {
+    showToast("Usuario sem perfil. Configure app_profiles no Supabase.", "error");
+    renderAuthStatus();
+    return;
+  }
+
+  state.accessRole = role;
+  state.adminUnlocked = role === "admin";
+  document.body.dataset.role = role;
+  el.sidebar.classList.remove("hidden");
+
+  if (role === "admin") {
+    el.adminLock.classList.add("hidden");
+    el.adminPanel.classList.remove("hidden");
+    hydrateAdminConfigForm();
+  }
+
+  if (role === "student" && state.authProfile?.student_id) {
+    state.studentAreaId = state.authProfile.student_id;
+  }
+
+  await loadSupabaseData({ silent: true });
+  renderAuthStatus();
+
+  if (role === "student") changeScreen("student-area");
+  if (role === "trainer") changeScreen("trainer-area");
+  if (role === "admin") changeScreen("admin-area");
+}
+
+async function handleAuthLogin(form) {
+  const formData = new FormData(form);
+  setFormLoading(form, true);
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: formData.get("email"),
+      password: formData.get("password")
+    });
+
+    if (error) throw error;
+    await applyAuthenticatedSession(data.session);
+    showToast("Login realizado.");
+  } catch (error) {
+    showToast(`Erro no login: ${error.message}`, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+async function handleAuthLogout() {
+  await supabaseClient.auth.signOut();
+  state.authUser = null;
+  state.authProfile = null;
+  state.accessRole = "";
+  state.adminUnlocked = false;
+  state.studentAreaId = "";
+  state.selectedStudentId = "";
+  state.selectedWorkoutId = "";
+  document.body.dataset.role = "";
+  el.sidebar.classList.add("hidden");
+  el.adminLock.classList.remove("hidden");
+  el.adminPanel.classList.add("hidden");
+  renderAuthStatus();
+  changeScreen("access");
+  showToast("Sessao encerrada.");
+}
+
+async function initAuthSession() {
+  renderAuthStatus();
+
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    if (data.session) {
+      await applyAuthenticatedSession(data.session);
+      return;
+    }
+  } catch (error) {
+    console.warn("[GymPulse] Nao foi possivel restaurar sessao Auth.", error);
+  }
+
+  await loadSupabaseData({ silent: true });
+}
+
 /**
  * Garante que cada perfil veja apenas sua propria area.
  */
@@ -2683,7 +3080,7 @@ function canAccessScreen(screenName) {
   if (screenName === "access") return true;
   if (state.accessRole === "student") return screenName === "student-area";
   if (state.accessRole === "trainer") return screenName === "trainer-area";
-  if (state.accessRole === "admin") return screenName === "admin-area";
+  if (state.accessRole === "admin") return ["admin-area", "trainer-area", "student-area"].includes(screenName);
   return false;
 }
 
@@ -2716,6 +3113,14 @@ function handleStudentWorkoutExecutionChange(event) {
  * Aplica atalhos de execucao mobile do aluno.
  */
 function handleStudentWorkoutQuickAction(event) {
+  const navButton = event.target.closest("[data-student-exercise-nav]");
+  if (navButton) {
+    const direction = navButton.dataset.studentExerciseNav;
+    state.studentExerciseIndex += direction === "next" ? 1 : -1;
+    renderStudentArea();
+    return;
+  }
+
   const button = event.target.closest("[data-workout-exercise-quick]");
   if (!button) return;
 
@@ -2751,12 +3156,20 @@ function handleStudentWorkoutQuickAction(event) {
  * Registra eventos de interface.
  */
 function bindEvents() {
+  el.authLoginForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleAuthLogin(event.currentTarget);
+  });
+  el.authLogoutButton.addEventListener("click", handleAuthLogout);
+
   document.querySelectorAll("[data-screen]").forEach((button) => {
     button.addEventListener("click", () => {
       if (button.dataset.screen === "access") {
         state.accessRole = "";
+        if (!state.authUser) state.authProfile = null;
         document.body.dataset.role = "";
         el.sidebar.classList.add("hidden");
+        renderAuthStatus();
       }
       changeScreen(button.dataset.screen);
     });
@@ -2859,6 +3272,11 @@ function bindEvents() {
     if (!button) return;
     handleAdminMaintenance(button.dataset.adminMaintenance);
   });
+  el.adminStudentsList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-student-action]");
+    if (!button) return;
+    handleAdminStudentAction(button.dataset.adminStudentAction, button.dataset.studentId);
+  });
   window.addEventListener("online", syncPendingWorkoutLogs);
 }
 
@@ -2915,12 +3333,12 @@ function renderWorkoutActions(workout, hasLogs) {
 }
 
 /**
- * Inicializa o app sem login publico.
+ * Inicializa o app com Supabase Auth e fallback temporario de MVP.
  */
-function init() {
+async function init() {
   bindEvents();
   hydrateAdminConfigForm();
-  loadSupabaseData();
+  await initAuthSession();
 }
 
 init();

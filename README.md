@@ -15,6 +15,24 @@ Nao usa frameworks, nao usa Firebase como banco e permanece compativel com GitHu
 
 Centralizar o acompanhamento de alunos, treinos, exercicios, avaliacoes fisicas, medidas corporais e historico de treinos realizados.
 
+## Login e perfis
+
+Para uso real com terceiros, use Supabase Auth com a tabela `app_profiles`.
+
+Perfis suportados:
+
+- `admin`: Admin TI com acesso total, manutencao e exclusoes administrativas.
+- `personal`: personal que cadastra alunos, cria treinos e acompanha apenas seus alunos.
+- `aluno`: aluno que ve apenas o proprio perfil, treinos ativos e historico.
+
+Execute no Supabase SQL Editor:
+
+```text
+sql/007_auth_roles_real_use.sql
+```
+
+Depois crie usuarios em Supabase Authentication e cadastre cada usuario em `app_profiles` com `user_id`, `role` e, para aluno, `student_id`. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
+
 ## Areas do sistema
 
 ### Area Aluno
@@ -140,6 +158,8 @@ Para usar as rotinas de manutencao do Admin TI no MVP, confirme tambem as polici
 ```text
 sql/004_policies_crud_mvp.sql
 ```
+
+Para ambiente real, substitua as policies abertas de MVP pelo script `sql/007_auth_roles_real_use.sql`.
 
 ## Tabelas usadas
 

@@ -95,9 +95,7 @@ body[data-role=""] .app {
 body[data-role="student"] .trainer-nav,
 body[data-role="student"] .admin-entry,
 body[data-role="trainer"] .student-nav,
-body[data-role="trainer"] .admin-entry,
-body[data-role="admin"] .student-nav,
-body[data-role="admin"] .trainer-nav {
+body[data-role="trainer"] .admin-entry {
   display: none;
 }
 
@@ -347,7 +345,8 @@ label {
 }
 
 .form-box,
-.admin-login {
+.admin-login,
+.auth-login {
   display: grid;
   gap: 12px;
   margin-top: 16px;
@@ -385,6 +384,14 @@ label {
   border-color: var(--primary);
   background: #dcfce7;
   color: var(--primary-dark);
+}
+
+.access-divider {
+  margin: 16px 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .segmented-filter {
@@ -619,6 +626,27 @@ label {
   align-items: flex-start;
 }
 
+.student-exercise-progress,
+.student-exercise-nav {
+  display: grid;
+  gap: 8px;
+}
+
+.student-exercise-progress {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.student-exercise-progress span {
+  color: var(--muted);
+}
+
+.student-exercise-nav {
+  grid-template-columns: 1fr;
+}
+
 .workout-actions {
   justify-content: flex-start;
 }
@@ -804,6 +832,21 @@ label {
   }
 
   .quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .quick-button {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .workout-execution-item {
+    padding: 14px;
+  }
+
+  .exercise-execution-grid {
     grid-template-columns: 1fr;
   }
 
