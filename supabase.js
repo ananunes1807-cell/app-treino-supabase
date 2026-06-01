@@ -60,4 +60,19 @@ function createSupabaseClient() {
   return supabase.createClient(config.url, config.anonKey);
 }
 
+/**
+ * Cria um cliente isolado para fluxos auxiliares, como cadastrar o acesso inicial
+ * de um aluno sem trocar a sessao atual do personal no navegador.
+ */
+function createEphemeralSupabaseClient() {
+  const config = getSupabaseConfig();
+  return supabase.createClient(config.url, config.anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  });
+}
+
 let supabaseClient = createSupabaseClient();

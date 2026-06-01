@@ -5,16 +5,32 @@
 create table if not exists public.app_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references auth.users(id) on delete cascade,
-  role text not null check (role in ('admin', 'personal', 'aluno')),
+  role text not null check (role in ('admin', 'admin_ti', 'personal', 'aluno')),
+  nome text,
   full_name text,
+  email text,
+  telefone text,
   student_id uuid references public.students(id) on delete set null,
-  created_at timestamptz not null default now()
+  status_usuario text not null default 'ativo' check (status_usuario in ('ativo', 'pendente_primeiro_acesso', 'arquivado', 'bloqueado')),
+  primeiro_acesso_obrigatorio boolean not null default false,
+  senha_temporaria boolean not null default false,
+  created_at timestamptz not null default now(),
+  atualizado_em timestamptz not null default now()
 );
 
 alter table public.students
   add column if not exists status text not null default 'ativo',
+  add column if not exists status_usuario text not null default 'ativo',
   add column if not exists auth_user_id uuid references auth.users(id) on delete set null,
-  add column if not exists personal_id uuid references public.app_profiles(id) on delete set null;
+  add column if not exists personal_id uuid references public.app_profiles(id) on delete set null,
+  add column if not exists email text,
+  add column if not exists phone text,
+  add column if not exists telefone text,
+  add column if not exists birth_date date,
+  add column if not exists primeiro_acesso_obrigatorio boolean not null default false,
+  add column if not exists senha_temporaria boolean not null default false,
+  add column if not exists dores_limitacoes text,
+  add column if not exists updated_at timestamptz not null default now();
 
 alter table public.workouts
   add column if not exists status text not null default 'ativo',
@@ -41,6 +57,16 @@ create index if not exists students_status_idx on public.students(status);
 create index if not exists workouts_student_status_idx on public.workouts(student_id, status);
 create index if not exists workouts_personal_id_idx on public.workouts(personal_id);
 
+create table if not exists public.manutencao_logs (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references public.app_profiles(id) on delete set null,
+  acao text not null,
+  tabela_afetada text,
+  registro_id uuid,
+  detalhes jsonb,
+  criado_em timestamptz not null default now()
+);
+
 grant select, insert, update, delete on public.app_profiles to authenticated;
 grant select, insert, update, delete on public.students to authenticated;
 grant select, insert, update, delete on public.assessments to authenticated;
@@ -49,6 +75,7 @@ grant select, insert, update, delete on public.workouts to authenticated;
 grant select, insert, update, delete on public.workout_exercises to authenticated;
 grant select, insert, update, delete on public.workout_logs to authenticated;
 grant select, insert, update, delete on public.exercise_library to authenticated;
+grant select, insert, update, delete on public.manutencao_logs to authenticated;
 
 alter table public.app_profiles enable row level security;
 alter table public.students enable row level security;
@@ -58,6 +85,7 @@ alter table public.workouts enable row level security;
 alter table public.workout_exercises enable row level security;
 alter table public.workout_logs enable row level security;
 alter table public.exercise_library enable row level security;
+alter table public.manutencao_logs enable row level security;
 
 create or replace function public.current_app_role()
 returns text
@@ -66,7 +94,14 @@ stable
 security definer
 set search_path = public
 as $$
-  select role from public.app_profiles where user_id = auth.uid() limit 1
+  select case
+    when role = 'admin_ti' then 'admin'
+    when role = 'aluno' then 'aluno'
+    else role
+  end
+  from public.app_profiles
+  where user_id = auth.uid()
+  limit 1
 $$;
 
 create or replace function public.current_app_profile_id()
@@ -94,6 +129,24 @@ to authenticated
 using (public.current_app_role() = 'admin')
 with check (public.current_app_role() = 'admin');
 
+drop policy if exists app_profiles_personal_create_student on public.app_profiles;
+create policy app_profiles_personal_create_student
+on public.app_profiles
+for insert
+to authenticated
+with check (
+  public.current_app_role() = 'personal'
+  and role = 'aluno'
+);
+
+drop policy if exists app_profiles_student_update_own_first_access on public.app_profiles;
+create policy app_profiles_student_update_own_first_access
+on public.app_profiles
+for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid() and role = 'aluno');
+
 drop policy if exists students_real_select on public.students;
 create policy students_real_select
 on public.students
@@ -120,10 +173,12 @@ to authenticated
 using (
   public.current_app_role() = 'admin'
   or (public.current_app_role() = 'personal' and personal_id = public.current_app_profile_id())
+  or (public.current_app_role() = 'aluno' and auth_user_id = auth.uid())
 )
 with check (
   public.current_app_role() = 'admin'
   or (public.current_app_role() = 'personal' and personal_id = public.current_app_profile_id() and status <> 'excluido')
+  or (public.current_app_role() = 'aluno' and auth_user_id = auth.uid() and status = 'ativo')
 );
 
 drop policy if exists workouts_real_select on public.workouts;
@@ -266,6 +321,14 @@ using (true);
 drop policy if exists exercise_library_real_admin_write on public.exercise_library;
 create policy exercise_library_real_admin_write
 on public.exercise_library
+for all
+to authenticated
+using (public.current_app_role() = 'admin')
+with check (public.current_app_role() = 'admin');
+
+drop policy if exists manutencao_logs_admin_all on public.manutencao_logs;
+create policy manutencao_logs_admin_all
+on public.manutencao_logs
 for all
 to authenticated
 using (public.current_app_role() = 'admin')

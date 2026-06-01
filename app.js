@@ -69,6 +69,7 @@ const state = {
   authUser: null,
   authProfile: null,
   selectedAdminStudentId: "",
+  preferredLoginRole: "student",
   students: [],
   exercises: [],
   workouts: [],
@@ -147,7 +148,12 @@ const el = {
   authEmail: document.querySelector("#auth-email"),
   authPassword: document.querySelector("#auth-password"),
   authLogoutButton: document.querySelector("#auth-logout-button"),
-  authStatus: document.querySelector("#auth-status")
+  authStatus: document.querySelector("#auth-status"),
+  loginRolePicker: document.querySelector("#login-role-picker"),
+  loginHelperTitle: document.querySelector("#login-helper-title"),
+  loginHelperDescription: document.querySelector("#login-helper-description"),
+  firstAccessForm: document.querySelector("#first-access-form"),
+  studentAccessResult: document.querySelector("#student-access-result")
 };
 
 /**
@@ -876,13 +882,23 @@ function renderExerciseLibraryItem(exercise) {
  */
 async function createStudent(form) {
   const formData = new FormData(form);
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const temporaryPassword = generateTemporaryPassword();
   const fullPayload = {
     name: formData.get("name"),
+    email,
+    phone: formData.get("phone") || null,
+    telefone: formData.get("phone") || null,
+    birth_date: formData.get("birth_date") || null,
     height_cm: numberOrNull(formData.get("height_cm")),
     objective: formData.get("objective") || null,
     difficulties: formData.get("difficulties") || null,
     restrictions: formData.get("restrictions") || null,
+    notes: formData.get("notes") || null,
     status: "ativo",
+    status_usuario: "pendente_primeiro_acesso",
+    primeiro_acesso_obrigatorio: true,
+    senha_temporaria: true,
     personal_id: isTrainer() ? (state.authProfile?.id || null) : null,
     trainer_id: isTrainer() ? (state.authProfile?.id || state.authUser?.id || null) : null,
     created_by: state.authUser?.id || null
@@ -890,13 +906,76 @@ async function createStudent(form) {
 
   try {
     const created = await insertStudentWithFallback(fullPayload);
-    state.selectedStudentId = created[0]?.id || state.selectedStudentId;
+    const createdStudent = created[0];
+    state.selectedStudentId = createdStudent?.id || state.selectedStudentId;
+    const accessResult = await createStudentInitialAccess(createdStudent, email, temporaryPassword);
     form.reset();
     showToast("Aluno adicionado com sucesso.");
+    renderStudentAccessResult(email, temporaryPassword, accessResult);
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
   }
+}
+
+function generateTemporaryPassword() {
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `Gym@${new Date().getFullYear()}${suffix}`;
+}
+
+async function createStudentInitialAccess(student, email, temporaryPassword) {
+  if (!student?.id || !email) {
+    return { ok: false, message: "Aluno salvo, mas e-mail nao informado para criar acesso." };
+  }
+
+  try {
+    const authClient = createEphemeralSupabaseClient();
+    const { data, error } = await authClient.auth.signUp({
+      email,
+      password: temporaryPassword,
+      options: {
+        data: {
+          role: "aluno",
+          student_id: student.id,
+          primeiro_acesso_obrigatorio: true
+        }
+      }
+    });
+
+    if (error) throw error;
+
+    const userId = data.user?.id || null;
+    if (userId) {
+      await updateWithSchemaFallback("students", student.id, { auth_user_id: userId }, "Erro ao vincular usuario do aluno");
+      await insertWithSchemaFallback("app_profiles", {
+        user_id: userId,
+        role: "aluno",
+        full_name: pick(student, ["name"], ""),
+        nome: pick(student, ["name"], ""),
+        email,
+        student_id: student.id,
+        status_usuario: "pendente_primeiro_acesso",
+        primeiro_acesso_obrigatorio: true,
+        senha_temporaria: true
+      }, "Erro ao criar perfil de acesso do aluno");
+    }
+
+    return { ok: true, message: "Acesso inicial criado no Supabase Auth." };
+  } catch (error) {
+    console.warn("[GymPulse] Aluno salvo, mas acesso Auth nao foi criado automaticamente.", error);
+    return { ok: false, message: `Aluno salvo. Crie o usuario no Supabase Auth se necessario: ${error.message}` };
+  }
+}
+
+function renderStudentAccessResult(email, temporaryPassword, result) {
+  if (!el.studentAccessResult) return;
+  el.studentAccessResult.classList.remove("hidden");
+  el.studentAccessResult.innerHTML = `
+    <strong>Acesso inicial do aluno</strong>
+    <span>E-mail: ${escapeHtml(email || "Nao informado")}</span>
+    <span>Senha temporaria: <b>${escapeHtml(temporaryPassword)}</b></span>
+    <small>${escapeHtml(result.message)}</small>
+  `;
 }
 
 /**
@@ -1181,7 +1260,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
+      if (["app_profiles", "students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[GymPulse] INSERT final em ${tableName}:`, currentPayload);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
@@ -2875,6 +2954,7 @@ function changeScreen(screenName) {
 
   const labels = {
     access: "Como deseja acessar?",
+    "first-access": "Primeiro acesso",
     "student-area": "Área Aluno",
     "trainer-area": "Área Treinador",
     "admin-area": "Controle do Sistema"
@@ -2938,6 +3018,31 @@ function validateTemporaryPassword(expectedPassword, label) {
   return true;
 }
 
+function updateLoginRoleHelper(role) {
+  state.preferredLoginRole = role;
+  const helpers = {
+    student: {
+      title: "Area do aluno",
+      description: "Acesse seus treinos, registre exercicios, cargas, repeticoes e observacoes."
+    },
+    trainer: {
+      title: "Area do personal",
+      description: "Cadastre alunos, monte treinos, acompanhe evolucao e visualize historicos."
+    },
+    admin: {
+      title: "Area administrativa",
+      description: "Gerencie usuarios, permissoes, dados de teste, exclusoes e manutencao do sistema."
+    }
+  };
+  const content = helpers[role] || helpers.student;
+
+  el.loginRolePicker.querySelectorAll("[data-login-role]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.loginRole === role);
+  });
+  el.loginHelperTitle.textContent = content.title;
+  el.loginHelperDescription.textContent = content.description;
+}
+
 async function fetchAuthProfile(user) {
   if (!user) return null;
 
@@ -2978,9 +3083,25 @@ function formatRoleLabel(role) {
   const labels = {
     admin: "Admin TI",
     trainer: "Personal",
-    student: "Aluno"
+    student: "Aluno",
+    personal: "Personal",
+    aluno: "Aluno",
+    admin_ti: "Admin TI"
   };
   return labels[normalizeRole(role)] || "perfil nao definido";
+}
+
+function needsFirstAccessPasswordChange() {
+  const status = normalizeText(state.authProfile?.status_usuario || "");
+  return Boolean(
+    state.authUser
+    && isStudent()
+    && (
+      state.authProfile?.primeiro_acesso_obrigatorio === true
+      || state.authProfile?.senha_temporaria === true
+      || status === "pendente_primeiro_acesso"
+    )
+  );
 }
 
 async function applyAuthenticatedSession(session) {
@@ -3013,6 +3134,11 @@ async function applyAuthenticatedSession(session) {
 
   await loadSupabaseData({ silent: true });
   renderAuthStatus();
+
+  if (needsFirstAccessPasswordChange()) {
+    changeScreen("first-access");
+    return;
+  }
 
   if (role === "student") changeScreen("student-area");
   if (role === "trainer") changeScreen("trainer-area");
@@ -3057,6 +3183,53 @@ async function handleAuthLogout() {
   showToast("Sessao encerrada.");
 }
 
+async function handleFirstAccessPasswordChange(form) {
+  const formData = new FormData(form);
+  const password = String(formData.get("password") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
+
+  if (password.length < 6) {
+    showToast("A nova senha precisa ter pelo menos 6 caracteres.", "error");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    showToast("As senhas nao conferem.", "error");
+    return;
+  }
+
+  setFormLoading(form, true);
+
+  try {
+    const { error } = await supabaseClient.auth.updateUser({ password });
+    if (error) throw error;
+
+    const profilePayload = {
+      status_usuario: "ativo",
+      primeiro_acesso_obrigatorio: false,
+      senha_temporaria: false
+    };
+
+    if (state.authProfile?.id) {
+      await updateWithSchemaFallback("app_profiles", state.authProfile.id, profilePayload, "Erro ao atualizar primeiro acesso");
+    }
+
+    if (state.authProfile?.student_id) {
+      await updateWithSchemaFallback("students", state.authProfile.student_id, profilePayload, "Erro ao ativar aluno");
+    }
+
+    state.authProfile = { ...state.authProfile, ...profilePayload };
+    form.reset();
+    showToast("Senha atualizada. Bem-vindo ao app.");
+    await loadSupabaseData({ silent: true });
+    changeScreen("student-area");
+  } catch (error) {
+    showToast(`Erro ao trocar senha: ${error.message}`, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
 async function initAuthSession() {
   renderAuthStatus();
 
@@ -3078,6 +3251,7 @@ async function initAuthSession() {
  */
 function canAccessScreen(screenName) {
   if (screenName === "access") return true;
+  if (screenName === "first-access") return needsFirstAccessPasswordChange();
   if (state.accessRole === "student") return screenName === "student-area";
   if (state.accessRole === "trainer") return screenName === "trainer-area";
   if (state.accessRole === "admin") return ["admin-area", "trainer-area", "student-area"].includes(screenName);
@@ -3161,6 +3335,15 @@ function bindEvents() {
     handleAuthLogin(event.currentTarget);
   });
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
+  el.firstAccessForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleFirstAccessPasswordChange(event.currentTarget);
+  });
+  el.loginRolePicker.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-login-role]");
+    if (!button) return;
+    updateLoginRoleHelper(button.dataset.loginRole);
+  });
 
   document.querySelectorAll("[data-screen]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -3338,6 +3521,7 @@ function renderWorkoutActions(workout, hasLogs) {
 async function init() {
   bindEvents();
   hydrateAdminConfigForm();
+  updateLoginRoleHelper(state.preferredLoginRole);
   await initAuthSession();
 }
 

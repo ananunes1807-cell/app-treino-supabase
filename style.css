@@ -394,6 +394,55 @@ label {
   text-transform: uppercase;
 }
 
+.role-picker {
+  display: inline-grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 4px;
+}
+
+.role-chip {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.role-chip.active {
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
+.login-helper {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.login-helper strong {
+  color: var(--text);
+}
+
+.compact-access {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compact-access .access-button {
+  min-height: 92px;
+  padding: 12px;
+}
+
 .segmented-filter {
   display: flex;
   flex-wrap: wrap;
@@ -832,6 +881,15 @@ label {
   }
 
   .quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .role-picker {
+    width: 100%;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .compact-access {
     grid-template-columns: 1fr;
   }
 

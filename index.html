@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-auth" />
+    <link rel="stylesheet" href="style.css?v=20260601-firstaccess" />
   </head>
   <body>
     <div class="app">
@@ -60,8 +60,17 @@
               </div>
               <p class="muted-text" id="auth-status">Use o login criado no Supabase Auth.</p>
             </form>
+            <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
+              <button class="role-chip active" type="button" data-login-role="student">Aluno</button>
+              <button class="role-chip" type="button" data-login-role="trainer">Personal</button>
+              <button class="role-chip" type="button" data-login-role="admin">Admin TI</button>
+            </div>
+            <div class="login-helper">
+              <strong id="login-helper-title">&Aacute;rea do aluno</strong>
+              <span id="login-helper-description">Acesse seus treinos, registre exerc&iacute;cios, cargas, repeti&ccedil;&otilde;es e observa&ccedil;&otilde;es.</span>
+            </div>
             <div class="access-divider">Acesso temporario de suporte</div>
-            <div class="access-grid">
+            <div class="access-grid compact-access">
               <button class="access-button" type="button" data-access-role="student">
                 <strong>Entrar como Aluno</strong>
                 <span>Meu treino, hist&oacute;rico, avalia&ccedil;&otilde;es e medidas.</span>
@@ -75,6 +84,27 @@
                 <span>Configuracao Supabase, diagnostico e RLS.</span>
               </button>
             </div>
+          </article>
+        </section>
+
+        <section class="screen" id="screen-first-access">
+          <article class="card access-card">
+            <div>
+              <p class="subtitle">Primeiro acesso</p>
+              <h2>Crie sua nova senha</h2>
+              <p class="muted-text">Sua senha temporaria precisa ser substituida antes de usar o app.</p>
+            </div>
+            <form class="auth-login" id="first-access-form">
+              <label>
+                Nova senha
+                <input id="first-access-password" name="password" type="password" minlength="6" autocomplete="new-password" required />
+              </label>
+              <label>
+                Confirmar senha
+                <input id="first-access-confirm-password" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" required />
+              </label>
+              <button class="primary-button" type="submit">Salvar nova senha</button>
+            </form>
           </article>
         </section>
 
@@ -163,8 +193,20 @@
               <form class="form-box" id="new-student-form">
                 <h3>Adicionar novo aluno</h3>
                 <label>
-                  Nome
+                  Nome completo
                   <input name="name" type="text" required placeholder="Nome do aluno" />
+                </label>
+                <label>
+                  E-mail do aluno
+                  <input name="email" type="email" required placeholder="aluno@email.com" />
+                </label>
+                <label>
+                  Telefone
+                  <input name="phone" type="tel" placeholder="(00) 00000-0000" />
+                </label>
+                <label>
+                  Data de nascimento
+                  <input name="birth_date" type="date" />
                 </label>
                 <label>
                   Altura em cm
@@ -182,7 +224,12 @@
                   Restri&ccedil;&otilde;es
                   <input name="restrictions" type="text" placeholder="Ex: dores, limitacoes" />
                 </label>
+                <label>
+                  Observa&ccedil;&otilde;es importantes
+                  <input name="notes" type="text" placeholder="Ex: rotina, cuidados, preferencias" />
+                </label>
                 <button class="primary-button" type="submit">Salvar aluno</button>
+                <div class="simple-item stacked hidden" id="student-access-result"></div>
               </form>
             </article>
 
@@ -440,7 +487,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-auth"></script>
-    <script src="app.js?v=20260601-auth"></script>
+    <script src="supabase.js?v=20260601-firstaccess"></script>
+    <script src="app.js?v=20260601-firstaccess"></script>
   </body>
 </html>
