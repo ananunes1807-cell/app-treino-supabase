@@ -379,7 +379,7 @@ function renderStudentArea() {
 function getCurrentWorkout(studentId) {
   return state.workouts.find((workout) => {
     const status = pick(workout, ["status"], "active");
-    return String(workout.student_id) === String(studentId) && status !== "archived";
+    return String(workout.student_id) === String(studentId) && status !== "archived" && status !== "not_done";
   });
 }
 
@@ -390,8 +390,9 @@ function renderWorkoutWithExercises(workout) {
   const exercises = state.workoutExercises.filter((item) => String(item.workout_id) === String(workout.id));
 
   return `
-    <article class="list-item workout-highlight">
+    <article class="list-item workout-highlight student-workout-start">
       <div>
+        <small>Comecar treino</small>
         <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
         <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo não informado"))}</span>
       </div>
@@ -456,12 +457,22 @@ function renderWorkoutExerciseItem(item) {
   const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
   const execution = getStudentExerciseExecution(item.id);
+  const fastDone = execution.completed && !execution.skipped ? "active" : "";
+  const fastSkipped = execution.skipped ? "active" : "";
+  const fastPain = execution.pain_level !== "" ? "active" : "";
 
   return `
     <article class="simple-item workout-execution-item">
       <div class="exercise-execution-main">
+        <small>Exercicio atual</small>
         <strong>${escapeHtml(exerciseName)}</strong>
       <span>Planejado: Series: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+        <div class="quick-actions">
+          <button class="quick-button ${fastDone}" type="button" data-workout-exercise-quick="done" data-workout-exercise-id="${escapeHtml(item.id)}">Feito</button>
+          <button class="quick-button" type="button" data-workout-exercise-quick="less" data-workout-exercise-id="${escapeHtml(item.id)}">Fiz menos</button>
+          <button class="quick-button ${fastSkipped}" type="button" data-workout-exercise-quick="skip" data-workout-exercise-id="${escapeHtml(item.id)}">Pulei</button>
+          <button class="quick-button ${fastPain}" type="button" data-workout-exercise-quick="pain" data-workout-exercise-id="${escapeHtml(item.id)}">Senti dor</button>
+        </div>
         <div class="exercise-execution-grid">
           <label>Carga usada<input data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" /></label>
           <label>Reps feitas<input data-workout-exercise-field="actual_reps" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_reps)}" /></label>
@@ -1081,6 +1092,26 @@ async function syncPendingWorkoutLogs() {
 }
 
 /**
+ * Monta o snapshot completo da execucao atual.
+ */
+function buildWorkoutExecutionSnapshot(workoutId, exercisesSource = state.workoutExercises) {
+  return exercisesSource
+    .filter((exercise) => String(exercise.workout_id) === String(workoutId))
+    .map((exercise) => ({
+      exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
+      sets: numberOrNull(pick(exercise, ["sets"], "")),
+      reps: pick(exercise, ["reps"], null),
+      weight: pick(exercise, ["weight"], null),
+      rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+      planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
+      planned_reps: pick(exercise, ["reps"], null),
+      planned_weight: pick(exercise, ["weight"], null),
+      planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+      ...serializeExerciseExecution(exercise.id)
+    }));
+}
+
+/**
  * Marca o treino atual do aluno como concluido em workout_logs.
  */
 async function completeCurrentWorkout() {
@@ -1096,18 +1127,7 @@ async function completeCurrentWorkout() {
       eq: { column: "workout_id", value: workout.id },
       orderBy: "created_at"
     });
-    const exercisesSnapshot = workoutExercises.map((exercise) => ({
-      exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
-      sets: numberOrNull(pick(exercise, ["sets"], "")),
-      reps: pick(exercise, ["reps"], null),
-      weight: pick(exercise, ["weight"], null),
-      rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
-      planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
-      planned_reps: pick(exercise, ["reps"], null),
-      planned_weight: pick(exercise, ["weight"], null),
-      planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
-      ...serializeExerciseExecution(exercise.id)
-    }));
+    const exercisesSnapshot = buildWorkoutExecutionSnapshot(workout.id, workoutExercises);
     console.log("[GymPulse] workout_logs exercises_snapshot:", exercisesSnapshot);
 
     await insertWorkoutLog({
@@ -1123,16 +1143,7 @@ async function completeCurrentWorkout() {
   } catch (error) {
     const isNetworkError = !navigator.onLine || String(error.message).toLowerCase().includes("failed to fetch");
     if (isNetworkError) {
-      const fallbackExercises = state.workoutExercises
-        .filter((exercise) => String(exercise.workout_id) === String(workout.id))
-        .map((exercise) => ({
-          exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
-          planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
-          planned_reps: pick(exercise, ["reps"], null),
-          planned_weight: pick(exercise, ["weight"], null),
-          planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
-          ...serializeExerciseExecution(exercise.id)
-        }));
+      const fallbackExercises = buildWorkoutExecutionSnapshot(workout.id);
 
       enqueuePendingWorkoutLog({
         workout_id: workout.id,
@@ -1571,6 +1582,8 @@ function renderRecordActions(type, id) {
  */
 function renderWorkoutItem(workout) {
   const exercises = getWorkoutExercises(workout.id);
+  const status = pick(workout, ["status"], "active");
+  const hasLogs = workoutHasLogs(workout.id);
 
   return `
     <article class="workout-card" data-workout-id="${escapeHtml(workout.id)}">
@@ -1578,9 +1591,10 @@ function renderWorkoutItem(workout) {
         <div>
           <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
           <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo nao informado"))}</span>
+          <small>Status: ${escapeHtml(formatWorkoutStatus(status))}${hasLogs ? " | possui historico" : ""}</small>
           <small>Criado em ${formatDate(pick(workout, ["created_at", "start_date"]))}</small>
         </div>
-        ${renderRecordActions("workout", workout.id)}
+        ${renderWorkoutActions(workout, hasLogs)}
       </div>
       <div class="workout-exercises">
         ${exercises.length ? exercises.map(renderTrainerWorkoutExerciseItem).join("") : emptyMessage("Nenhum exercicio neste treino.")}
@@ -2104,11 +2118,40 @@ async function deleteWorkout(id) {
   console.log("[GymPulse] deleteWorkout(id):", id);
 
   try {
+    if (workoutHasLogs(id)) {
+      throw new Error("Este treino ja possui registros realizados. Arquive o treino para preservar o historico.");
+    }
     await deleteByColumn("workout_exercises", "workout_id", id, "Erro ao excluir exercicios do treino");
     await deleteById("workouts", id, "Erro ao excluir treino");
     if (String(state.selectedWorkoutId) === String(id)) state.selectedWorkoutId = "";
     showToast("Treino excluido.");
     await reloadAfterDelete();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+/**
+ * Atualiza status do treino sem apagar historico.
+ */
+async function updateWorkoutStatus(id, status) {
+  const labels = {
+    not_done: "nao realizado",
+    incomplete: "incompleto",
+    archived: "arquivado"
+  };
+  const label = labels[status] || status;
+
+  if (!window.confirm(`Marcar treino como ${label}?`)) return;
+
+  try {
+    await updateWithSchemaFallback("workouts", id, { status }, "Erro ao atualizar status do treino");
+    if (String(state.selectedWorkoutId) === String(id) && status === "archived") {
+      state.selectedWorkoutId = "";
+    }
+    showToast(`Treino marcado como ${label}.`);
+    await loadSupabaseData({ silent: true });
+    await renderTrainerProfile();
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -2263,6 +2306,7 @@ function handleTrainerListAction(event) {
   if (action === "delete-measurement") deleteBodyMeasurement(id);
   if (action === "edit-workout") editWorkout(id);
   if (action === "delete-workout") deleteWorkout(id);
+  if (action === "status-workout") updateWorkoutStatus(id, button.dataset.status);
   if (action === "edit-workout-exercise") editWorkoutExercise(id);
   if (action === "delete-workout-exercise") deleteWorkoutExercise(id);
 }
@@ -2454,6 +2498,41 @@ function handleStudentWorkoutExecutionChange(event) {
 }
 
 /**
+ * Aplica atalhos de execucao mobile do aluno.
+ */
+function handleStudentWorkoutQuickAction(event) {
+  const button = event.target.closest("[data-workout-exercise-quick]");
+  if (!button) return;
+
+  const execution = getStudentExerciseExecution(button.dataset.workoutExerciseId);
+  const action = button.dataset.workoutExerciseQuick;
+
+  if (action === "done") {
+    execution.completed = true;
+    execution.skipped = false;
+  }
+
+  if (action === "less") {
+    execution.completed = true;
+    execution.skipped = false;
+    execution.difficulty = execution.difficulty || "Fiz menos que o planejado";
+  }
+
+  if (action === "skip") {
+    execution.completed = false;
+    execution.skipped = true;
+  }
+
+  if (action === "pain") {
+    execution.pain_level = execution.pain_level || "5";
+    execution.notes = execution.notes || "Senti dor durante o exercicio";
+  }
+
+  saveCurrentExecutionDraft();
+  renderStudentArea();
+}
+
+/**
  * Registra eventos de interface.
  */
 function bindEvents() {
@@ -2481,6 +2560,7 @@ function bindEvents() {
   el.completeWorkoutButton.addEventListener("click", completeCurrentWorkout);
   el.studentCurrentWorkout.addEventListener("change", handleStudentWorkoutExecutionChange);
   el.studentCurrentWorkout.addEventListener("input", handleStudentWorkoutExecutionChange);
+  el.studentCurrentWorkout.addEventListener("click", handleStudentWorkoutQuickAction);
 
   el.studentSearch.addEventListener("input", (event) => {
     state.studentSearch = event.target.value;
@@ -2553,6 +2633,46 @@ function bindEvents() {
   document.querySelector("#admin-reload-data").addEventListener("click", loadSupabaseData);
   document.querySelector("#seed-exercise-library").addEventListener("click", seedExerciseLibrary);
   window.addEventListener("online", syncPendingWorkoutLogs);
+}
+
+/**
+ * Traduz status do treino para exibicao.
+ */
+function formatWorkoutStatus(status) {
+  const labels = {
+    active: "Ativo",
+    not_done: "Nao realizado",
+    incomplete: "Incompleto",
+    archived: "Arquivado"
+  };
+  return labels[status] || status || "Ativo";
+}
+
+/**
+ * Verifica se um treino ja tem registros realizados.
+ */
+function workoutHasLogs(workoutId) {
+  return state.workoutLogs.some((log) => String(log.workout_id) === String(workoutId));
+}
+
+/**
+ * Renderiza acoes do treino preservando historico ja realizado.
+ */
+function renderWorkoutActions(workout, hasLogs) {
+  const id = escapeHtml(workout.id);
+  const deleteButton = hasLogs
+    ? `<button class="tiny-button danger" type="button" disabled title="Nao e possivel excluir treino com historico realizado. Arquive o treino.">Excluir</button>`
+    : `<button class="tiny-button danger" type="button" data-action="delete-workout" data-id="${id}">Excluir</button>`;
+
+  return `
+    <div class="record-actions workout-actions">
+      <button class="tiny-button" type="button" data-action="edit-workout" data-id="${id}">Editar</button>
+      <button class="tiny-button" type="button" data-action="status-workout" data-status="not_done" data-id="${id}">Nao realizado</button>
+      <button class="tiny-button" type="button" data-action="status-workout" data-status="incomplete" data-id="${id}">Incompleto</button>
+      <button class="tiny-button" type="button" data-action="status-workout" data-status="archived" data-id="${id}">Arquivar</button>
+      ${deleteButton}
+    </div>
+  `;
 }
 
 /**

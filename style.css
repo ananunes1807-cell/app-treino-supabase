@@ -335,6 +335,11 @@ label {
   margin-top: 12px;
 }
 
+#complete-workout-button {
+  min-height: 56px;
+  font-size: 17px;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -530,8 +535,10 @@ label {
 }
 
 .workout-execution-item {
+  display: grid;
+  grid-template-columns: 1fr;
   align-items: flex-start;
-  justify-content: space-between;
+  gap: 12px;
 }
 
 .exercise-execution-main {
@@ -558,6 +565,28 @@ label {
   padding: 8px 10px;
 }
 
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quick-button {
+  min-height: 44px;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.quick-button.active,
+.quick-button:hover {
+  border-color: var(--primary);
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
 .exercise-complete-toggle {
   display: inline-flex;
   width: auto;
@@ -571,6 +600,19 @@ label {
 .exercise-complete-toggle input {
   width: 18px;
   height: 18px;
+}
+
+.student-workout-start {
+  align-items: flex-start;
+}
+
+.workout-actions {
+  justify-content: flex-start;
+}
+
+.tiny-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .library-item {
@@ -746,6 +788,10 @@ label {
 
   .record-actions {
     justify-content: flex-start;
+  }
+
+  .quick-actions {
+    grid-template-columns: 1fr;
   }
 
   .data-record {
