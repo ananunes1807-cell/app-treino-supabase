@@ -94,6 +94,29 @@ Tambem e possivel alterar a configuracao pela area TI/Admin. A tela de configura
 
 Importante: a chave anon/public pode ficar no frontend, mas as permissoes reais devem ser protegidas por Row Level Security (RLS) e policies no Supabase.
 
+### URLs de autenticacao
+
+Os e-mails enviados pelo Supabase Auth precisam apontar para a URL publicada do app, nao para `localhost`.
+
+No Supabase, ajuste em:
+
+```text
+Authentication > URL Configuration
+```
+
+Use:
+
+```text
+Site URL:
+https://ananunes1807-cell.github.io/app-treino-supabase/
+
+Redirect URLs:
+https://ananunes1807-cell.github.io/app-treino-supabase/**
+https://ananunes1807-cell.github.io/app-treino-supabase/
+```
+
+O app tambem envia `emailRedirectTo` nos cadastros de Auth usando essa mesma URL publica.
+
 ## Diagnostico: alunos nao aparecem
 
 Se alunos como Ana Carolina ou Carlos existem no painel do Supabase, mas nao aparecem no app, verifique:

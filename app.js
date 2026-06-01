@@ -935,6 +935,7 @@ async function createStudentInitialAccess(student, email, temporaryPassword) {
       email,
       password: temporaryPassword,
       options: {
+        emailRedirectTo: getAuthRedirectUrl(),
         data: {
           role: "aluno",
           student_id: student.id,
@@ -3283,6 +3284,7 @@ async function handleBootstrapAdmin() {
       email,
       password,
       options: {
+        emailRedirectTo: getAuthRedirectUrl(),
         data: {
           role: "admin_ti",
           primeiro_admin_ti: true

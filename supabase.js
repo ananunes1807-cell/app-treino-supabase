@@ -16,6 +16,7 @@
 const DEFAULT_SUPABASE_URL = "https://wkxfaogfwowdauxlscux.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_NdscXIppRgUHxFCUg2qb-w_gMmgKFYh";
 const SUPABASE_CONFIG_STORAGE_KEY = "app-treino-supabase-config";
+const PRODUCTION_APP_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
 
 /**
  * Retorna as credenciais salvas no navegador ou as credenciais padrao do arquivo.
@@ -50,6 +51,14 @@ function getSupabaseConfig() {
  */
 function saveSupabaseConfig(config) {
   localStorage.setItem(SUPABASE_CONFIG_STORAGE_KEY, JSON.stringify(config));
+}
+
+/**
+ * URL publica usada nos e-mails do Supabase Auth.
+ * Mantemos fixa em producao para evitar links apontando para localhost.
+ */
+function getAuthRedirectUrl() {
+  return PRODUCTION_APP_URL;
 }
 
 /**
