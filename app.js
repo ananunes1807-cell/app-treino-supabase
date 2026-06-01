@@ -3146,6 +3146,26 @@ function showAuthError(context, error) {
   showToast(`${context}: ${formatted}`, "error");
 }
 
+function isEmailConfirmationAuthError(error) {
+  const text = [
+    error?.message,
+    error?.code,
+    error?.name
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  return text.includes("email not confirmed")
+    || text.includes("email_not_confirmed")
+    || text.includes("not confirmed");
+}
+
+function showEmailConfirmationDevelopmentHelp(error) {
+  const formatted = formatSupabaseAuthError(error);
+  const message = `Supabase bloqueou por confirmacao de e-mail. Erro real: ${formatted}. Para desenvolvimento, desative Confirm email em Authentication > Providers > Email ou confirme novamente o usuario no painel Auth.`;
+  console.warn("[GymPulse] Login bloqueado pelo Supabase Auth:", message);
+  el.authStatus.textContent = message;
+  showToast(message, "error");
+}
+
 function formatRoleLabel(role) {
   const labels = {
     admin: "Admin TI",
@@ -3214,17 +3234,21 @@ async function applyAuthenticatedSession(session) {
 
 async function handleAuthLogin(form) {
   const formData = new FormData(form);
+  const email = String(formData.get("email") || "").trim().toLowerCase();
   setFormLoading(form, true);
   el.authStatus.textContent = "Entrando...";
 
   try {
     const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email: formData.get("email"),
+      email,
       password: formData.get("password")
     });
 
     if (error) {
       showAuthError("Erro exato do Supabase Auth no login", error);
+      if (isEmailConfirmationAuthError(error)) {
+        showEmailConfirmationDevelopmentHelp(error);
+      }
       return;
     }
     await applyAuthenticatedSession(data.session);
