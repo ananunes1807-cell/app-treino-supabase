@@ -148,6 +148,7 @@ const el = {
   authEmail: document.querySelector("#auth-email"),
   authPassword: document.querySelector("#auth-password"),
   authLogoutButton: document.querySelector("#auth-logout-button"),
+  bootstrapAdminButton: document.querySelector("#bootstrap-admin-button"),
   authStatus: document.querySelector("#auth-status"),
   loginRolePicker: document.querySelector("#login-role-picker"),
   loginHelperTitle: document.querySelector("#login-helper-title"),
@@ -3079,6 +3080,7 @@ function updateLoginRoleHelper(role) {
   });
   el.loginHelperTitle.textContent = content.title;
   el.loginHelperDescription.textContent = content.description;
+  el.bootstrapAdminButton.classList.toggle("hidden", role !== "admin" || Boolean(state.authUser));
 }
 
 async function fetchAuthProfile(user) {
@@ -3115,6 +3117,7 @@ function renderAuthStatus() {
   el.authStatus.textContent = email
     ? `Logado como ${email} (${formatRoleLabel(role)})`
     : "Use o login criado no Supabase Auth.";
+  el.bootstrapAdminButton.classList.toggle("hidden", state.preferredLoginRole !== "admin" || Boolean(state.authUser));
 }
 
 function formatRoleLabel(role) {
@@ -3200,6 +3203,64 @@ async function handleAuthLogin(form) {
     showToast(`Erro no login: ${error.message}`, "error");
   } finally {
     setFormLoading(form, false);
+  }
+}
+
+async function handleBootstrapAdmin() {
+  const email = String(el.authEmail.value || "").trim().toLowerCase();
+  const password = String(el.authPassword.value || "");
+
+  if (!email || !password) {
+    showToast("Informe e-mail e senha para criar o primeiro Admin TI.", "error");
+    return;
+  }
+
+  if (password.length < 6) {
+    showToast("A senha precisa ter pelo menos 6 caracteres.", "error");
+    return;
+  }
+
+  if (!window.confirm("Criar este e-mail como primeiro Admin TI responsavel pelo sistema?")) return;
+
+  setFormLoading(el.authLoginForm, true);
+
+  try {
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          role: "admin_ti",
+          primeiro_admin_ti: true
+        }
+      }
+    });
+
+    if (error) throw error;
+
+    if (!data.session) {
+      showToast("Usuario criado. Confirme o e-mail ou desative confirmacao de e-mail no Supabase para concluir o primeiro acesso.", "error");
+      return;
+    }
+
+    await insertWithSchemaFallback("app_profiles", {
+      user_id: data.user.id,
+      role: "admin_ti",
+      full_name: "Admin TI",
+      nome: "Admin TI",
+      email,
+      status_usuario: "ativo",
+      primeiro_acesso_obrigatorio: false,
+      senha_temporaria: false
+    }, "Erro ao criar primeiro perfil Admin TI");
+
+    await applyAuthenticatedSession(data.session);
+    showToast("Primeiro Admin TI criado com sucesso.");
+  } catch (error) {
+    showToast(`Erro ao criar Admin TI: ${error.message}`, "error");
+  } finally {
+    setFormLoading(el.authLoginForm, false);
+    renderAuthStatus();
   }
 }
 
@@ -3373,6 +3434,7 @@ function bindEvents() {
     handleAuthLogin(event.currentTarget);
   });
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
+  el.bootstrapAdminButton.addEventListener("click", handleBootstrapAdmin);
   el.firstAccessForm.addEventListener("submit", (event) => {
     event.preventDefault();
     handleFirstAccessPasswordChange(event.currentTarget);

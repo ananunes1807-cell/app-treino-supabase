@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-loginfix" />
+    <link rel="stylesheet" href="style.css?v=20260601-bootstrap" />
   </head>
   <body>
     <div class="app">
@@ -58,6 +58,9 @@
                 <button class="primary-button" type="submit">Entrar</button>
                 <button class="secondary-button" type="button" id="auth-logout-button">Sair</button>
               </div>
+              <button class="link-button hidden" type="button" id="bootstrap-admin-button">
+                Criar primeiro acesso Admin TI
+              </button>
               <p class="muted-text" id="auth-status">Use o login criado no Supabase Auth.</p>
             </form>
             <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
@@ -472,7 +475,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-loginfix"></script>
-    <script src="app.js?v=20260601-loginfix"></script>
+    <script src="supabase.js?v=20260601-bootstrap"></script>
+    <script src="app.js?v=20260601-bootstrap"></script>
   </body>
 </html>

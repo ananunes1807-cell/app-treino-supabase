@@ -30,6 +30,7 @@ Execute no Supabase SQL Editor:
 ```text
 sql/007_auth_roles_real_use.sql
 sql/008_admin_maintenance_rpc.sql
+sql/009_bootstrap_first_admin.sql
 ```
 
 Depois crie usuarios em Supabase Authentication e cadastre cada usuario em `app_profiles` com `user_id`, `role` e, para aluno, `student_id`. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
