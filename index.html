@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-mobilepwa" />
+    <link rel="stylesheet" href="style.css?v=20260601-roles" />
   </head>
   <body>
     <div class="app">
@@ -285,6 +285,11 @@
                 </div>
 
                 <h3>Treinos do aluno</h3>
+                <div class="segmented-filter" id="trainer-workout-filter">
+                  <button class="tiny-button active" type="button" data-workout-filter="active">Ativos</button>
+                  <button class="tiny-button" type="button" data-workout-filter="archived">Arquivados</button>
+                  <button class="tiny-button" type="button" data-workout-filter="all">Todos</button>
+                </div>
                 <div class="list compact-list" id="trainer-workouts"></div>
               </section>
 
@@ -379,6 +384,23 @@
               <div class="diagnostic-grid" id="admin-diagnostics"></div>
             </article>
 
+            <article class="card">
+              <div class="section-title compact-title">
+                <div>
+                  <h2>Manutencao Admin TI</h2>
+                  <p>Exclusoes permanentes apenas para limpar testes, duplicados e dados orfaos.</p>
+                </div>
+              </div>
+              <div class="button-row">
+                <button class="secondary-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="test-students">Excluir usuarios de teste</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="orphans">Limpar dados orfaos</button>
+              </div>
+              <div class="list spaced" id="admin-maintenance-log"></div>
+            </article>
+
             <div class="grid two-columns">
               <article class="card">
                 <h2>Erros do Supabase</h2>
@@ -398,7 +420,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-mobilepwa"></script>
-    <script src="app.js?v=20260601-mobilepwa"></script>
+    <script src="supabase.js?v=20260601-roles"></script>
+    <script src="app.js?v=20260601-roles"></script>
   </body>
 </html>

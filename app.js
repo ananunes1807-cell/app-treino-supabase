@@ -16,6 +16,7 @@ const EXPECTED_RLS_POLICIES = [
   ["students", "SELECT anon", "mvp_anon_select_students"],
   ["students", "INSERT anon", "mvp_anon_insert_students"],
   ["students", "UPDATE anon", "mvp_anon_update_students"],
+  ["students", "DELETE anon", "mvp_anon_all_students ou mvp_anon_delete_students"],
   ["assessments", "SELECT anon", "mvp_anon_select_assessments"],
   ["assessments", "INSERT anon", "mvp_anon_insert_assessments"],
   ["assessments", "UPDATE anon", "mvp_anon_update_assessments"],
@@ -26,6 +27,7 @@ const EXPECTED_RLS_POLICIES = [
   ["body_measurements", "DELETE anon", "mvp_anon_delete_body_measurements"],
   ["exercise_library", "SELECT anon", "mvp_anon_select_exercise_library"],
   ["exercise_library", "INSERT anon", "mvp_anon_insert_exercise_library"],
+  ["exercise_library", "DELETE anon", "mvp_anon_all_exercise_library"],
   ["workouts", "SELECT anon", "mvp_anon_select_workouts"],
   ["workouts", "INSERT anon", "mvp_anon_insert_workouts"],
   ["workouts", "UPDATE anon", "mvp_anon_update_workouts"],
@@ -35,7 +37,8 @@ const EXPECTED_RLS_POLICIES = [
   ["workout_exercises", "UPDATE anon", "mvp_anon_update_workout_exercises"],
   ["workout_exercises", "DELETE anon", "mvp_anon_delete_workout_exercises"],
   ["workout_logs", "SELECT anon", "mvp_anon_select_workout_logs"],
-  ["workout_logs", "INSERT anon", "mvp_anon_insert_workout_logs"]
+  ["workout_logs", "INSERT anon", "mvp_anon_insert_workout_logs"],
+  ["workout_logs", "DELETE anon", "mvp_anon_all_workout_logs"]
 ];
 const DEFAULT_EXERCISES = [
   ["Agachamento livre", "Pernas", "Barra livre", "Intermediario", "Manter tronco firme, descer com controle e subir empurrando o chao."],
@@ -67,6 +70,7 @@ const state = {
   selectedStudentId: "",
   selectedWorkoutId: "",
   trainerActiveTab: "profile",
+  trainerWorkoutFilter: "active",
   trainerAssessmentsCache: [],
   trainerMeasurementsCache: [],
   studentAreaId: "",
@@ -110,6 +114,7 @@ const el = {
   exerciseSearch: document.querySelector("#exercise-search"),
   exerciseGroupFilter: document.querySelector("#exercise-group-filter"),
   trainerWorkouts: document.querySelector("#trainer-workouts"),
+  trainerWorkoutFilter: document.querySelector("#trainer-workout-filter"),
   studentSearch: document.querySelector("#student-search"),
   addExerciseButton: document.querySelector("#add-exercise-to-workout"),
   deleteStudentButton: document.querySelector("#delete-student-button"),
@@ -128,7 +133,8 @@ const el = {
   adminExercisesList: document.querySelector("#admin-exercises-list"),
   adminDiagnostics: document.querySelector("#admin-diagnostics"),
   adminErrorsList: document.querySelector("#admin-errors-list"),
-  adminRlsPolicies: document.querySelector("#admin-rls-policies")
+  adminRlsPolicies: document.querySelector("#admin-rls-policies"),
+  adminMaintenanceLog: document.querySelector("#admin-maintenance-log")
 };
 
 /**
@@ -378,8 +384,8 @@ function renderStudentArea() {
  */
 function getCurrentWorkout(studentId) {
   return state.workouts.find((workout) => {
-    const status = pick(workout, ["status"], "active");
-    return String(workout.student_id) === String(studentId) && status !== "archived" && status !== "not_done";
+    const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
+    return String(workout.student_id) === String(studentId) && status === "ativo";
   });
 }
 
@@ -662,7 +668,8 @@ async function renderTrainerProfile() {
       fetchTable("assessments", { eq: { column: "student_id", value: state.selectedStudentId }, orderBy: "created_at" }),
       fetchTable("body_measurements", { eq: { column: "student_id", value: state.selectedStudentId }, orderBy: "created_at" })
     ]);
-    const workouts = getStudentWorkouts(state.selectedStudentId);
+    const allWorkouts = getStudentWorkouts(state.selectedStudentId);
+    const workouts = getFilteredTrainerWorkouts(allWorkouts);
 
     el.trainerAssessments.innerHTML = assessments.length
       ? assessments.map(renderAssessmentItem).join("")
@@ -673,7 +680,11 @@ async function renderTrainerProfile() {
     el.trainerWorkouts.innerHTML = workouts.length
       ? workouts.map(renderWorkoutItem).join("")
       : emptyMessage("Nenhum treino criado para este aluno.");
-    renderTrainerWorkoutSelect(workouts);
+    renderTrainerWorkoutFilter();
+    renderTrainerWorkoutSelect(allWorkouts.filter((workout) => {
+      const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
+      return status !== "arquivado" && status !== "excluido";
+    }));
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -684,6 +695,40 @@ async function renderTrainerProfile() {
  */
 function getStudentWorkouts(studentId) {
   return state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
+}
+
+function normalizeWorkoutStatus(status) {
+  const value = normalizeText(status || "ativo");
+  if (value === "active") return "ativo";
+  if (value === "archived") return "arquivado";
+  if (value === "draft") return "rascunho";
+  if (value === "deleted") return "excluido";
+  if (value === "not_done") return "rascunho";
+  if (value === "incomplete") return "rascunho";
+  return value || "ativo";
+}
+
+function isWorkoutVisibleToStudent(workout) {
+  return normalizeWorkoutStatus(pick(workout, ["status"], "ativo")) === "ativo";
+}
+
+function getFilteredTrainerWorkouts(workouts) {
+  if (state.trainerWorkoutFilter === "archived") {
+    return workouts.filter((workout) => normalizeWorkoutStatus(pick(workout, ["status"], "ativo")) === "arquivado");
+  }
+
+  if (state.trainerWorkoutFilter === "active") {
+    return workouts.filter((workout) => isWorkoutVisibleToStudent(workout));
+  }
+
+  return workouts.filter((workout) => normalizeWorkoutStatus(pick(workout, ["status"], "ativo")) !== "excluido");
+}
+
+function renderTrainerWorkoutFilter() {
+  if (!el.trainerWorkoutFilter) return;
+  el.trainerWorkoutFilter.querySelectorAll("[data-workout-filter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.workoutFilter === state.trainerWorkoutFilter);
+  });
 }
 
 /**
@@ -957,7 +1002,7 @@ async function createWorkoutLegacy(form) {
     title: formData.get("title"),
     goal: formData.get("goal") || null,
     notes: formData.get("notes") || null,
-    status: "active"
+    status: "ativo"
   };
 
   try {
@@ -1330,6 +1375,158 @@ function renderExpectedRlsPolicies() {
 /**
  * Insere a biblioteca padrão de exercícios no Supabase pelo TI/Admin.
  */
+function renderAdminMaintenanceLog(message) {
+  if (!el.adminMaintenanceLog) return;
+  el.adminMaintenanceLog.innerHTML = `
+    <article class="simple-item stacked">
+      <strong>Resultado</strong>
+      <span>${escapeHtml(message)}</span>
+    </article>
+  `;
+}
+
+function isTestRecord(record, fields) {
+  const text = fields.map((field) => pick(record, [field], "")).join(" ");
+  const normalized = normalizeText(text);
+  return ["teste", "test", "demo", "exemplo"].some((word) => normalized.includes(word));
+}
+
+async function handleAdminMaintenance(action) {
+  if (!state.adminUnlocked || state.accessRole !== "admin") {
+    showToast("Manutencao permitida apenas para TI/Admin.", "error");
+    return;
+  }
+
+  if (!window.confirm("Tem certeza que deseja executar esta manutencao?")) return;
+
+  try {
+    let result = "";
+
+    if (action === "test-data") {
+      const studentsRemoved = await removeTestStudents();
+      const workoutsRemoved = await removeTestWorkouts();
+      result = `Dados de teste removidos. Alunos: ${studentsRemoved}. Treinos: ${workoutsRemoved}.`;
+    }
+
+    if (action === "test-students") {
+      const removed = await removeTestStudents();
+      result = `Usuarios de teste removidos: ${removed}.`;
+    }
+
+    if (action === "test-workouts") {
+      const removed = await removeTestWorkouts();
+      result = `Treinos de teste removidos: ${removed}.`;
+    }
+
+    if (action === "duplicates") {
+      const removed = await removeDuplicateExercises();
+      result = `Exercicios duplicados removidos: ${removed}.`;
+    }
+
+    if (action === "orphans") {
+      const removed = await removeOrphanWorkoutData();
+      result = `Dados orfaos removidos: ${removed}.`;
+    }
+
+    await loadSupabaseData({ silent: true });
+    renderAdminArea();
+    renderAdminMaintenanceLog(result || "Nenhuma rotina executada.");
+    showToast(result || "Manutencao concluida.");
+  } catch (error) {
+    console.error("[GymPulse] Erro na manutencao Admin:", error);
+    renderAdminMaintenanceLog(error.message);
+    showToast(error.message, "error");
+  }
+}
+
+async function removeTestStudents() {
+  const testStudents = state.students.filter((student) => (
+    isTestRecord(student, ["name", "nickname", "objective", "notes"])
+  ));
+
+  for (const student of testStudents) {
+    await deleteStudentPermanently(student.id);
+  }
+
+  return testStudents.length;
+}
+
+async function removeTestWorkouts() {
+  const testWorkouts = state.workouts.filter((workout) => (
+    isTestRecord(workout, ["name", "title", "goal", "notes", "description"])
+  ));
+
+  for (const workout of testWorkouts) {
+    await deleteWorkoutPermanently(workout.id, { removeLogs: true });
+  }
+
+  return testWorkouts.length;
+}
+
+async function removeDuplicateExercises() {
+  const seen = new Set();
+  const duplicates = [];
+
+  for (const exercise of state.exercises) {
+    const key = getExerciseKey(exercise);
+    if (!key || key === "::") continue;
+    if (seen.has(key)) {
+      duplicates.push(exercise);
+      continue;
+    }
+    seen.add(key);
+  }
+
+  for (const exercise of duplicates) {
+    await deleteById("exercise_library", exercise.id, "Erro ao remover exercicio duplicado");
+  }
+
+  return duplicates.length;
+}
+
+async function removeOrphanWorkoutData() {
+  const workoutIds = new Set(state.workouts.map((workout) => String(workout.id)));
+  const studentIds = new Set(state.students.map((student) => String(student.id)));
+  const orphanExercises = state.workoutExercises.filter((item) => !workoutIds.has(String(item.workout_id)));
+  const orphanLogs = state.workoutLogs.filter((log) => (
+    !workoutIds.has(String(log.workout_id)) || !studentIds.has(String(log.student_id))
+  ));
+
+  for (const item of orphanExercises) {
+    await deleteById("workout_exercises", item.id, "Erro ao remover exercicio orfao");
+  }
+
+  for (const log of orphanLogs) {
+    await deleteById("workout_logs", log.id, "Erro ao remover log orfao");
+  }
+
+  return orphanExercises.length + orphanLogs.length;
+}
+
+async function deleteStudentPermanently(id) {
+  const workoutIds = state.workouts
+    .filter((workout) => String(workout.student_id) === String(id))
+    .map((workout) => workout.id)
+    .filter(Boolean);
+
+  for (const workoutId of workoutIds) {
+    await deleteWorkoutPermanently(workoutId, { removeLogs: true });
+  }
+
+  await deleteByColumn("workout_logs", "student_id", id, "Erro ao excluir logs do aluno");
+  await deleteByColumn("assessments", "student_id", id, "Erro ao excluir avaliacoes do aluno");
+  await deleteByColumn("body_measurements", "student_id", id, "Erro ao excluir medidas do aluno");
+  await deleteById("students", id, "Erro ao excluir aluno");
+}
+
+async function deleteWorkoutPermanently(id, options = {}) {
+  if (options.removeLogs) {
+    await deleteByColumn("workout_logs", "workout_id", id, "Erro ao excluir logs do treino");
+  }
+  await deleteByColumn("workout_exercises", "workout_id", id, "Erro ao excluir exercicios do treino");
+  await deleteById("workouts", id, "Erro ao excluir treino");
+}
+
 async function seedExerciseLibrary() {
   const payload = DEFAULT_EXERCISES.map(([name, muscle_group, equipment, difficulty, instructions]) => ({
     name,
@@ -1482,7 +1679,8 @@ async function renderTrainerProfile() {
       fetchTable("assessments", { eq: { column: "student_id", value: state.selectedStudentId }, orderBy: "created_at" }),
       fetchTable("body_measurements", { eq: { column: "student_id", value: state.selectedStudentId }, orderBy: "created_at" })
     ]);
-    const workouts = getStudentWorkouts(state.selectedStudentId);
+    const allWorkouts = getStudentWorkouts(state.selectedStudentId);
+    const workouts = getFilteredTrainerWorkouts(allWorkouts);
 
     state.trainerAssessmentsCache = assessments;
     state.trainerMeasurementsCache = measurements;
@@ -1496,7 +1694,11 @@ async function renderTrainerProfile() {
     el.trainerWorkouts.innerHTML = workouts.length
       ? workouts.map(renderWorkoutItem).join("")
       : emptyMessage("Nenhum treino criado para este aluno.");
-    renderTrainerWorkoutSelect(workouts);
+    renderTrainerWorkoutFilter();
+    renderTrainerWorkoutSelect(allWorkouts.filter((workout) => {
+      const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
+      return status !== "arquivado" && status !== "excluido";
+    }));
     renderTrainerHistory();
     switchTrainerTab(state.trainerActiveTab);
   } catch (error) {
@@ -1582,7 +1784,7 @@ function renderRecordActions(type, id) {
  */
 function renderWorkoutItem(workout) {
   const exercises = getWorkoutExercises(workout.id);
-  const status = pick(workout, ["status"], "active");
+  const status = pick(workout, ["status"], "ativo");
   const hasLogs = workoutHasLogs(workout.id);
 
   return `
@@ -1915,7 +2117,7 @@ async function createWorkout(form) {
     goal: formData.get("goal") || null,
     description: formData.get("goal") || null,
     notes: formData.get("notes") || null,
-    status: "active"
+    status: "ativo"
   };
   const editId = form.dataset.editId;
   console.log("[GymPulse] Enviando workout para Supabase:", {
@@ -2114,15 +2316,19 @@ async function deleteWorkoutExercise(id) {
  * Exclui treino pelo id e remove seus exercicios caso nao exista cascade.
  */
 async function deleteWorkout(id) {
+  if (state.accessRole !== "admin") {
+    showToast("Exclusao permanente de treinos e permitida apenas para TI/Admin. Use arquivar ou desativar.", "error");
+    return;
+  }
+
   if (!window.confirm("Tem certeza que deseja excluir?")) return;
   console.log("[GymPulse] deleteWorkout(id):", id);
 
   try {
-    if (workoutHasLogs(id)) {
-      throw new Error("Este treino ja possui registros realizados. Arquive o treino para preservar o historico.");
+    if (workoutHasLogs(id) && !window.confirm("Este treino possui historico. Como Admin TI, deseja excluir tambem os logs deste treino?")) {
+      return;
     }
-    await deleteByColumn("workout_exercises", "workout_id", id, "Erro ao excluir exercicios do treino");
-    await deleteById("workouts", id, "Erro ao excluir treino");
+    await deleteWorkoutPermanently(id, { removeLogs: workoutHasLogs(id) });
     if (String(state.selectedWorkoutId) === String(id)) state.selectedWorkoutId = "";
     showToast("Treino excluido.");
     await reloadAfterDelete();
@@ -2136,9 +2342,10 @@ async function deleteWorkout(id) {
  */
 async function updateWorkoutStatus(id, status) {
   const labels = {
-    not_done: "nao realizado",
-    incomplete: "incompleto",
-    archived: "arquivado"
+    ativo: "ativo",
+    rascunho: "rascunho",
+    arquivado: "arquivado",
+    excluido: "excluido"
   };
   const label = labels[status] || status;
 
@@ -2146,7 +2353,7 @@ async function updateWorkoutStatus(id, status) {
 
   try {
     await updateWithSchemaFallback("workouts", id, { status }, "Erro ao atualizar status do treino");
-    if (String(state.selectedWorkoutId) === String(id) && status === "archived") {
+    if (String(state.selectedWorkoutId) === String(id) && status !== "ativo") {
       state.selectedWorkoutId = "";
     }
     showToast(`Treino marcado como ${label}.`);
@@ -2161,6 +2368,11 @@ async function updateWorkoutStatus(id, status) {
  * Exclui aluno selecionado e limpa o perfil.
  */
 async function deleteStudent(id = state.selectedStudentId) {
+  if (state.accessRole !== "admin") {
+    showToast("Exclusao permanente de alunos e permitida apenas para TI/Admin.", "error");
+    return;
+  }
+
   if (!id) {
     showToast("Selecione um aluno antes de excluir.", "error");
     return;
@@ -2267,7 +2479,10 @@ function editWorkout(id) {
   form.elements.notes.value = pick(record, ["notes"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar treino";
   state.selectedWorkoutId = id;
-  renderTrainerWorkoutSelect(getStudentWorkouts(state.selectedStudentId));
+  renderTrainerWorkoutSelect(getStudentWorkouts(state.selectedStudentId).filter((workout) => {
+    const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
+    return status !== "arquivado" && status !== "excluido";
+  }));
   switchTrainerTab("workouts");
 }
 
@@ -2583,6 +2798,13 @@ function bindEvents() {
     switchTrainerTab(button.dataset.trainerTab);
   });
 
+  el.trainerWorkoutFilter.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-workout-filter]");
+    if (!button) return;
+    state.trainerWorkoutFilter = button.dataset.workoutFilter;
+    renderTrainerProfile();
+  });
+
   el.trainerStudentsList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-student-id]");
     if (!button) return;
@@ -2632,6 +2854,11 @@ function bindEvents() {
   document.querySelector("#test-connection-button").addEventListener("click", testConnection);
   document.querySelector("#admin-reload-data").addEventListener("click", loadSupabaseData);
   document.querySelector("#seed-exercise-library").addEventListener("click", seedExerciseLibrary);
+  el.adminMaintenanceLog.closest(".card").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-maintenance]");
+    if (!button) return;
+    handleAdminMaintenance(button.dataset.adminMaintenance);
+  });
   window.addEventListener("online", syncPendingWorkoutLogs);
 }
 
@@ -2639,13 +2866,14 @@ function bindEvents() {
  * Traduz status do treino para exibicao.
  */
 function formatWorkoutStatus(status) {
+  const normalized = normalizeWorkoutStatus(status);
   const labels = {
-    active: "Ativo",
-    not_done: "Nao realizado",
-    incomplete: "Incompleto",
-    archived: "Arquivado"
+    ativo: "Ativo",
+    rascunho: "Rascunho",
+    arquivado: "Arquivado",
+    excluido: "Excluido"
   };
-  return labels[status] || status || "Ativo";
+  return labels[normalized] || normalized || "Ativo";
 }
 
 /**
@@ -2660,17 +2888,28 @@ function workoutHasLogs(workoutId) {
  */
 function renderWorkoutActions(workout, hasLogs) {
   const id = escapeHtml(workout.id);
-  const deleteButton = hasLogs
-    ? `<button class="tiny-button danger" type="button" disabled title="Nao e possivel excluir treino com historico realizado. Arquive o treino.">Excluir</button>`
-    : `<button class="tiny-button danger" type="button" data-action="delete-workout" data-id="${id}">Excluir</button>`;
+  const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
+  const activateButton = status === "ativo"
+    ? ""
+    : `<button class="tiny-button" type="button" data-action="status-workout" data-status="ativo" data-id="${id}">Ativar</button>`;
+  const archiveButton = status === "arquivado"
+    ? ""
+    : `<button class="tiny-button" type="button" data-action="status-workout" data-status="arquivado" data-id="${id}">Arquivar</button>`;
+  const draftButton = status === "rascunho"
+    ? ""
+    : `<button class="tiny-button" type="button" data-action="status-workout" data-status="rascunho" data-id="${id}">Desativar</button>`;
+  const deleteButton = state.accessRole === "admin"
+    ? `<button class="tiny-button danger" type="button" data-action="delete-workout" data-id="${id}">Excluir definitivo</button>`
+    : "";
 
   return `
     <div class="record-actions workout-actions">
       <button class="tiny-button" type="button" data-action="edit-workout" data-id="${id}">Editar</button>
-      <button class="tiny-button" type="button" data-action="status-workout" data-status="not_done" data-id="${id}">Nao realizado</button>
-      <button class="tiny-button" type="button" data-action="status-workout" data-status="incomplete" data-id="${id}">Incompleto</button>
-      <button class="tiny-button" type="button" data-action="status-workout" data-status="archived" data-id="${id}">Arquivar</button>
+      ${activateButton}
+      ${draftButton}
+      ${archiveButton}
       ${deleteButton}
+      ${hasLogs ? `<small>Historico preservado</small>` : ""}
     </div>
   `;
 }

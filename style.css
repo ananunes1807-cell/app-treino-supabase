@@ -387,6 +387,19 @@ label {
   color: var(--primary-dark);
 }
 
+.segmented-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.segmented-filter .tiny-button.active {
+  border-color: var(--primary);
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
 .trainer-tab {
   display: none;
 }

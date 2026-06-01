@@ -20,6 +20,7 @@ Centralizar o acompanhamento de alunos, treinos, exercicios, avaliacoes fisicas,
 ### Area Aluno
 
 - Visualizar treino atual.
+- Visualizar apenas treinos com status `ativo`.
 - Marcar treino como concluido.
 - Ver historico de treinos.
 - Ver evolucao corporal simples.
@@ -30,9 +31,10 @@ Centralizar o acompanhamento de alunos, treinos, exercicios, avaliacoes fisicas,
 - Buscar aluno por nome ou e-mail.
 - Visualizar e editar perfil do aluno.
 - Adicionar novo aluno na tabela `students`.
-- Criar, editar e excluir treino para aluno na tabela `workouts`.
+- Criar, editar, ativar, desativar e arquivar treinos na tabela `workouts`.
 - Adicionar, editar e remover exercicios do treino usando a tabela `exercise_library`.
 - Ver, editar e excluir avaliacoes e medidas corporais.
+- Consultar historico sem apagar registros realizados pelo aluno.
 - Acompanhar historico do aluno por abas: Perfil, Avaliacoes, Medidas, Treinos, Historico e Biblioteca.
 
 ### TI/Admin ou Controle do Sistema
@@ -51,6 +53,7 @@ Essa area contem:
 - Project URL.
 - Anon/Public Key.
 - Status de conexao.
+- Manutencao para limpar dados de teste, duplicados, dados orfaos e exclusoes permanentes quando necessario.
 - Testar conexao.
 - Ver tabelas existentes.
 - Listar alunos do banco.
@@ -123,6 +126,20 @@ sql/003_campos_edicao_historico_treinador.sql
 ```
 
 Esse script adiciona campos opcionais de perfil, avaliacao, medidas e treino com `add column if not exists`, alem de policies temporarias de `UPDATE` e `DELETE` para o MVP com anon key. Em producao, essas policies devem ser substituidas por regras com Supabase Auth.
+
+Para separar treinos ativos, rascunhos, arquivados e excluidos, execute tambem:
+
+```text
+sql/006_workout_status_admin_roles.sql
+```
+
+Esse script adiciona `workouts.status` com os valores `ativo`, `arquivado`, `rascunho` e `excluido`.
+
+Para usar as rotinas de manutencao do Admin TI no MVP, confirme tambem as policies CRUD temporarias:
+
+```text
+sql/004_policies_crud_mvp.sql
+```
 
 ## Tabelas usadas
 
