@@ -48,7 +48,23 @@ O arquivo `013_corrige_exclusoes_admin_personal.sql` corrige exclusoes de avalia
 
 ### GitHub e Supabase
 
-Para reduzir trabalho manual, mova as migrations para a estrutura oficial `supabase/migrations` e conecte o projeto ao GitHub pelo painel do Supabase usando Database Branching/GitHub Integration. Assim o Supabase consegue acompanhar migrations versionadas no repositorio.
+Para reduzir trabalho manual, o repositorio possui a estrutura oficial:
+
+```text
+supabase/
+supabase/config.toml
+supabase/migrations/
+```
+
+No painel do Supabase, ao conectar o GitHub, use:
+
+```text
+Repository: ananunes1807-cell/app-treino-supabase
+Branch: main
+Working directory: .
+```
+
+O Supabase vai procurar a pasta `supabase/` na raiz do repositorio e ler as migrations em `supabase/migrations/`.
 
 ## Areas do sistema
 
