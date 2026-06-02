@@ -146,6 +146,10 @@ const el = {
   adminRlsPolicies: document.querySelector("#admin-rls-policies"),
   adminMaintenanceLog: document.querySelector("#admin-maintenance-log"),
   authLoginForm: document.querySelector("#auth-login-form"),
+  authRegisterForm: document.querySelector("#auth-register-form"),
+  authModeTabs: document.querySelector(".auth-mode-tabs"),
+  registerStatus: document.querySelector("#register-status"),
+  forgotPasswordButton: document.querySelector("#forgot-password-button"),
   authEmail: document.querySelector("#auth-email"),
   authPassword: document.querySelector("#auth-password"),
   authLogoutButton: document.querySelector("#auth-logout-button"),
@@ -1104,6 +1108,19 @@ function normalizeRole(role) {
   if (["personal", "trainer", "treinador"].includes(value)) return "trainer";
   if (["student", "aluno"].includes(value)) return "student";
   return "";
+}
+
+function toDatabaseRole(role) {
+  const normalized = normalizeRole(role);
+  if (normalized === "admin") return "admin_ti";
+  if (normalized === "trainer") return "personal";
+  return "aluno";
+}
+
+function getDefaultRoleForEmail(email, requestedRole = "aluno") {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (normalizedEmail === "ananunes1807@gmail.com") return "admin_ti";
+  return toDatabaseRole(requestedRole);
 }
 
 function getCurrentRole() {
@@ -3088,7 +3105,71 @@ function updateLoginRoleHelper(role) {
   el.bootstrapAdminButton.classList.toggle("hidden", role !== "admin" || Boolean(state.authUser));
 }
 
-async function fetchAuthProfile(user) {
+function switchAuthMode(mode) {
+  const isRegister = mode === "register";
+  el.authLoginForm.classList.toggle("hidden", isRegister);
+  el.authRegisterForm.classList.toggle("hidden", !isRegister);
+  el.authModeTabs.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.authMode === mode);
+  });
+  el.authStatus.textContent = isRegister
+    ? "Crie seu cadastro com e-mail e senha."
+    : "Use o login criado no Supabase Auth.";
+}
+
+function isExistingEmailSignUpResult(data, error) {
+  const text = normalizeText([
+    error?.message,
+    error?.code,
+    error?.name
+  ].filter(Boolean).join(" "));
+
+  if (text.includes("already") || text.includes("registered") || text.includes("exists")) return true;
+
+  const identities = data?.user?.identities;
+  return Array.isArray(identities) && identities.length === 0;
+}
+
+function getProfilePayload(user, requestedRole = "aluno", name = "") {
+  const email = String(user?.email || "").trim().toLowerCase();
+  const role = getDefaultRoleForEmail(email, requestedRole || user?.user_metadata?.role || "aluno");
+  const fullName = name || user?.user_metadata?.nome || user?.user_metadata?.name || email;
+
+  return {
+    user_id: user.id,
+    role,
+    full_name: fullName,
+    nome: fullName,
+    email,
+    status_usuario: "ativo",
+    primeiro_acesso_obrigatorio: false,
+    senha_temporaria: false
+  };
+}
+
+async function ensureAuthProfile(user, requestedRole = "aluno", name = "") {
+  if (!user?.id) return null;
+
+  const existing = await fetchAuthProfile(user, { createIfMissing: false });
+  if (existing?.id || existing?.user_id) return existing;
+
+  const payload = getProfilePayload(user, requestedRole, name);
+  try {
+    const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao vincular perfil existente");
+    return created?.[0] || payload;
+  } catch (error) {
+    console.warn("[GymPulse] Nao foi possivel criar app_profiles automaticamente.", error);
+    showToast(`Login feito, mas o perfil nao foi vinculado: ${error.message}`, "error");
+    return {
+      user_id: user.id,
+      role: payload.role,
+      email: payload.email,
+      nome: payload.nome
+    };
+  }
+}
+
+async function fetchAuthProfile(user, options = {}) {
   if (!user) return null;
 
   try {
@@ -3099,7 +3180,9 @@ async function fetchAuthProfile(user) {
       .maybeSingle();
 
     if (error) throw error;
-    return data || {
+    if (data) return data;
+    if (options.createIfMissing === false) return null;
+    return {
       user_id: user.id,
       role: user.user_metadata?.role || "",
       student_id: user.user_metadata?.student_id || null
@@ -3107,6 +3190,7 @@ async function fetchAuthProfile(user) {
   } catch (error) {
     console.warn("[GymPulse] app_profiles indisponivel. Usando metadados do Auth.", error);
     state.lastError = error.message;
+    if (options.createIfMissing === false) return null;
     return {
       user_id: user.id,
       role: user.user_metadata?.role || "",
@@ -3234,7 +3318,11 @@ async function applyAuthenticatedSession(session) {
   if (!session?.user) return;
 
   state.authUser = session.user;
-  state.authProfile = await fetchAuthProfile(session.user);
+  state.authProfile = await ensureAuthProfile(
+    session.user,
+    session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
+    session.user.user_metadata?.nome || session.user.user_metadata?.name || ""
+  );
 
   if (state.passwordRecoveryMode) {
     renderPasswordFlowText();
@@ -3307,6 +3395,96 @@ async function handleAuthLogin(form) {
     showAuthError("Excecao capturada no login", error);
   } finally {
     setFormLoading(form, false);
+  }
+}
+
+async function handleAuthRegister(form) {
+  const formData = new FormData(form);
+  const name = String(formData.get("name") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "");
+  const confirmPassword = String(formData.get("confirmPassword") || "");
+  const role = String(formData.get("role") || "aluno");
+
+  if (!name || !email || !password) {
+    showToast("Preencha nome, e-mail e senha.", "error");
+    return;
+  }
+
+  if (password.length < 6) {
+    showToast("A senha precisa ter pelo menos 6 caracteres.", "error");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    showToast("As senhas nao conferem.", "error");
+    return;
+  }
+
+  setFormLoading(form, true);
+  el.registerStatus.textContent = "Criando cadastro...";
+
+  try {
+    const databaseRole = getDefaultRoleForEmail(email, role);
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getAuthRedirectUrl(),
+        data: {
+          nome: name,
+          name,
+          role: databaseRole
+        }
+      }
+    });
+
+    if (isExistingEmailSignUpResult(data, error)) {
+      throw new Error("Este e-mail ja esta cadastrado. Entre ou recupere sua senha.");
+    }
+
+    if (error) throw error;
+
+    if (data.session?.user) {
+      state.authUser = data.session.user;
+      state.authProfile = await ensureAuthProfile(data.session.user, databaseRole, name);
+      form.reset();
+      el.registerStatus.textContent = "Cadastro criado. Voce ja pode usar o app.";
+      showToast("Cadastro criado com sucesso.");
+      await applyAuthenticatedSession(data.session);
+      return;
+    }
+
+    form.reset();
+    el.registerStatus.textContent = "Cadastro criado. Verifique seu e-mail para confirmar o acesso.";
+    showToast("Cadastro criado. Confirme o e-mail antes de entrar.");
+    switchAuthMode("login");
+  } catch (error) {
+    const message = error.message || "Erro ao criar cadastro.";
+    el.registerStatus.textContent = message;
+    showToast(message, "error");
+    console.error("[GymPulse] Erro ao criar cadastro:", error);
+  } finally {
+    setFormLoading(form, false);
+  }
+}
+
+async function handleForgotPassword() {
+  const email = window.prompt("Informe o e-mail cadastrado para receber o link de recuperacao:");
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return;
+
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: getAuthRedirectUrl()
+    });
+
+    if (error) throw error;
+
+    el.authStatus.textContent = "Enviamos um link de recuperacao para o seu e-mail.";
+    showToast("Link de recuperacao enviado.");
+  } catch (error) {
+    showAuthError("Erro ao enviar recuperacao de senha", error);
   }
 }
 
@@ -3579,6 +3757,16 @@ function bindEvents() {
     event.preventDefault();
     handleAuthLogin(event.currentTarget);
   });
+  el.authRegisterForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleAuthRegister(event.currentTarget);
+  });
+  el.authModeTabs.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-auth-mode]");
+    if (!button) return;
+    switchAuthMode(button.dataset.authMode);
+  });
+  el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
   el.bootstrapAdminButton.addEventListener("click", handleBootstrapAdmin);
   el.firstAccessForm.addEventListener("submit", (event) => {

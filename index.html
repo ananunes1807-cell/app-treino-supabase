@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-recovery" />
+    <link rel="stylesheet" href="style.css?v=20260601-signup" />
   </head>
   <body>
     <div class="app">
@@ -45,6 +45,10 @@
               <p class="subtitle">GymPulse</p>
               <h2>Entrar no app</h2>
             </div>
+            <div class="auth-mode-tabs" aria-label="Acesso">
+              <button class="auth-mode-button active" type="button" data-auth-mode="login">Entrar</button>
+              <button class="auth-mode-button" type="button" data-auth-mode="register">Criar cadastro</button>
+            </div>
             <form class="auth-login" id="auth-login-form">
               <label>
                 E-mail
@@ -61,7 +65,38 @@
               <button class="link-button hidden" type="button" id="bootstrap-admin-button">
                 Criar primeiro acesso Admin TI
               </button>
+              <button class="link-button" type="button" id="forgot-password-button">
+                Esqueci minha senha
+              </button>
               <p class="muted-text" id="auth-status">Use o login criado no Supabase Auth.</p>
+            </form>
+            <form class="auth-login hidden" id="auth-register-form">
+              <label>
+                Nome completo
+                <input id="register-name" name="name" type="text" autocomplete="name" placeholder="Seu nome completo" required />
+              </label>
+              <label>
+                E-mail
+                <input id="register-email" name="email" type="email" autocomplete="email" placeholder="seu@email.com" required />
+              </label>
+              <label>
+                Senha
+                <input id="register-password" name="password" type="password" minlength="6" autocomplete="new-password" placeholder="Crie uma senha" required />
+              </label>
+              <label>
+                Confirmar senha
+                <input id="register-confirm-password" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repita a senha" required />
+              </label>
+              <label>
+                Tipo de perfil
+                <select id="register-role" name="role" required>
+                  <option value="aluno">Aluno</option>
+                  <option value="personal">Personal</option>
+                  <option value="admin_ti">Admin TI</option>
+                </select>
+              </label>
+              <button class="primary-button" type="submit">Criar cadastro</button>
+              <p class="muted-text" id="register-status">Depois do cadastro, use a aba Entrar para acessar.</p>
             </form>
             <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
               <button class="role-chip active" type="button" data-login-role="student">Aluno</button>
@@ -475,7 +510,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-recovery"></script>
-    <script src="app.js?v=20260601-recovery"></script>
+    <script src="supabase.js?v=20260601-signup"></script>
+    <script src="app.js?v=20260601-signup"></script>
   </body>
 </html>
