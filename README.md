@@ -37,6 +37,7 @@ sql/011_roles_reais_permissoes.sql
 sql/012_convites_alunos_vinculos_reais.sql
 sql/013_corrige_exclusoes_admin_personal.sql
 sql/014_auditoria_final_auth_vinculos.sql
+sql/015_trava_admin_ti_principal.sql
 ```
 
 O cadastro tradicional do app usa Supabase Auth e grava o perfil em `app_profiles`. Aluno nao cria conta livremente: o personal cria um convite em `student_invites`, o aluno finaliza pelo link, e o sistema cria o vinculo em `trainer_students`. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
@@ -48,6 +49,8 @@ O arquivo `012_convites_alunos_vinculos_reais.sql` remove o cadastro aberto de a
 O arquivo `013_corrige_exclusoes_admin_personal.sql` corrige exclusoes de avaliacoes/medidas por personal vinculado e adiciona RPC para o Admin TI limpar avaliacoes.
 
 O arquivo `014_auditoria_final_auth_vinculos.sql` adiciona `profile_id` e `trainer_id` onde faltavam, sincroniza `profiles` com `app_profiles` e cria a funcao `gympulse_audit_summary()` para diagnostico rapido.
+
+O arquivo `015_trava_admin_ti_principal.sql` remove o bootstrap publico de Admin TI e garante que apenas `ananunes1807@gmail.com` possa manter o papel `admin_ti`.
 
 ### GitHub e Supabase
 

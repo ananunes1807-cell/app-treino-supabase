@@ -3132,7 +3132,7 @@ function updateLoginRoleHelper(role) {
   });
   el.loginHelperTitle.textContent = content.title;
   el.loginHelperDescription.textContent = content.description;
-  el.bootstrapAdminButton.classList.toggle("hidden", role !== "admin" || Boolean(state.authUser));
+  el.bootstrapAdminButton?.classList.add("hidden");
 }
 
 function switchAuthMode(mode) {
@@ -3424,7 +3424,7 @@ function renderAuthStatus() {
   el.authStatus.textContent = email
     ? `Logado como ${email} (${formatRoleLabel(role)})`
     : "Use o login criado no Supabase Auth.";
-  el.bootstrapAdminButton.classList.toggle("hidden", state.preferredLoginRole !== "admin" || Boolean(state.authUser));
+  el.bootstrapAdminButton?.classList.add("hidden");
 }
 
 function formatSupabaseAuthError(error) {
@@ -4050,7 +4050,7 @@ function bindEvents() {
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
-  el.bootstrapAdminButton.addEventListener("click", handleBootstrapAdmin);
+  el.bootstrapAdminButton?.addEventListener("click", handleBootstrapAdmin);
   el.firstAccessForm.addEventListener("submit", (event) => {
     event.preventDefault();
     handleFirstAccessPasswordChange(event.currentTarget);
