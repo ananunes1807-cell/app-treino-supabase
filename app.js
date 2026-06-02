@@ -153,9 +153,9 @@ const el = {
   adminMaintenanceLog: document.querySelector("#admin-maintenance-log"),
   authLoginForm: document.querySelector("#auth-login-form"),
   authRegisterForm: document.querySelector("#auth-register-form"),
-  authModeTabs: document.querySelector(".auth-mode-tabs"),
   registerStatus: document.querySelector("#register-status"),
   forgotPasswordButton: document.querySelector("#forgot-password-button"),
+  inviteRegisterButton: document.querySelector("#invite-register-button"),
   authEmail: document.querySelector("#auth-email"),
   authPassword: document.querySelector("#auth-password"),
   authLogoutButton: document.querySelector("#auth-logout-button"),
@@ -3143,12 +3143,25 @@ function switchAuthMode(mode) {
   const emailInput = document.querySelector("#register-email");
   if (roleInput && !state.pendingInvite) roleInput.disabled = false;
   if (emailInput && !state.pendingInvite) emailInput.readOnly = false;
-  el.authModeTabs.querySelectorAll("[data-auth-mode]").forEach((button) => {
-    button.classList.toggle("active", button.dataset.authMode === mode);
-  });
   el.authStatus.textContent = isRegister
-    ? "Crie cadastro de Personal, Admin TI ou Gestor. Aluno entra somente por convite."
+    ? "Finalize o cadastro usando o convite recebido pelo personal."
     : "Use o login criado no Supabase Auth.";
+}
+
+function handleInviteRegisterRequest() {
+  const input = window.prompt("Cole o link do convite ou apenas o token:");
+  const raw = String(input || "").trim();
+  if (!raw) return;
+
+  try {
+    const token = raw.includes("invite=")
+      ? new URL(raw).searchParams.get("invite")
+      : raw;
+    if (!token) throw new Error("Token nao encontrado no convite.");
+    window.location.href = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+  } catch (error) {
+    showToast(`Convite invalido: ${error.message}`, "error");
+  }
 }
 
 function isExistingEmailSignUpResult(data, error) {
@@ -3372,6 +3385,20 @@ async function fetchAuthProfile(user, options = {}) {
 
     if (error) throw error;
     if (data) return data;
+
+    const profileByUserId = await supabaseClient
+      .from("profiles")
+      .select("*")
+      .or(`id.eq.${user.id},user_id.eq.${user.id},auth_user_id.eq.${user.id}`)
+      .maybeSingle();
+
+    if (!profileByUserId.error && profileByUserId.data) {
+      return {
+        ...profileByUserId.data,
+        user_id: profileByUserId.data.auth_user_id || profileByUserId.data.user_id || profileByUserId.data.id
+      };
+    }
+
     if (options.createIfMissing === false) return null;
     return {
       user_id: user.id,
@@ -4020,12 +4047,8 @@ function bindEvents() {
     event.preventDefault();
     handleAuthRegister(event.currentTarget);
   });
-  el.authModeTabs.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-auth-mode]");
-    if (!button) return;
-    switchAuthMode(button.dataset.authMode);
-  });
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
+  el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
   el.bootstrapAdminButton.addEventListener("click", handleBootstrapAdmin);
   el.firstAccessForm.addEventListener("submit", (event) => {
