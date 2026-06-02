@@ -34,11 +34,14 @@ sql/008_admin_maintenance_rpc.sql
 sql/009_bootstrap_first_admin.sql
 sql/010_auth_signup_profiles.sql
 sql/011_roles_reais_permissoes.sql
+sql/012_convites_alunos_vinculos_reais.sql
 ```
 
-O cadastro tradicional do app usa Supabase Auth e grava o perfil em `app_profiles`. Se um usuario ja existir em Authentication sem perfil, o app tenta criar um perfil basico no primeiro login. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
+O cadastro tradicional do app usa Supabase Auth e grava o perfil em `app_profiles`. Aluno nao cria conta livremente: o personal cria um convite em `student_invites`, o aluno finaliza pelo link, e o sistema cria o vinculo em `trainer_students`. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
 
 O arquivo `011_roles_reais_permissoes.sql` reforca as regras de producao: Admin TI tem acesso total, personal acessa apenas alunos vinculados, aluno acessa apenas seus proprios dados e `gestor_academia` fica preparado para visoes gerenciais sem manutencao tecnica profunda.
+
+O arquivo `012_convites_alunos_vinculos_reais.sql` remove o cadastro aberto de aluno, cria `student_invites`, `trainer_students` e a tabela canonica `profiles` com `profiles.id = auth.users.id`.
 
 ## Areas do sistema
 

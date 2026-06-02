@@ -3,8 +3,12 @@ const TRAINER_TEMP_PASSWORD = "123ac";
 const ADMIN_TEMP_PASSWORD = "ac741";
 const EXECUTION_DRAFT_PREFIX = "gympulse_execution_draft";
 const PENDING_WORKOUT_LOGS_KEY = "gympulse_pending_workout_logs";
+const APP_PUBLIC_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
 const REQUIRED_TABLES = [
   "app_profiles",
+  "profiles",
+  "student_invites",
+  "trainer_students",
   "students",
   "assessments",
   "body_measurements",
@@ -71,6 +75,8 @@ const state = {
   selectedAdminStudentId: "",
   preferredLoginRole: "student",
   passwordRecoveryMode: false,
+  inviteToken: "",
+  pendingInvite: null,
   students: [],
   exercises: [],
   workouts: [],
@@ -892,7 +898,7 @@ function renderExerciseLibraryItem(exercise) {
 async function createStudent(form) {
   const formData = new FormData(form);
   const email = String(formData.get("email") || "").trim().toLowerCase();
-  const temporaryPassword = generateTemporaryPassword();
+  const responsibleProfileId = (isTrainer() || isAdmin()) ? (state.authProfile?.id || null) : null;
   const fullPayload = {
     name: formData.get("name"),
     email,
@@ -905,11 +911,11 @@ async function createStudent(form) {
     restrictions: formData.get("restrictions") || null,
     notes: formData.get("notes") || null,
     status: "ativo",
-    status_usuario: "pendente_primeiro_acesso",
-    primeiro_acesso_obrigatorio: true,
-    senha_temporaria: true,
-    personal_id: isTrainer() ? (state.authProfile?.id || null) : null,
-    trainer_id: isTrainer() ? (state.authProfile?.id || state.authUser?.id || null) : null,
+    status_usuario: "pendente_convite",
+    primeiro_acesso_obrigatorio: false,
+    senha_temporaria: false,
+    personal_id: responsibleProfileId,
+    trainer_id: responsibleProfileId || state.authUser?.id || null,
     created_by: state.authUser?.id || null
   };
 
@@ -917,73 +923,64 @@ async function createStudent(form) {
     const created = await insertStudentWithFallback(fullPayload);
     const createdStudent = created[0];
     state.selectedStudentId = createdStudent?.id || state.selectedStudentId;
-    const accessResult = await createStudentInitialAccess(createdStudent, email, temporaryPassword);
+    const accessResult = await createStudentInvite(createdStudent, email);
     form.reset();
     showToast("Aluno adicionado com sucesso.");
-    renderStudentAccessResult(email, temporaryPassword, accessResult);
+    renderStudentAccessResult(email, accessResult);
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
   }
 }
 
-function generateTemporaryPassword() {
-  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `Gym@${new Date().getFullYear()}${suffix}`;
+function generateInviteToken() {
+  const random = crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return random.replaceAll("-", "");
 }
 
-async function createStudentInitialAccess(student, email, temporaryPassword) {
+function buildInviteLink(token) {
+  return `${APP_PUBLIC_URL}?invite=${encodeURIComponent(token)}`;
+}
+
+async function createStudentInvite(student, email) {
   if (!student?.id || !email) {
-    return { ok: false, message: "Aluno salvo, mas e-mail nao informado para criar acesso." };
+    return { ok: false, message: "Aluno salvo, mas e-mail nao informado para criar convite." };
   }
 
   try {
-    const authClient = createEphemeralSupabaseClient();
-    const { data, error } = await authClient.auth.signUp({
+    const token = generateInviteToken();
+    const trainerId = state.authProfile?.id || null;
+    const invitePayload = {
+      student_id: student.id,
+      name: pick(student, ["name"], ""),
       email,
-      password: temporaryPassword,
-      options: {
-        emailRedirectTo: getAuthRedirectUrl(),
-        data: {
-          role: "aluno",
-          student_id: student.id,
-          primeiro_acesso_obrigatorio: true
-        }
-      }
-    });
+      trainer_id: trainerId,
+      token,
+      status: "pendente",
+      created_by: state.authUser?.id || null
+    };
 
-    if (error) throw error;
+    await insertWithSchemaFallback("student_invites", invitePayload, "Erro ao criar convite do aluno");
 
-    const userId = data.user?.id || null;
-    if (userId) {
-      await updateWithSchemaFallback("students", student.id, { auth_user_id: userId }, "Erro ao vincular usuario do aluno");
-      await insertWithSchemaFallback("app_profiles", {
-        user_id: userId,
-        role: "aluno",
-        full_name: pick(student, ["name"], ""),
-        nome: pick(student, ["name"], ""),
-        email,
-        student_id: student.id,
-        status_usuario: "pendente_primeiro_acesso",
-        primeiro_acesso_obrigatorio: true,
-        senha_temporaria: true
-      }, "Erro ao criar perfil de acesso do aluno");
-    }
-
-    return { ok: true, message: "Acesso inicial criado no Supabase Auth." };
+    return {
+      ok: true,
+      inviteLink: buildInviteLink(token),
+      message: "Convite criado. Envie o link para o aluno finalizar o cadastro."
+    };
   } catch (error) {
-    console.warn("[GymPulse] Aluno salvo, mas acesso Auth nao foi criado automaticamente.", error);
-    return { ok: false, message: `Aluno salvo. Crie o usuario no Supabase Auth se necessario: ${error.message}` };
+    console.warn("[GymPulse] Aluno salvo, mas convite nao foi criado.", error);
+    return { ok: false, message: `Aluno salvo. Convite nao criado: ${error.message}` };
   }
 }
 
-function renderStudentAccessResult(email, temporaryPassword, result) {
+function renderStudentAccessResult(email, result) {
   if (!el.studentAccessResult) return;
   el.studentAccessResult.classList.remove("hidden");
+  const link = result.inviteLink || "";
   el.studentAccessResult.innerHTML = `
-    <strong>Acesso inicial do aluno</strong>
+    <strong>Convite do aluno</strong>
     <span>E-mail: ${escapeHtml(email || "Nao informado")}</span>
-    <span>Senha temporaria: <b>${escapeHtml(temporaryPassword)}</b></span>
+    ${link ? `<span>Link: <b>${escapeHtml(link)}</b></span>` : ""}
     <small>${escapeHtml(result.message)}</small>
   `;
 }
@@ -1290,7 +1287,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["app_profiles", "students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
+      if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[GymPulse] INSERT final em ${tableName}:`, currentPayload);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
@@ -3116,11 +3113,15 @@ function switchAuthMode(mode) {
   const isRegister = mode === "register";
   el.authLoginForm.classList.toggle("hidden", isRegister);
   el.authRegisterForm.classList.toggle("hidden", !isRegister);
+  const roleInput = document.querySelector("#register-role");
+  const emailInput = document.querySelector("#register-email");
+  if (roleInput && !state.pendingInvite) roleInput.disabled = false;
+  if (emailInput && !state.pendingInvite) emailInput.readOnly = false;
   el.authModeTabs.querySelectorAll("[data-auth-mode]").forEach((button) => {
     button.classList.toggle("active", button.dataset.authMode === mode);
   });
   el.authStatus.textContent = isRegister
-    ? "Crie seu cadastro com e-mail e senha."
+    ? "Crie cadastro de Personal, Admin TI ou Gestor. Aluno entra somente por convite."
     : "Use o login criado no Supabase Auth.";
 }
 
@@ -3154,6 +3155,158 @@ function getProfilePayload(user, requestedRole = "aluno", name = "") {
   };
 }
 
+async function syncCanonicalProfile(user, profilePayload) {
+  if (!user?.id) return;
+
+  const payload = {
+    id: user.id,
+    auth_user_id: user.id,
+    nome: profilePayload.nome || profilePayload.full_name || user.email,
+    full_name: profilePayload.full_name || profilePayload.nome || user.email,
+    email: profilePayload.email || user.email,
+    role: profilePayload.role,
+    status_usuario: profilePayload.status_usuario || "ativo"
+  };
+
+  try {
+    const { error } = await supabaseClient.from("profiles").upsert(payload).select();
+    if (error) throw error;
+  } catch (error) {
+    console.warn("[GymPulse] profiles canonico ainda nao disponivel.", error);
+  }
+}
+
+async function fetchInviteByToken(token) {
+  if (!token) return null;
+
+  const rpcResult = await supabaseClient.rpc("get_student_invite_by_token", { invite_token: token });
+  if (!rpcResult.error) {
+    return Array.isArray(rpcResult.data) ? (rpcResult.data[0] || null) : rpcResult.data;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("student_invites")
+    .select("*")
+    .eq("token", token)
+    .eq("status", "pendente")
+    .maybeSingle();
+
+  if (error) throw rpcResult.error || error;
+  return data || null;
+}
+
+function hydrateInviteRegisterForm(invite) {
+  if (!invite) return;
+  switchAuthMode("register");
+  const nameInput = document.querySelector("#register-name");
+  const emailInput = document.querySelector("#register-email");
+  const roleInput = document.querySelector("#register-role");
+  if (nameInput) nameInput.value = pick(invite, ["name", "nome"], "");
+  if (emailInput) {
+    emailInput.value = pick(invite, ["email"], "");
+    emailInput.readOnly = true;
+  }
+  if (roleInput) {
+    if (![...roleInput.options].some((option) => option.value === "aluno")) {
+      roleInput.add(new Option("Aluno convidado", "aluno"));
+    }
+    roleInput.value = "aluno";
+    roleInput.disabled = true;
+  }
+  el.registerStatus.textContent = "Convite encontrado. Crie sua senha para finalizar o cadastro de aluno.";
+}
+
+async function loadInviteFromUrl() {
+  const token = getInviteTokenFromUrl();
+  state.inviteToken = token;
+  if (!token) return;
+
+  try {
+    const invite = await fetchInviteByToken(token);
+    if (!invite) {
+      showToast("Convite invalido, expirado ou ja utilizado.", "error");
+      return;
+    }
+    state.pendingInvite = invite;
+    hydrateInviteRegisterForm(invite);
+  } catch (error) {
+    console.error("[GymPulse] Erro ao carregar convite:", error);
+    showToast(`Erro ao carregar convite: ${error.message}`, "error");
+  }
+}
+
+function isDuplicateDatabaseError(error) {
+  const text = normalizeText(error?.message || "");
+  return text.includes("duplicate") || text.includes("unique");
+}
+
+async function completeInviteForUser(user, invite = state.pendingInvite) {
+  if (!user?.id || !invite?.id) return null;
+
+  const inviteEmail = String(invite.email || "").trim().toLowerCase();
+  const userEmail = String(user.email || "").trim().toLowerCase();
+  if (inviteEmail && userEmail && inviteEmail !== userEmail) {
+    throw new Error("Este convite pertence a outro e-mail.");
+  }
+
+  const profilePayload = {
+    user_id: user.id,
+    role: "aluno",
+    full_name: pick(invite, ["name", "nome"], user.email),
+    nome: pick(invite, ["name", "nome"], user.email),
+    email: userEmail,
+    student_id: invite.student_id,
+    status_usuario: "ativo",
+    primeiro_acesso_obrigatorio: false,
+    senha_temporaria: false
+  };
+
+  const existing = await fetchAuthProfile(user, { createIfMissing: false });
+  if (existing?.id && normalizeRole(existing.role) !== "student") {
+    throw new Error("Este e-mail ja possui outro perfil. O Admin TI deve corrigir o vinculo manualmente.");
+  }
+
+  if (existing?.id) {
+    await updateWithSchemaFallback("app_profiles", existing.id, profilePayload, "Erro ao atualizar perfil do aluno convidado");
+  } else {
+    await insertWithSchemaFallback("app_profiles", profilePayload, "Erro ao criar perfil do aluno convidado");
+  }
+  await syncCanonicalProfile(user, profilePayload);
+
+  if (invite.student_id) {
+    await updateWithSchemaFallback("students", invite.student_id, {
+      auth_user_id: user.id,
+      status: "ativo",
+      status_usuario: "ativo",
+      personal_id: invite.trainer_id || null,
+      trainer_id: invite.trainer_id || null
+    }, "Erro ao vincular aluno ao usuario");
+  }
+
+  try {
+    await insertWithSchemaFallback("trainer_students", {
+      trainer_id: invite.trainer_id,
+      student_id: invite.student_id,
+      student_user_id: user.id,
+      status: "ativo",
+      invite_id: invite.id
+    }, "Erro ao vincular aluno ao personal");
+  } catch (error) {
+    if (!isDuplicateDatabaseError(error)) throw error;
+  }
+
+  await updateWithSchemaFallback("student_invites", invite.id, {
+    status: "aceito",
+    accepted_at: new Date().toISOString(),
+    accepted_user_id: user.id
+  }, "Erro ao marcar convite como aceito");
+
+  state.pendingInvite = null;
+  state.inviteToken = "";
+  clearAuthUrlParams();
+  return fetchAuthProfile(user, { createIfMissing: false });
+}
+
 async function ensureAuthProfile(user, requestedRole = "aluno", name = "") {
   if (!user?.id) return null;
 
@@ -3161,6 +3314,11 @@ async function ensureAuthProfile(user, requestedRole = "aluno", name = "") {
   if (existing?.id || existing?.user_id) return existing;
 
   const payload = getProfilePayload(user, requestedRole, name);
+  if (payload.role === "aluno" && !state.pendingInvite) {
+    showToast("Aluno precisa de convite do personal para finalizar cadastro.", "error");
+    return null;
+  }
+
   try {
     const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao vincular perfil existente");
     return created?.[0] || payload;
@@ -3303,6 +3461,10 @@ function getSupabaseUrlParams() {
   return params;
 }
 
+function getInviteTokenFromUrl() {
+  return String(getSupabaseUrlParams().get("invite") || "").trim();
+}
+
 function urlIndicatesPasswordRecovery() {
   const params = getSupabaseUrlParams();
   const type = normalizeText(params.get("type") || "");
@@ -3327,6 +3489,16 @@ async function applyAuthenticatedSession(session) {
   if (!session?.user) return;
 
   state.authUser = session.user;
+  const metadataInviteToken = session.user.user_metadata?.invite_token || "";
+  if (!state.pendingInvite && metadataInviteToken) {
+    state.pendingInvite = await fetchInviteByToken(metadataInviteToken);
+  }
+
+  if (state.pendingInvite) {
+    state.authProfile = await completeInviteForUser(session.user, state.pendingInvite);
+    showToast("Convite aceito e aluno vinculado ao personal.");
+  }
+
   state.authProfile = await ensureAuthProfile(
     session.user,
     session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
@@ -3414,7 +3586,7 @@ async function handleAuthRegister(form) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
-  const role = String(formData.get("role") || "aluno");
+  const role = state.pendingInvite ? "aluno" : String(formData.get("role") || "");
 
   if (!name || !email || !password) {
     showToast("Preencha nome, e-mail e senha.", "error");
@@ -3436,6 +3608,16 @@ async function handleAuthRegister(form) {
     return;
   }
 
+  if (normalizeRole(role) === "student" && !state.pendingInvite) {
+    showToast("Aluno nao cria conta livremente. Solicite convite ao personal.", "error");
+    return;
+  }
+
+  if (state.pendingInvite && email !== String(state.pendingInvite.email || "").trim().toLowerCase()) {
+    showToast("O e-mail informado nao corresponde ao convite.", "error");
+    return;
+  }
+
   setFormLoading(form, true);
   el.registerStatus.textContent = "Criando cadastro...";
 
@@ -3449,20 +3631,27 @@ async function handleAuthRegister(form) {
         data: {
           nome: name,
           name,
-          role: databaseRole
+          role: databaseRole,
+          invite_token: state.pendingInvite?.token || null
         }
       }
     });
 
     if (isExistingEmailSignUpResult(data, error)) {
-      throw new Error("Este e-mail ja esta cadastrado. Entre ou recupere sua senha.");
+      throw new Error(state.pendingInvite
+        ? "Este e-mail ja existe. Entre com sua senha usando este mesmo link para aceitar o convite."
+        : "Este e-mail ja esta cadastrado. Entre ou recupere sua senha.");
     }
 
     if (error) throw error;
 
     if (data.session?.user) {
       state.authUser = data.session.user;
-      state.authProfile = await ensureAuthProfile(data.session.user, databaseRole, name);
+      if (state.pendingInvite) {
+        state.authProfile = await completeInviteForUser(data.session.user, state.pendingInvite);
+      } else {
+        state.authProfile = await ensureAuthProfile(data.session.user, databaseRole, name);
+      }
       form.reset();
       el.registerStatus.textContent = "Cadastro criado. Voce ja pode usar o app.";
       showToast("Cadastro criado com sucesso.");
@@ -3973,6 +4162,7 @@ async function init() {
   bindAuthRecoveryEvents();
   hydrateAdminConfigForm();
   updateLoginRoleHelper(state.preferredLoginRole);
+  await loadInviteFromUrl();
   await initAuthSession();
 }
 

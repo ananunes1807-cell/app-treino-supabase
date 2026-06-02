@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260601-roles" />
+    <link rel="stylesheet" href="style.css?v=20260601-invites" />
   </head>
   <body>
     <div class="app">
@@ -90,14 +90,13 @@
               <label>
                 Tipo de perfil
                 <select id="register-role" name="role" required>
-                  <option value="aluno">Aluno</option>
                   <option value="personal">Personal</option>
                   <option value="admin_ti">Admin TI</option>
                   <option value="gestor_academia">Gestor academia</option>
                 </select>
               </label>
               <button class="primary-button" type="submit">Criar cadastro</button>
-              <p class="muted-text" id="register-status">Depois do cadastro, use a aba Entrar para acessar.</p>
+              <p class="muted-text" id="register-status">Aluno nao cria conta livremente. O personal deve enviar um convite.</p>
             </form>
             <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
               <button class="role-chip active" type="button" data-login-role="student">Aluno</button>
@@ -252,7 +251,7 @@
                   Observa&ccedil;&otilde;es importantes
                   <input name="notes" type="text" placeholder="Ex: rotina, cuidados, preferencias" />
                 </label>
-                <button class="primary-button" type="submit">Salvar aluno</button>
+                <button class="primary-button" type="submit">Salvar e gerar convite</button>
                 <div class="simple-item stacked hidden" id="student-access-result"></div>
               </form>
             </article>
@@ -511,7 +510,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260601-roles"></script>
-    <script src="app.js?v=20260601-roles"></script>
+    <script src="supabase.js?v=20260601-invites"></script>
+    <script src="app.js?v=20260601-invites"></script>
   </body>
 </html>
