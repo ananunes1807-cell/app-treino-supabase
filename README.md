@@ -21,9 +21,10 @@ Para uso real com terceiros, use Supabase Auth com a tabela `app_profiles`.
 
 Perfis suportados:
 
-- `admin`: Admin TI com acesso total, manutencao e exclusoes administrativas.
+- `admin_ti`: Admin TI com acesso total, manutencao e exclusoes administrativas. O principal e `ananunes1807@gmail.com`.
 - `personal`: personal que cadastra alunos, cria treinos e acompanha apenas seus alunos.
 - `aluno`: aluno que ve apenas o proprio perfil, treinos ativos e historico.
+- `gestor_academia`: papel futuro para relatorios de alunos, frequencia, pagamentos e visao gerencial.
 
 Execute no Supabase SQL Editor:
 
@@ -32,9 +33,12 @@ sql/007_auth_roles_real_use.sql
 sql/008_admin_maintenance_rpc.sql
 sql/009_bootstrap_first_admin.sql
 sql/010_auth_signup_profiles.sql
+sql/011_roles_reais_permissoes.sql
 ```
 
 O cadastro tradicional do app usa Supabase Auth e grava o perfil em `app_profiles`. Se um usuario ja existir em Authentication sem perfil, o app tenta criar um perfil basico no primeiro login. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
+
+O arquivo `011_roles_reais_permissoes.sql` reforca as regras de producao: Admin TI tem acesso total, personal acessa apenas alunos vinculados, aluno acessa apenas seus proprios dados e `gestor_academia` fica preparado para visoes gerenciais sem manutencao tecnica profunda.
 
 ## Areas do sistema
 

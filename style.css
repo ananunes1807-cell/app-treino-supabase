@@ -99,7 +99,9 @@ body[data-role=""] .app {
 body[data-role="student"] .trainer-nav,
 body[data-role="student"] .admin-entry,
 body[data-role="trainer"] .student-nav,
-body[data-role="trainer"] .admin-entry {
+body[data-role="trainer"] .admin-entry,
+body[data-role="owner"] .student-nav,
+body[data-role="owner"] .admin-entry {
   display: none;
 }
 

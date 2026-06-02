@@ -9,7 +9,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if public.current_app_role() <> 'admin' then
+  if public.current_app_role() not in ('admin', 'admin_ti') then
     raise exception 'Apenas Admin TI pode executar esta acao.';
   end if;
 end;

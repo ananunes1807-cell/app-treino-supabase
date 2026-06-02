@@ -1105,6 +1105,7 @@ function formatNumber(value) {
 function normalizeRole(role) {
   const value = normalizeText(role || "");
   if (["admin", "admin_ti", "ti", "controle"].includes(value)) return "admin";
+  if (["owner", "gestor", "gestor_academia"].includes(value)) return "owner";
   if (["personal", "trainer", "treinador"].includes(value)) return "trainer";
   if (["student", "aluno"].includes(value)) return "student";
   return "";
@@ -1113,6 +1114,7 @@ function normalizeRole(role) {
 function toDatabaseRole(role) {
   const normalized = normalizeRole(role);
   if (normalized === "admin") return "admin_ti";
+  if (normalized === "owner") return "gestor_academia";
   if (normalized === "trainer") return "personal";
   return "aluno";
 }
@@ -1129,6 +1131,10 @@ function getCurrentRole() {
 
 function isAdmin() {
   return getCurrentRole() === "admin";
+}
+
+function isOwner() {
+  return getCurrentRole() === "owner";
 }
 
 function isTrainer() {
@@ -1157,7 +1163,7 @@ function isDeletedRecord(record) {
 }
 
 function getAccessibleStudents() {
-  const visibleStudents = isAdmin()
+  const visibleStudents = isAdmin() || isOwner()
     ? state.students
     : state.students.filter((student) => !isDeletedRecord(student));
 
@@ -1182,6 +1188,7 @@ function getAccessibleStudents() {
 
 function canManageStudent(studentId) {
   if (isAdmin()) return true;
+  if (isOwner()) return false;
   return getAccessibleStudents().some((student) => String(student.id) === String(studentId));
 }
 
@@ -3260,9 +3267,11 @@ function formatRoleLabel(role) {
     admin: "Admin TI",
     trainer: "Personal",
     student: "Aluno",
+    owner: "Gestor academia",
     personal: "Personal",
     aluno: "Aluno",
-    admin_ti: "Admin TI"
+    admin_ti: "Admin TI",
+    gestor_academia: "Gestor academia"
   };
   return labels[normalizeRole(role)] || "perfil nao definido";
 }
@@ -3368,6 +3377,7 @@ async function applyAuthenticatedSession(session) {
   if (role === "student") changeScreen("student-area");
   if (role === "trainer") changeScreen("trainer-area");
   if (role === "admin") changeScreen("admin-area");
+  if (role === "owner") changeScreen("trainer-area");
 }
 
 async function handleAuthLogin(form) {
@@ -3418,6 +3428,11 @@ async function handleAuthRegister(form) {
 
   if (password !== confirmPassword) {
     showToast("As senhas nao conferem.", "error");
+    return;
+  }
+
+  if (normalizeRole(role) === "admin" && email !== "ananunes1807@gmail.com") {
+    showToast("O perfil Admin TI principal e reservado para ananunes1807@gmail.com.", "error");
     return;
   }
 
@@ -3677,6 +3692,7 @@ function canAccessScreen(screenName) {
   if (screenName === "first-access") return state.passwordRecoveryMode || needsFirstAccessPasswordChange();
   if (state.accessRole === "student") return screenName === "student-area";
   if (state.accessRole === "trainer") return screenName === "trainer-area";
+  if (state.accessRole === "owner") return screenName === "trainer-area";
   if (state.accessRole === "admin") return ["admin-area", "trainer-area", "student-area"].includes(screenName);
   return false;
 }
