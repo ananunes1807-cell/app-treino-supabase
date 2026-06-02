@@ -35,6 +35,62 @@ alter table public.profiles
   add constraint profiles_role_check
   check (role in ('admin_ti', 'personal', 'aluno', 'gestor_academia', 'owner'));
 
+alter table public.profiles add column if not exists user_id uuid;
+alter table public.profiles add column if not exists auth_user_id uuid;
+
+update public.profiles
+set auth_user_id = coalesce(auth_user_id, user_id, id)
+where auth_user_id is null;
+
+update public.profiles
+set user_id = coalesce(user_id, auth_user_id, id)
+where user_id is null;
+
+-- Mantem compatibilidade com app_profiles, usado pelo app para vinculos operacionais.
+insert into public.app_profiles (
+  id,
+  user_id,
+  role,
+  nome,
+  full_name,
+  email,
+  status_usuario,
+  primeiro_acesso_obrigatorio,
+  senha_temporaria
+)
+select
+  p.id,
+  p.auth_user_id,
+  public.normalize_app_role(p.role),
+  p.nome,
+  p.full_name,
+  p.email,
+  coalesce(p.status_usuario, 'ativo'),
+  false,
+  false
+from public.profiles p
+where p.auth_user_id is not null
+  and not exists (
+    select 1
+    from public.app_profiles ap
+    where ap.user_id = p.auth_user_id
+  );
+
+-- Ajusta profiles para a regra canonica: profiles.id = auth.users.id.
+update public.profiles p
+set id = p.auth_user_id
+where p.auth_user_id is not null
+  and p.id <> p.auth_user_id
+  and not exists (
+    select 1
+    from public.profiles other_profile
+    where other_profile.id = p.auth_user_id
+  );
+
+create unique index if not exists profiles_auth_user_id_unique
+on public.profiles(auth_user_id)
+where auth_user_id is not null;
+
 create table if not exists public.student_invites (
   id uuid primary key default gen_random_uuid(),
   student_id uuid references public.students(id) on delete cascade,

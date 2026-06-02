@@ -3472,6 +3472,33 @@ function urlIndicatesPasswordRecovery() {
   return type === "recovery" || href.includes("type=recovery");
 }
 
+function getAuthUrlError() {
+  const params = getSupabaseUrlParams();
+  const code = params.get("error_code") || params.get("error") || "";
+  const description = params.get("error_description") || "";
+  if (!code && !description) return null;
+  return {
+    code,
+    description: description.replaceAll("+", " ")
+  };
+}
+
+function showAuthUrlErrorIfPresent() {
+  const error = getAuthUrlError();
+  if (!error) return false;
+
+  const isExpired = normalizeText(error.code).includes("otp_expired")
+    || normalizeText(error.description).includes("expired");
+  const message = isExpired
+    ? "Link de e-mail expirado ou ja utilizado. Solicite um novo link de recuperacao ou um novo convite."
+    : `Erro no link de autenticacao: ${error.description || error.code}`;
+
+  el.authStatus.textContent = message;
+  showToast(message, "error");
+  changeScreen("access");
+  return true;
+}
+
 function clearAuthUrlParams() {
   window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
 }
@@ -3839,6 +3866,7 @@ async function handleFirstAccessPasswordChange(form) {
 
 async function initAuthSession() {
   renderAuthStatus();
+  showAuthUrlErrorIfPresent();
   state.passwordRecoveryMode = urlIndicatesPasswordRecovery();
   renderPasswordFlowText();
 
