@@ -35,6 +35,7 @@ sql/009_bootstrap_first_admin.sql
 sql/010_auth_signup_profiles.sql
 sql/011_roles_reais_permissoes.sql
 sql/012_convites_alunos_vinculos_reais.sql
+sql/013_corrige_exclusoes_admin_personal.sql
 ```
 
 O cadastro tradicional do app usa Supabase Auth e grava o perfil em `app_profiles`. Aluno nao cria conta livremente: o personal cria um convite em `student_invites`, o aluno finaliza pelo link, e o sistema cria o vinculo em `trainer_students`. Para vincular um aluno ao login, preencha `students.auth_user_id`. Para vincular um aluno a um personal, preencha `students.personal_id`.
@@ -42,6 +43,12 @@ O cadastro tradicional do app usa Supabase Auth e grava o perfil em `app_profile
 O arquivo `011_roles_reais_permissoes.sql` reforca as regras de producao: Admin TI tem acesso total, personal acessa apenas alunos vinculados, aluno acessa apenas seus proprios dados e `gestor_academia` fica preparado para visoes gerenciais sem manutencao tecnica profunda.
 
 O arquivo `012_convites_alunos_vinculos_reais.sql` remove o cadastro aberto de aluno, cria `student_invites`, `trainer_students` e a tabela canonica `profiles` com `profiles.id = auth.users.id`.
+
+O arquivo `013_corrige_exclusoes_admin_personal.sql` corrige exclusoes de avaliacoes/medidas por personal vinculado e adiciona RPC para o Admin TI limpar avaliacoes.
+
+### GitHub e Supabase
+
+Para reduzir trabalho manual, mova as migrations para a estrutura oficial `supabase/migrations` e conecte o projeto ao GitHub pelo painel do Supabase usando Database Branching/GitHub Integration. Assim o Supabase consegue acompanhar migrations versionadas no repositorio.
 
 ## Areas do sistema
 

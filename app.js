@@ -1630,14 +1630,20 @@ function getSelectedAdminStudentId() {
 
 async function updateStudentStatus(id, status) {
   if (!id) throw new Error("Selecione um aluno antes de alterar status.");
+  const rpcByStatus = {
+    excluido: "admin_soft_delete_student",
+    arquivado: "admin_archive_student",
+    ativo: "admin_restore_student"
+  };
+
+  if (isAdmin() && rpcByStatus[status]) {
+    await runAdminMaintenanceRpc(rpcByStatus[status], id, `Erro ao atualizar status do aluno para ${status}`);
+    return;
+  }
+
   try {
     await updateWithSchemaFallback("students", id, { status }, "Erro ao atualizar status do aluno");
   } catch (error) {
-    const rpcByStatus = {
-      excluido: "admin_soft_delete_student",
-      arquivado: "admin_archive_student",
-      ativo: "admin_restore_student"
-    };
     if (!isAdmin() || !rpcByStatus[status]) throw error;
     await runAdminMaintenanceRpc(rpcByStatus[status], id, error.message);
   }
@@ -1646,6 +1652,11 @@ async function updateStudentStatus(id, status) {
 async function updateStudentWorkoutsStatus(studentId, status) {
   if (!studentId) throw new Error("Selecione um aluno antes de alterar treinos.");
   const workouts = state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
+  if (isAdmin() && status === "excluido") {
+    await runAdminMaintenanceRpc("admin_clear_student_workouts", studentId, "Erro ao ocultar treinos do aluno");
+    return workouts.length;
+  }
+
   try {
     for (const workout of workouts) {
       await updateWithSchemaFallback("workouts", workout.id, { status }, "Erro ao atualizar treinos do aluno");
@@ -1659,6 +1670,11 @@ async function updateStudentWorkoutsStatus(studentId, status) {
 
 async function clearStudentLogs(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar sessoes.");
+  if (isAdmin()) {
+    await runAdminMaintenanceRpc("admin_clear_student_sessions", studentId, "Erro ao excluir sessoes do aluno");
+    return;
+  }
+
   try {
     await deleteByColumn("workout_logs", "student_id", studentId, "Erro ao excluir sessoes do aluno");
   } catch (error) {
@@ -1669,6 +1685,11 @@ async function clearStudentLogs(studentId) {
 
 async function clearStudentMeasurements(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar medidas.");
+  if (isAdmin()) {
+    await runAdminMaintenanceRpc("admin_clear_student_measurements", studentId, "Erro ao excluir medidas do aluno");
+    return;
+  }
+
   try {
     await deleteByColumn("body_measurements", "student_id", studentId, "Erro ao excluir medidas do aluno");
   } catch (error) {
@@ -1679,6 +1700,11 @@ async function clearStudentMeasurements(studentId) {
 
 async function clearStudentAssessments(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar avaliacoes.");
+  if (isAdmin()) {
+    await runAdminMaintenanceRpc("admin_clear_student_assessments", studentId, "Erro ao excluir avaliacoes do aluno");
+    return;
+  }
+
   await deleteByColumn("assessments", "student_id", studentId, "Erro ao excluir avaliacoes do aluno");
 }
 
