@@ -200,7 +200,22 @@ function escapeHtml(value) {
  */
 function formatDate(value) {
   if (!value) return "Sem data";
+  const dateOnly = parseDateOnly(value);
+  if (dateOnly) return `${dateOnly.day}/${dateOnly.month}/${dateOnly.year}`;
   return new Intl.DateTimeFormat("pt-BR").format(new Date(value));
+}
+
+/**
+ * Le datas puras YYYY-MM-DD sem aplicar fuso horario.
+ */
+function parseDateOnly(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return {
+    year: match[1],
+    month: match[2],
+    day: match[3]
+  };
 }
 
 /**
@@ -682,7 +697,12 @@ function renderTrainerStudents() {
  */
 function renderTrainerStudentButton(student) {
   const name = pick(student, ["name", "full_name", "nome"], "Aluno sem nome");
-  const detail = pick(student, ["objective", "email", "difficulties"], "Sem objetivo informado");
+  const detail = pick(student, ["objective", "difficulties"], "Sem objetivo informado");
+  const contact = [
+    pick(student, ["email"], ""),
+    pick(student, ["phone", "telefone"], ""),
+    pick(student, ["whatsapp"], "")
+  ].filter(Boolean).join(" | ");
   const active = String(student.id) === String(state.selectedStudentId) ? " active" : "";
 
   return `
@@ -691,6 +711,7 @@ function renderTrainerStudentButton(student) {
       <div>
         <strong>${escapeHtml(name)}</strong>
         <span>${escapeHtml(detail)}</span>
+        ${contact ? `<small>${escapeHtml(contact)}</small>` : ""}
       </div>
     </button>
   `;
@@ -904,6 +925,7 @@ async function createStudent(form) {
     email,
     phone: formData.get("phone") || null,
     telefone: formData.get("phone") || null,
+    whatsapp: formData.get("whatsapp") || null,
     birth_date: formData.get("birth_date") || null,
     height_cm: numberOrNull(formData.get("height_cm")),
     objective: formData.get("objective") || null,
@@ -1553,6 +1575,9 @@ function renderAdminStudentItem(student) {
     <article class="simple-item stacked admin-student-item${selected}">
       <strong>${escapeHtml(pick(student, ["name", "full_name", "nome"], "Aluno"))}</strong>
       <span>${escapeHtml(pick(student, ["objective", "email"], "Sem objetivo informado"))}</span>
+      <small>E-mail: ${escapeHtml(pick(student, ["email"], "Nao informado"))}</small>
+      <small>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Nao informado"))}</small>
+      <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</small>
       <small>Status: ${escapeHtml(formatWorkoutStatus(status))}</small>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-admin-student-action="select" data-student-id="${escapeHtml(student.id)}">Ver registros</button>
@@ -2043,14 +2068,17 @@ function formatInputDate(value) {
  */
 function calculateAgeFromBirthDate(value) {
   if (!value) return "";
-  const birthDate = new Date(value);
-  if (Number.isNaN(birthDate.getTime())) return "";
+  const dateOnly = parseDateOnly(String(value).slice(0, 10));
+  if (!dateOnly) return "";
 
   const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
+  const birthYear = Number(dateOnly.year);
+  const birthMonthIndex = Number(dateOnly.month) - 1;
+  const birthDay = Number(dateOnly.day);
+  let age = today.getFullYear() - birthYear;
+  const monthDiff = today.getMonth() - birthMonthIndex;
 
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDay)) {
     age -= 1;
   }
 
@@ -2067,6 +2095,9 @@ function fillStudentProfileForm(student) {
 
   el.editStudentForm.elements.name.value = pick(student, ["name", "full_name", "nome"], "");
   el.editStudentForm.elements.nickname.value = pick(student, ["nickname", "apelido"], "");
+  if (el.editStudentForm.elements.email) el.editStudentForm.elements.email.value = pick(student, ["email"], "");
+  if (el.editStudentForm.elements.phone) el.editStudentForm.elements.phone.value = pick(student, ["phone", "telefone"], "");
+  if (el.editStudentForm.elements.whatsapp) el.editStudentForm.elements.whatsapp.value = pick(student, ["whatsapp"], "");
   el.editStudentForm.elements.birth_date.value = formatInputDate(pick(student, ["birth_date", "date_of_birth"], ""));
   el.editStudentForm.elements.height_cm.value = normalizeNumberInput(pick(student, ["height_cm", "height"], ""));
   el.editStudentForm.elements.objective.value = pick(student, ["objective"], "");
@@ -2105,8 +2136,11 @@ async function renderTrainerProfile() {
         <span>Apelido: ${escapeHtml(pick(student, ["nickname", "apelido"], "Nao informado"))}</span>
         <span>Nascimento: ${escapeHtml(birthDate ? formatDate(birthDate) : "Nao informado")}</span>
         <span>Idade: ${escapeHtml(age !== "" ? `${age} anos` : "Nao informada")}</span>
+        <span>E-mail: ${escapeHtml(pick(student, ["email"], "Nao informado"))}</span>
+        <span>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Nao informado"))}</span>
+        <span>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</span>
         <span>Altura: ${escapeHtml(formatNumber(pick(student, ["height_cm", "height"], "-")))} cm</span>
-        <small>Objetivo: ${escapeHtml(pick(student, ["objective", "email"], "Nao informado"))}</small>
+        <small>Objetivo: ${escapeHtml(pick(student, ["objective"], "Nao informado"))}</small>
         <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Nao informado"))}</small>
         <small>Restricoes: ${escapeHtml(pick(student, ["restrictions"], "Nao informado"))}</small>
       </div>
@@ -2358,6 +2392,10 @@ async function updateStudentProfile(form) {
   const payload = {
     name: formData.get("name") || null,
     nickname: formData.get("nickname") || null,
+    email: String(formData.get("email") || "").trim().toLowerCase() || null,
+    phone: formData.get("phone") || null,
+    telefone: formData.get("phone") || null,
+    whatsapp: formData.get("whatsapp") || null,
     birth_date: formData.get("birth_date") || null,
     height_cm: numberOrNull(formData.get("height_cm")),
     objective: formData.get("objective") || null,
