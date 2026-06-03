@@ -3617,11 +3617,13 @@ async function applyAuthenticatedSession(session) {
     showToast("Convite aceito e aluno vinculado ao personal.");
   }
 
-  state.authProfile = await ensureAuthProfile(
-    session.user,
-    session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
-    session.user.user_metadata?.nome || session.user.user_metadata?.name || ""
-  );
+  if (!state.authProfile) {
+    state.authProfile = await ensureAuthProfile(
+      session.user,
+      session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
+      session.user.user_metadata?.nome || session.user.user_metadata?.name || ""
+    );
+  }
 
   if (state.passwordRecoveryMode) {
     renderPasswordFlowText();
