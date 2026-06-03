@@ -79,6 +79,7 @@ const state = {
   pendingInvite: null,
   students: [],
   exercises: [],
+  studentInvites: [],
   workouts: [],
   workoutExercises: [],
   workoutLogs: [],
@@ -129,6 +130,9 @@ const el = {
   editStudentForm: document.querySelector("#edit-student-form"),
   exerciseSearch: document.querySelector("#exercise-search"),
   exerciseGroupFilter: document.querySelector("#exercise-group-filter"),
+  exerciseLibraryForm: document.querySelector("#exercise-library-form"),
+  adminExerciseLibraryForm: document.querySelector("#admin-exercise-library-form"),
+  cancelLibraryExerciseEdit: document.querySelector("#cancel-library-exercise-edit"),
   trainerWorkouts: document.querySelector("#trainer-workouts"),
   trainerWorkoutFilter: document.querySelector("#trainer-workout-filter"),
   studentSearch: document.querySelector("#student-search"),
@@ -313,9 +317,10 @@ async function fetchTable(tableName, options = {}) {
 async function loadSupabaseData(options = {}) {
   setConnectionStatus("Conectando...", false);
 
-  const [students, exercises, workouts, workoutExercises, workoutLogs] = await Promise.all([
+  const [students, exercises, studentInvites, workouts, workoutExercises, workoutLogs] = await Promise.all([
     safeFetchTable("students", { orderBy: "created_at" }),
     safeFetchTable("exercise_library", { orderBy: "name", ascending: true }),
+    safeFetchTable("student_invites", { orderBy: "created_at" }),
     safeFetchTable("workouts", { orderBy: "created_at" }),
     safeFetchTable("workout_exercises"),
     safeFetchTable("workout_logs", { orderBy: "created_at" })
@@ -323,6 +328,7 @@ async function loadSupabaseData(options = {}) {
 
   state.students = students;
   state.exercises = exercises;
+  state.studentInvites = studentInvites;
   state.workouts = workouts;
   state.workoutExercises = workoutExercises;
   state.workoutLogs = workoutLogs;
@@ -536,8 +542,13 @@ function serializeExerciseExecution(exerciseId) {
 }
 
 function renderWorkoutExerciseItem(item) {
-  const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
+  const exercise = getLibraryExerciseForWorkoutItem(item);
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
+  const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+  const imageUrl = getHttpUrl(pick(exercise, ["image_url"], ""));
+  const videoUrl = getHttpUrl(pick(exercise, ["video_url"], ""));
+  const instructions = pick(exercise, ["instructions", "description", "instrucoes"], pick(item, ["instructions"], ""));
+  const commonMistakes = pick(exercise, ["common_mistakes"], "");
   const execution = getStudentExerciseExecution(item.id);
   const fastDone = execution.completed && !execution.skipped ? "active" : "";
   const fastSkipped = execution.skipped ? "active" : "";
@@ -548,7 +559,12 @@ function renderWorkoutExerciseItem(item) {
       <div class="exercise-execution-main">
         <small>Exercicio atual</small>
         <strong>${escapeHtml(exerciseName)}</strong>
+        ${group ? `<span>Grupo muscular: ${escapeHtml(group)}</span>` : ""}
       <span>Planejado: Series: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+        ${imageUrl ? `<img class="exercise-media-image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(exerciseName)}" loading="lazy" />` : ""}
+        ${videoUrl ? `<a class="exercise-video-link" href="${escapeHtml(videoUrl)}" target="_blank" rel="noopener noreferrer">Ver video</a>` : ""}
+        ${instructions ? `<small><b>Instrucoes:</b> ${escapeHtml(instructions)}</small>` : ""}
+        ${commonMistakes ? `<small><b>Erros comuns:</b> ${escapeHtml(commonMistakes)}</small>` : ""}
         <div class="quick-actions">
           <button class="quick-button ${fastDone}" type="button" data-workout-exercise-quick="done" data-workout-exercise-id="${escapeHtml(item.id)}">Feito</button>
           <button class="quick-button" type="button" data-workout-exercise-quick="less" data-workout-exercise-id="${escapeHtml(item.id)}">Fiz menos</button>
@@ -698,6 +714,8 @@ function renderTrainerStudents() {
 function renderTrainerStudentButton(student) {
   const name = pick(student, ["name", "full_name", "nome"], "Aluno sem nome");
   const detail = pick(student, ["objective", "difficulties"], "Sem objetivo informado");
+  const invite = getLatestInviteForStudent(student.id);
+  const inviteStatus = invite ? formatInviteStatus(pick(invite, ["status"], "")) : "Sem convite";
   const contact = [
     pick(student, ["email"], ""),
     pick(student, ["phone", "telefone"], ""),
@@ -712,9 +730,38 @@ function renderTrainerStudentButton(student) {
         <strong>${escapeHtml(name)}</strong>
         <span>${escapeHtml(detail)}</span>
         ${contact ? `<small>${escapeHtml(contact)}</small>` : ""}
+        <small>Convite: ${escapeHtml(inviteStatus)}</small>
       </div>
     </button>
   `;
+}
+
+function getLibraryExerciseForWorkoutItem(item) {
+  return state.exercises.find((record) => String(record.id) === String(item.exercise_id))
+    || state.exercises.find((record) => normalizeText(pick(record, ["name", "title", "nome"], "")) === normalizeText(pick(item, ["exercise_name"], "")))
+    || null;
+}
+
+function getHttpUrl(value) {
+  const url = String(value || "").trim();
+  return /^https?:\/\//i.test(url) ? url : "";
+}
+
+function getLatestInviteForStudent(studentId) {
+  return state.studentInvites
+    .filter((invite) => String(invite.student_id) === String(studentId))
+    .sort((a, b) => String(pick(b, ["created_at"], "")).localeCompare(String(pick(a, ["created_at"], ""))))[0] || null;
+}
+
+function formatInviteStatus(status) {
+  const normalized = normalizeText(status || "");
+  const labels = {
+    pendente: "Pendente",
+    aceito: "Aceito",
+    expirado: "Expirado",
+    cancelado: "Cancelado"
+  };
+  return labels[normalized] || "Nao informado";
 }
 
 /**
@@ -1135,6 +1182,15 @@ function formatNumber(value) {
   return Number.isNaN(number) ? value : String(number);
 }
 
+function normalizeOptionalUrl(value, fieldLabel) {
+  const url = String(value || "").trim();
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error(`${fieldLabel} deve comecar com http:// ou https://.`);
+  }
+  return url;
+}
+
 function normalizeRole(role) {
   const value = normalizeText(role || "");
   if (["admin", "admin_ti", "ti", "controle"].includes(value)) return "admin";
@@ -1290,6 +1346,7 @@ async function addExerciseToWorkoutLegacy() {
 
   const payload = {
     workout_id: workoutId,
+    exercise_id: exerciseId,
     exercise_name: exerciseName,
     sets: Number(document.querySelector("#sets-input").value) || null,
     reps: document.querySelector("#reps-input").value || null,
@@ -1323,7 +1380,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
+      if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[GymPulse] INSERT final em ${tableName}:`, currentPayload);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
@@ -1399,18 +1456,27 @@ async function syncPendingWorkoutLogs() {
 function buildWorkoutExecutionSnapshot(workoutId, exercisesSource = state.workoutExercises) {
   return exercisesSource
     .filter((exercise) => String(exercise.workout_id) === String(workoutId))
-    .map((exercise) => ({
-      exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
-      sets: numberOrNull(pick(exercise, ["sets"], "")),
-      reps: pick(exercise, ["reps"], null),
-      weight: pick(exercise, ["weight"], null),
-      rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
-      planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
-      planned_reps: pick(exercise, ["reps"], null),
-      planned_weight: pick(exercise, ["weight"], null),
-      planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
-      ...serializeExerciseExecution(exercise.id)
-    }));
+    .map((exercise) => {
+      const libraryExercise = getLibraryExerciseForWorkoutItem(exercise);
+      return {
+        exercise_id: pick(exercise, ["exercise_id"], null),
+        exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
+        muscle_group: pick(libraryExercise, ["muscle_group", "primary_muscle", "grupo_muscular"], null),
+        image_url: getHttpUrl(pick(libraryExercise, ["image_url"], "")) || null,
+        video_url: getHttpUrl(pick(libraryExercise, ["video_url"], "")) || null,
+        instructions: pick(libraryExercise, ["instructions", "description", "instrucoes"], pick(exercise, ["instructions"], null)),
+        common_mistakes: pick(libraryExercise, ["common_mistakes"], null),
+        sets: numberOrNull(pick(exercise, ["sets"], "")),
+        reps: pick(exercise, ["reps"], null),
+        weight: pick(exercise, ["weight"], null),
+        rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+        planned_sets: numberOrNull(pick(exercise, ["sets"], "")),
+        planned_reps: pick(exercise, ["reps"], null),
+        planned_weight: pick(exercise, ["weight"], null),
+        planned_rest_seconds: numberOrNull(pick(exercise, ["rest_seconds"], "")),
+        ...serializeExerciseExecution(exercise.id)
+      };
+    });
 }
 
 /**
@@ -1537,7 +1603,7 @@ function renderAdminArea() {
     : emptyMessage("Nenhum aluno encontrado.");
 
   el.adminExercisesList.innerHTML = state.exercises.length
-    ? state.exercises.slice(0, 20).map(renderAdminExerciseItem).join("")
+    ? state.exercises.slice(0, 20).map(renderAdminExerciseLibraryItem).join("")
     : emptyMessage("Nenhum exercício encontrado.");
 
   el.adminDiagnostics.innerHTML = `
@@ -1580,6 +1646,8 @@ function getTableStatus(tableName) {
  */
 function renderAdminStudentItem(student) {
   const status = getEntityStatus(student);
+  const invite = getLatestInviteForStudent(student.id);
+  const inviteStatus = invite ? formatInviteStatus(pick(invite, ["status"], "")) : "Sem convite";
   const selected = String(student.id) === String(state.selectedAdminStudentId) ? " active" : "";
   const archiveAction = status === "arquivado"
     ? `<button class="tiny-button" type="button" data-admin-student-action="restore" data-student-id="${escapeHtml(student.id)}">Restaurar</button>`
@@ -1592,6 +1660,7 @@ function renderAdminStudentItem(student) {
       <small>E-mail: ${escapeHtml(pick(student, ["email"], "Nao informado"))}</small>
       <small>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Nao informado"))}</small>
       <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</small>
+      <small>Convite: ${escapeHtml(inviteStatus)}</small>
       <small>Status: ${escapeHtml(formatWorkoutStatus(status))}</small>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-admin-student-action="select" data-student-id="${escapeHtml(student.id)}">Ver registros</button>
@@ -1621,6 +1690,18 @@ function renderAdminExerciseItem(exercise) {
 /**
  * Renderiza erros atuais retornados pelo Supabase.
  */
+function renderAdminExerciseLibraryItem(exercise) {
+  return `
+    <article class="simple-item stacked">
+      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
+      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
+      <div class="record-actions">
+        <button class="tiny-button" type="button" data-admin-exercise-action="edit" data-id="${escapeHtml(exercise.id)}">Editar</button>
+      </div>
+    </article>
+  `;
+}
+
 function renderAdminErrors() {
   const errors = Object.entries(state.tableErrors);
 
@@ -2383,14 +2464,84 @@ function renderExerciseGroupFilter() {
  * Renderiza um item da biblioteca de exercicios.
  */
 function renderExerciseLibraryItem(exercise) {
+  const imageUrl = getHttpUrl(pick(exercise, ["image_url"], ""));
+  const videoUrl = getHttpUrl(pick(exercise, ["video_url"], ""));
+  const commonMistakes = pick(exercise, ["common_mistakes"], "");
+
   return `
     <article class="simple-item stacked library-item">
       <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
       <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
       <span>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Equipamento nao informado"))} | ${escapeHtml(pick(exercise, ["difficulty", "difficulty_level", "nivel"], "Nivel nao informado"))}</span>
+      ${imageUrl ? `<img class="exercise-media-image compact" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}" loading="lazy" />` : ""}
+      ${videoUrl ? `<a class="exercise-video-link" href="${escapeHtml(videoUrl)}" target="_blank" rel="noopener noreferrer">Ver video</a>` : ""}
       <small>${escapeHtml(pick(exercise, ["instructions", "description", "instrucoes"], "Sem instrucoes cadastradas."))}</small>
+      ${commonMistakes ? `<small><b>Erros comuns:</b> ${escapeHtml(commonMistakes)}</small>` : ""}
+      <div class="record-actions">
+        <button class="tiny-button" type="button" data-library-exercise-action="edit" data-id="${escapeHtml(exercise.id)}">Editar</button>
+      </div>
     </article>
   `;
+}
+
+function buildExerciseLibraryPayload(form) {
+  const formData = new FormData(form);
+  return {
+    name: String(formData.get("name") || "").trim(),
+    muscle_group: String(formData.get("muscle_group") || "").trim() || null,
+    equipment: String(formData.get("equipment") || "").trim() || null,
+    difficulty: String(formData.get("difficulty") || "").trim() || null,
+    image_url: normalizeOptionalUrl(formData.get("image_url"), "URL da imagem"),
+    video_url: normalizeOptionalUrl(formData.get("video_url"), "URL do video"),
+    instructions: String(formData.get("instructions") || "").trim() || null,
+    common_mistakes: String(formData.get("common_mistakes") || "").trim() || null
+  };
+}
+
+async function saveExerciseLibraryItem(form) {
+  try {
+    const payload = buildExerciseLibraryPayload(form);
+    if (!payload.name) {
+      throw new Error("Informe o nome do exercicio.");
+    }
+
+    const editId = form.dataset.editId || "";
+    if (editId) {
+      await updateWithSchemaFallback("exercise_library", editId, payload, "Erro ao editar exercicio da biblioteca");
+      showToast("Exercicio da biblioteca atualizado.");
+    } else {
+      await insertWithSchemaFallback("exercise_library", payload, "Erro ao cadastrar exercicio na biblioteca");
+      showToast("Exercicio cadastrado na biblioteca.");
+    }
+
+    clearExerciseLibraryForm(form);
+    await loadSupabaseData();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function editExerciseLibraryItem(id, form = el.exerciseLibraryForm) {
+  const exercise = state.exercises.find((item) => String(item.id) === String(id));
+  if (!exercise || !form) return;
+
+  form.dataset.editId = id;
+  form.elements.name.value = pick(exercise, ["name", "title", "nome"], "");
+  form.elements.muscle_group.value = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+  form.elements.equipment.value = pick(exercise, ["equipment", "equipamento"], "");
+  form.elements.difficulty.value = pick(exercise, ["difficulty", "difficulty_level", "nivel"], "");
+  form.elements.image_url.value = pick(exercise, ["image_url"], "");
+  form.elements.video_url.value = pick(exercise, ["video_url"], "");
+  form.elements.instructions.value = pick(exercise, ["instructions", "description", "instrucoes"], "");
+  form.elements.common_mistakes.value = pick(exercise, ["common_mistakes"], "");
+  form.querySelector("button[type='submit']").textContent = "Atualizar exercicio";
+}
+
+function clearExerciseLibraryForm(form = el.exerciseLibraryForm) {
+  if (!form) return;
+  form.reset();
+  form.dataset.editId = "";
+  form.querySelector("button[type='submit']").textContent = "Salvar exercicio";
 }
 
 /**
@@ -2726,7 +2877,7 @@ async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage)
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["students", "assessments", "body_measurements", "workouts", "workout_exercises"].includes(tableName)) {
+      if (["students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[GymPulse] UPDATE final em ${tableName}:`, { id, payload: currentPayload });
       }
       return await runQuery(supabaseClient.from(tableName).update(currentPayload).eq("id", id).select(), fallbackMessage);
@@ -4190,6 +4341,25 @@ function bindEvents() {
     renderExerciseLibrary();
   });
 
+  document.querySelectorAll(".exercise-library-form").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveExerciseLibraryItem(event.currentTarget);
+    });
+  });
+
+  document.querySelectorAll("[data-cancel-library-exercise-edit]").forEach((button) => {
+    button.addEventListener("click", () => clearExerciseLibraryForm(button.closest("form")));
+  });
+
+  el.trainerExerciseLibrary?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-library-exercise-action]");
+    if (!button) return;
+    if (button.dataset.libraryExerciseAction === "edit") {
+      editExerciseLibraryItem(button.dataset.id);
+    }
+  });
+
   el.trainerTabs.addEventListener("click", (event) => {
     const button = event.target.closest("[data-trainer-tab]");
     if (!button) return;
@@ -4261,6 +4431,13 @@ function bindEvents() {
     const button = event.target.closest("[data-admin-student-action]");
     if (!button) return;
     handleAdminStudentAction(button.dataset.adminStudentAction, button.dataset.studentId);
+  });
+  el.adminExercisesList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-exercise-action]");
+    if (!button) return;
+    if (button.dataset.adminExerciseAction === "edit") {
+      editExerciseLibraryItem(button.dataset.id, el.adminExerciseLibraryForm);
+    }
   });
   window.addEventListener("online", syncPendingWorkoutLogs);
 }

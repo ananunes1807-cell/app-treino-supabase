@@ -401,6 +401,23 @@
                       <option value="">Todos os grupos</option>
                     </select>
                   </div>
+                  <form class="form-box compact-form exercise-library-form" id="exercise-library-form">
+                    <h4>Cadastrar ou editar exerc&iacute;cio</h4>
+                    <div class="mini-grid">
+                      <input name="name" type="text" placeholder="Nome do exerc&iacute;cio" required />
+                      <input name="muscle_group" type="text" placeholder="Grupo muscular" />
+                      <input name="equipment" type="text" placeholder="Equipamento" />
+                      <input name="difficulty" type="text" placeholder="Dificuldade" />
+                      <input name="image_url" type="url" placeholder="URL da imagem" />
+                      <input name="video_url" type="url" placeholder="URL do v&iacute;deo" />
+                    </div>
+                    <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
+                    <textarea name="common_mistakes" rows="3" placeholder="Erros comuns"></textarea>
+                    <div class="button-row">
+                      <button class="secondary-button" type="submit" id="save-library-exercise">Salvar exerc&iacute;cio</button>
+                      <button class="ghost-button" type="button" id="cancel-library-exercise-edit" data-cancel-library-exercise-edit>Cancelar edi&ccedil;&atilde;o</button>
+                    </div>
+                  </form>
                   <div class="list spaced" id="trainer-exercise-library"></div>
                 </div>
               </section>
@@ -464,6 +481,23 @@
               </article>
               <article class="card">
                 <h2>Exerc&iacute;cios do banco</h2>
+                <form class="form-box compact-form exercise-library-form" id="admin-exercise-library-form">
+                  <h4>Cadastrar ou editar exerc&iacute;cio</h4>
+                  <div class="mini-grid">
+                    <input name="name" type="text" placeholder="Nome" required />
+                    <input name="muscle_group" type="text" placeholder="Grupo muscular" />
+                    <input name="equipment" type="text" placeholder="Equipamento" />
+                    <input name="difficulty" type="text" placeholder="Dificuldade" />
+                    <input name="image_url" type="url" placeholder="URL da imagem" />
+                    <input name="video_url" type="url" placeholder="URL do v&iacute;deo" />
+                  </div>
+                  <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
+                  <textarea name="common_mistakes" rows="3" placeholder="Erros comuns"></textarea>
+                  <div class="button-row">
+                    <button class="secondary-button" type="submit" id="save-admin-library-exercise">Salvar exerc&iacute;cio</button>
+                    <button class="ghost-button" type="button" data-cancel-library-exercise-edit>Cancelar edi&ccedil;&atilde;o</button>
+                  </div>
+                </form>
                 <div class="list" id="admin-exercises-list"></div>
               </article>
             </div>

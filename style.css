@@ -27,7 +27,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -285,7 +286,8 @@ h3 {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--line);
@@ -297,7 +299,8 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14);
 }
@@ -735,6 +738,29 @@ label {
 
 .library-item {
   padding: 10px;
+}
+
+.exercise-media-image {
+  width: 100%;
+  max-height: 220px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.exercise-media-image.compact {
+  max-height: 160px;
+}
+
+.exercise-video-link {
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--primary-dark);
+  font-weight: 800;
+  padding: 8px 10px;
+  text-decoration: none;
 }
 
 .history-block span {
