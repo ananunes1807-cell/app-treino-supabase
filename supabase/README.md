@@ -31,6 +31,7 @@ Ordem atual:
 7. `20260602000700_corrige_exclusoes_admin_personal.sql`
 8. `20260602000800_auditoria_final_auth_vinculos.sql`
 9. `20260602000900_trava_admin_ti_principal.sql`
+10. `20260602001000_fecha_modo_mvp_anon.sql`
 
 Os scripts antigos da pasta `sql/` foram mantidos como historico e apoio manual.
 Nao coloque os scripts MVP `001` a `005` nesta pasta oficial, pois eles foram feitos para teste e podem abrir ou desativar RLS.
