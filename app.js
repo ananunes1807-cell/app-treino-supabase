@@ -919,29 +919,38 @@ function renderExerciseLibraryItem(exercise) {
 async function createStudent(form) {
   const formData = new FormData(form);
   const email = String(formData.get("email") || "").trim().toLowerCase();
-  const responsibleProfileId = (isTrainer() || isAdmin()) ? (state.authProfile?.id || null) : null;
-  const fullPayload = {
-    name: formData.get("name"),
-    email,
-    phone: formData.get("phone") || null,
-    telefone: formData.get("phone") || null,
-    whatsapp: formData.get("whatsapp") || null,
-    birth_date: formData.get("birth_date") || null,
-    height_cm: numberOrNull(formData.get("height_cm")),
-    objective: formData.get("objective") || null,
-    difficulties: formData.get("difficulties") || null,
-    restrictions: formData.get("restrictions") || null,
-    notes: formData.get("notes") || null,
-    status: "ativo",
-    status_usuario: "pendente_convite",
-    primeiro_acesso_obrigatorio: false,
-    senha_temporaria: false,
-    personal_id: responsibleProfileId,
-    trainer_id: responsibleProfileId || state.authUser?.id || null,
-    created_by: state.authUser?.id || null
-  };
 
   try {
+    const responsibleProfile = (isTrainer() || isAdmin())
+      ? await fetchAppProfileByUserId(state.authUser?.id)
+      : null;
+    const responsibleProfileId = responsibleProfile?.id || null;
+
+    if ((isTrainer() || isAdmin()) && !responsibleProfileId) {
+      throw new Error("Perfil do Personal/Admin nao encontrado em app_profiles. Faca logout/login e tente novamente.");
+    }
+
+    const fullPayload = {
+      name: formData.get("name"),
+      email,
+      phone: formData.get("phone") || null,
+      telefone: formData.get("phone") || null,
+      whatsapp: formData.get("whatsapp") || null,
+      birth_date: formData.get("birth_date") || null,
+      height_cm: numberOrNull(formData.get("height_cm")),
+      objective: formData.get("objective") || null,
+      difficulties: formData.get("difficulties") || null,
+      restrictions: formData.get("restrictions") || null,
+      notes: formData.get("notes") || null,
+      status: "ativo",
+      status_usuario: "pendente_convite",
+      primeiro_acesso_obrigatorio: false,
+      senha_temporaria: false,
+      personal_id: responsibleProfileId,
+      trainer_id: responsibleProfileId,
+      created_by: state.authUser?.id || null
+    };
+
     const created = await insertStudentWithFallback(fullPayload);
     const createdStudent = created[0];
     state.selectedStudentId = createdStudent?.id || state.selectedStudentId;
@@ -971,7 +980,12 @@ async function createStudentInvite(student, email) {
 
   try {
     const token = generateInviteToken();
-    const trainerId = state.authProfile?.id || null;
+    const trainerId = pick(student, ["trainer_id", "personal_id"], "") || state.authProfile?.id || null;
+
+    if (!trainerId) {
+      throw new Error("Personal responsavel nao encontrado para criar o convite.");
+    }
+
     const invitePayload = {
       student_id: student.id,
       name: pick(student, ["name"], ""),
@@ -2588,26 +2602,38 @@ async function createWorkout(form) {
     return;
   }
 
-  const payload = {
-    student_id: state.selectedStudentId,
-    name: workoutName,
-    title: workoutName,
-    goal: formData.get("goal") || null,
-    description: formData.get("goal") || null,
-    notes: formData.get("notes") || null,
-    status: "ativo",
-    personal_id: state.authProfile?.id || null,
-    created_by: state.authUser?.id || null
-  };
   const editId = form.dataset.editId;
-  console.log("[GymPulse] Enviando workout para Supabase:", {
-    mode: editId ? "update" : "insert",
-    id: editId || null,
-    payload
-  });
   setFormLoading(form, true);
 
   try {
+    const responsibleProfile = (isTrainer() || isAdmin())
+      ? await fetchAppProfileByUserId(state.authUser?.id)
+      : null;
+    const responsibleProfileId = responsibleProfile?.id || null;
+
+    if ((isTrainer() || isAdmin()) && !responsibleProfileId) {
+      throw new Error("Perfil do Personal/Admin nao encontrado em app_profiles. Faca logout/login e tente novamente.");
+    }
+
+    const payload = {
+      student_id: state.selectedStudentId,
+      name: workoutName,
+      title: workoutName,
+      goal: formData.get("goal") || null,
+      description: formData.get("goal") || null,
+      notes: formData.get("notes") || null,
+      status: "ativo",
+      personal_id: responsibleProfileId,
+      trainer_id: responsibleProfileId,
+      created_by: state.authUser?.id || null
+    };
+
+    console.log("[GymPulse] Enviando workout para Supabase:", {
+      mode: editId ? "update" : "insert",
+      id: editId || null,
+      payload
+    });
+
     if (editId) {
       await updateWithSchemaFallback("workouts", editId, payload, "Erro ao editar treino");
       state.selectedWorkoutId = editId;
@@ -3272,6 +3298,19 @@ async function fetchInviteByToken(token) {
   return data || null;
 }
 
+async function fetchAppProfileByUserId(userId) {
+  if (!userId) return null;
+
+  const { data, error } = await supabaseClient
+    .from("app_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
 function hydrateInviteRegisterForm(invite) {
   if (!invite) return;
   switchAuthMode("register");
@@ -3320,6 +3359,10 @@ function isDuplicateDatabaseError(error) {
 async function completeInviteForUser(user, invite = state.pendingInvite) {
   if (!user?.id || !invite?.id) return null;
 
+  if (!invite.student_id || !invite.trainer_id) {
+    throw new Error("Convite sem aluno ou personal vinculado. Gere um novo convite pelo Personal.");
+  }
+
   const inviteEmail = String(invite.email || "").trim().toLowerCase();
   const userEmail = String(user.email || "").trim().toLowerCase();
   if (inviteEmail && userEmail && inviteEmail !== userEmail) {
@@ -3338,13 +3381,15 @@ async function completeInviteForUser(user, invite = state.pendingInvite) {
     senha_temporaria: false
   };
 
-  const existing = await fetchAuthProfile(user, { createIfMissing: false });
-  if (existing?.id && normalizeRole(existing.role) !== "student") {
+  const existingAppProfile = await fetchAppProfileByUserId(user.id);
+  const existingAnyProfile = existingAppProfile || await fetchAuthProfile(user, { createIfMissing: false });
+
+  if (existingAnyProfile?.id && normalizeRole(existingAnyProfile.role) !== "student") {
     throw new Error("Este e-mail ja possui outro perfil. O Admin TI deve corrigir o vinculo manualmente.");
   }
 
-  if (existing?.id) {
-    await updateWithSchemaFallback("app_profiles", existing.id, profilePayload, "Erro ao atualizar perfil do aluno convidado");
+  if (existingAppProfile?.id) {
+    await updateWithSchemaFallback("app_profiles", existingAppProfile.id, profilePayload, "Erro ao atualizar perfil do aluno convidado");
   } else {
     await insertWithSchemaFallback("app_profiles", profilePayload, "Erro ao criar perfil do aluno convidado");
   }
@@ -3353,6 +3398,7 @@ async function completeInviteForUser(user, invite = state.pendingInvite) {
   if (invite.student_id) {
     await updateWithSchemaFallback("students", invite.student_id, {
       auth_user_id: user.id,
+      profile_id: user.id,
       status: "ativo",
       status_usuario: "ativo",
       personal_id: invite.trainer_id || null,
