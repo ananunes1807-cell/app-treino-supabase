@@ -547,8 +547,8 @@ function renderWorkoutExerciseItem(item) {
   const exercise = getLibraryExerciseForWorkoutItem(item);
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
   const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
-  const imageUrl = getHttpUrl(pick(exercise, ["image_url"], ""));
-  const videoUrl = getHttpUrl(pick(exercise, ["video_url"], ""));
+  const imageUrl = pick(exercise, ["image_url"], "");
+  const videoUrl = pick(exercise, ["video_url"], "");
   const instructions = pick(exercise, ["instructions", "description", "instrucoes"], pick(item, ["instructions"], ""));
   const commonMistakes = pick(exercise, ["common_mistakes"], "");
   const execution = getStudentExerciseExecution(item.id);
@@ -563,8 +563,8 @@ function renderWorkoutExerciseItem(item) {
         <strong>${escapeHtml(exerciseName)}</strong>
         ${group ? `<span>Grupo muscular: ${escapeHtml(group)}</span>` : ""}
       <span>Planejado: Series: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
-        ${imageUrl ? `<img class="exercise-media-image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(exerciseName)}" loading="lazy" />` : ""}
-        ${videoUrl ? `<a class="exercise-video-link" href="${escapeHtml(videoUrl)}" target="_blank" rel="noopener noreferrer">Ver video</a>` : ""}
+        ${renderExerciseImage(imageUrl, exerciseName)}
+        ${renderExerciseVideoButton(videoUrl)}
         ${instructions ? `<small><b>Instrucoes:</b> ${escapeHtml(instructions)}</small>` : ""}
         ${commonMistakes ? `<small><b>Erros comuns:</b> ${escapeHtml(commonMistakes)}</small>` : ""}
         <div class="quick-actions">
@@ -747,6 +747,41 @@ function getLibraryExerciseForWorkoutItem(item) {
 function getHttpUrl(value) {
   const url = String(value || "").trim();
   return /^https?:\/\//i.test(url) ? url : "";
+}
+
+function isLocalExerciseAssetUrl(value, type = "image") {
+  const url = String(value || "").trim().replace(/^\.?\//, "");
+  const folder = type === "video" ? "videos" : "imagens";
+  const extension = type === "video" ? /\.mp4$/i : /\.(webp|png|jpg|jpeg|gif)$/i;
+  return url.startsWith(`assets/exercicios/${folder}/`) && extension.test(url);
+}
+
+function getExerciseMediaUrl(value, type = "image") {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return isLocalExerciseAssetUrl(url, type) ? url.replace(/^\.?\//, "") : "";
+}
+
+function renderExerciseImage(imageUrl, altText, compact = false) {
+  const url = getExerciseMediaUrl(imageUrl, "image");
+  if (!url) {
+    return `<div class="exercise-image-placeholder${compact ? " compact" : ""}">Imagem demonstrativa</div>`;
+  }
+
+  return `
+    <div class="exercise-media-frame${compact ? " compact" : ""}">
+      <img class="exercise-media-image${compact ? " compact" : ""}" src="${escapeHtml(url)}" alt="${escapeHtml(altText)}" loading="lazy" onerror="this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');" />
+      <div class="exercise-image-placeholder hidden${compact ? " compact" : ""}">Imagem nao encontrada</div>
+    </div>
+  `;
+}
+
+function renderExerciseVideoButton(videoUrl) {
+  const url = getExerciseMediaUrl(videoUrl, "video");
+  return url
+    ? `<button class="exercise-video-link" type="button" data-exercise-video-url="${escapeHtml(url)}">Assistir video</button>`
+    : "";
 }
 
 function getLatestInviteForStudent(studentId) {
@@ -1209,10 +1244,15 @@ function formatNumber(value) {
 function normalizeOptionalUrl(value, fieldLabel) {
   const url = String(value || "").trim();
   if (!url) return null;
-  if (!/^https?:\/\//i.test(url)) {
-    throw new Error(`${fieldLabel} deve comecar com http:// ou https://.`);
+  const isImageField = normalizeText(fieldLabel).includes("imagem");
+  const type = isImageField ? "image" : "video";
+  if (!/^https?:\/\//i.test(url) && !isLocalExerciseAssetUrl(url, type)) {
+    const expectedPath = type === "video"
+      ? "assets/exercicios/videos/nome-do-exercicio.mp4"
+      : "assets/exercicios/imagens/nome-do-exercicio.webp";
+    throw new Error(`${fieldLabel} deve ser http/https ou ${expectedPath}.`);
   }
-  return url;
+  return url.replace(/^\.?\//, "");
 }
 
 function normalizeRole(role) {
@@ -1486,8 +1526,8 @@ function buildWorkoutExecutionSnapshot(workoutId, exercisesSource = state.workou
         exercise_id: pick(exercise, ["exercise_id"], null),
         exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
         muscle_group: pick(libraryExercise, ["muscle_group", "primary_muscle", "grupo_muscular"], null),
-        image_url: getHttpUrl(pick(libraryExercise, ["image_url"], "")) || null,
-        video_url: getHttpUrl(pick(libraryExercise, ["video_url"], "")) || null,
+        image_url: getExerciseMediaUrl(pick(libraryExercise, ["image_url"], ""), "image") || null,
+        video_url: getExerciseMediaUrl(pick(libraryExercise, ["video_url"], ""), "video") || null,
         instructions: pick(libraryExercise, ["instructions", "description", "instrucoes"], pick(exercise, ["instructions"], null)),
         common_mistakes: pick(libraryExercise, ["common_mistakes"], null),
         sets: numberOrNull(pick(exercise, ["sets"], "")),
@@ -2553,17 +2593,18 @@ function renderExerciseGroupFilter() {
  * Renderiza um item da biblioteca de exercicios.
  */
 function renderExerciseLibraryItem(exercise) {
-  const imageUrl = getHttpUrl(pick(exercise, ["image_url"], ""));
-  const videoUrl = getHttpUrl(pick(exercise, ["video_url"], ""));
+  const imageUrl = pick(exercise, ["image_url"], "");
+  const videoUrl = pick(exercise, ["video_url"], "");
   const commonMistakes = pick(exercise, ["common_mistakes"], "");
+  const exerciseName = pick(exercise, ["name", "title", "nome"], "Exercicio");
 
   return `
     <article class="simple-item stacked library-item">
-      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
+      <strong>${escapeHtml(exerciseName)}</strong>
       <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
       <span>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Equipamento nao informado"))} | ${escapeHtml(pick(exercise, ["difficulty", "difficulty_level", "nivel"], "Nivel nao informado"))}</span>
-      ${imageUrl ? `<img class="exercise-media-image compact" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}" loading="lazy" />` : ""}
-      ${videoUrl ? `<a class="exercise-video-link" href="${escapeHtml(videoUrl)}" target="_blank" rel="noopener noreferrer">Ver video</a>` : ""}
+      ${renderExerciseImage(imageUrl, exerciseName, true)}
+      ${renderExerciseVideoButton(videoUrl)}
       <small>${escapeHtml(pick(exercise, ["instructions", "description", "instrucoes"], "Sem instrucoes cadastradas."))}</small>
       ${commonMistakes ? `<small><b>Erros comuns:</b> ${escapeHtml(commonMistakes)}</small>` : ""}
       <div class="record-actions">
@@ -4421,6 +4462,12 @@ function handleStudentWorkoutExecutionChange(event) {
  * Aplica atalhos de execucao mobile do aluno.
  */
 function handleStudentWorkoutQuickAction(event) {
+  const videoButton = event.target.closest("[data-exercise-video-url]");
+  if (videoButton) {
+    openExerciseVideo(videoButton.dataset.exerciseVideoUrl);
+    return;
+  }
+
   const navButton = event.target.closest("[data-student-exercise-nav]");
   if (navButton) {
     const direction = navButton.dataset.studentExerciseNav;
@@ -4458,6 +4505,15 @@ function handleStudentWorkoutQuickAction(event) {
 
   saveCurrentExecutionDraft();
   renderStudentArea();
+}
+
+function openExerciseVideo(videoUrl) {
+  const url = getExerciseMediaUrl(videoUrl, "video");
+  if (!url) {
+    showToast("Video nao cadastrado para este exercicio.", "error");
+    return;
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 /**
@@ -4541,6 +4597,12 @@ function bindEvents() {
   });
 
   el.trainerExerciseLibrary?.addEventListener("click", (event) => {
+    const videoButton = event.target.closest("[data-exercise-video-url]");
+    if (videoButton) {
+      openExerciseVideo(videoButton.dataset.exerciseVideoUrl);
+      return;
+    }
+
     const button = event.target.closest("[data-library-exercise-action]");
     if (!button) return;
     if (button.dataset.libraryExerciseAction === "edit") {

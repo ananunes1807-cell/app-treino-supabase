@@ -1,10 +1,10 @@
-const CACHE_NAME = "gympulse-pwa-v18";
+const CACHE_NAME = "gympulse-pwa-v19";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260602-admin-lock",
-  "./app.js?v=20260602-admin-lock",
-  "./supabase.js?v=20260602-admin-lock",
+  "./style.css?v=20260604-media-local",
+  "./app.js?v=20260604-media-local",
+  "./supabase.js?v=20260604-media-local",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
@@ -32,6 +32,13 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const requestUrl = new URL(event.request.url);
+  const isExerciseVideo = requestUrl.pathname.includes("/assets/exercicios/videos/") || requestUrl.pathname.endsWith(".mp4");
+
+  if (isExerciseVideo) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
