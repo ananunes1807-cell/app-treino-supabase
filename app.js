@@ -1221,6 +1221,37 @@ function getFormValue(formData, names) {
   return "";
 }
 
+function dateInputValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const dateOnly = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return dateOnly ? dateOnly[1] : "";
+}
+
+function setFormTitle(form, title) {
+  const heading = form?.querySelector("h3");
+  if (heading) heading.textContent = title;
+}
+
+function setSubmitLabel(form, label) {
+  const button = form?.querySelector("button[type='submit']");
+  if (button) button.textContent = label;
+}
+
+function resetAssessmentEditMode(form) {
+  if (!form) return;
+  form.dataset.editId = "";
+  setFormTitle(form, "Adicionar avaliação física");
+  setSubmitLabel(form, "Salvar avaliação");
+}
+
+function resetMeasurementEditMode(form) {
+  if (!form) return;
+  form.dataset.editId = "";
+  setFormTitle(form, "Adicionar perimetria");
+  setSubmitLabel(form, "Salvar medidas");
+}
+
 /**
  * Normaliza entrada numerica pt-BR e remove zeros a esquerda.
  */
@@ -2824,9 +2855,8 @@ async function createAssessment(form) {
   try {
     if (editId) {
       await updateWithSchemaFallback("assessments", editId, payload, "Erro ao editar avaliacao");
-      form.dataset.editId = "";
-      form.querySelector("button[type='submit']").textContent = "Salvar avaliacao";
-      showToast("Avaliacao atualizada.");
+      resetAssessmentEditMode(form);
+      showToast("Avaliação atualizada com sucesso");
     } else {
       await insertWithSchemaFallback("assessments", payload, "Erro ao salvar avaliacao");
       showToast("Avaliacao salva com sucesso.");
@@ -2834,6 +2864,7 @@ async function createAssessment(form) {
     form.reset();
     await refreshSelectedStudentProfile();
   } catch (error) {
+    console.error("[GymPulse] Erro ao salvar/editar avaliacao:", error);
     showToast(error.message, "error");
   } finally {
     setFormLoading(form, false);
@@ -2922,9 +2953,8 @@ async function createMeasurement(form) {
   try {
     if (editId) {
       await updateWithSchemaFallback("body_measurements", editId, payload, "Erro ao editar medidas");
-      form.dataset.editId = "";
-      form.querySelector("button[type='submit']").textContent = "Salvar medidas";
-      showToast("Medidas atualizadas.");
+      resetMeasurementEditMode(form);
+      showToast("Medidas atualizadas com sucesso.");
     } else {
       await insertWithSchemaFallback("body_measurements", payload, "Erro ao salvar medidas");
       showToast("Medidas salvas com sucesso.");
@@ -2932,6 +2962,7 @@ async function createMeasurement(form) {
     form.reset();
     await refreshSelectedStudentProfile();
   } catch (error) {
+    console.error("[GymPulse] Erro ao salvar/editar medidas:", error);
     showToast(error.message, "error");
   } finally {
     setFormLoading(form, false);
@@ -3275,12 +3306,19 @@ async function deleteByColumn(tableName, column, value, fallbackMessage) {
 function editAssessment(id) {
   const record = state.trainerAssessmentsCache.find((item) => String(item.id) === String(id));
   const form = document.querySelector("#new-assessment-form");
-  if (!record || !form) return;
+  if (!form) return;
+
+  if (!record) {
+    showToast("Avaliacao nao encontrada para edicao. Recarregue os dados.", "error");
+    console.error("[GymPulse] Avaliacao nao encontrada no cache:", { id, cache: state.trainerAssessmentsCache });
+    return;
+  }
 
   form.dataset.editId = id;
+  setFormTitle(form, "Editar avaliação física");
   form.elements.objective.value = pick(record, ["objective", "objetivo"], "");
-  form.elements.assessment_date.value = pick(record, ["assessment_date", "data_avaliacao"], "");
-  form.elements.reassessment_date.value = pick(record, ["reassessment_date", "data_reavaliacao"], "");
+  form.elements.assessment_date.value = dateInputValue(pick(record, ["assessment_date", "data_avaliacao", "assessed_at", "created_at"], ""));
+  form.elements.reassessment_date.value = dateInputValue(pick(record, ["reassessment_date", "data_reavaliacao"], ""));
   form.elements.professor_responsavel.value = pick(record, ["professor_responsavel"], "");
   form.elements.weight_kg.value = normalizeNumberInput(pick(record, ["weight_kg", "weight", "peso"], ""));
   form.elements.height.value = normalizeNumberInput(pick(record, ["estatura_cm", "height", "height_cm", "altura"], ""));
@@ -3304,7 +3342,7 @@ function editAssessment(id) {
   });
   form.elements.protocolo.value = pick(record, ["protocolo"], "");
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
-  form.querySelector("button[type='submit']").textContent = "Atualizar avaliacao";
+  setSubmitLabel(form, "Atualizar avaliação");
   switchTrainerTab("assessments");
 }
 
@@ -3314,10 +3352,17 @@ function editAssessment(id) {
 function editMeasurement(id) {
   const record = state.trainerMeasurementsCache.find((item) => String(item.id) === String(id));
   const form = document.querySelector("#new-measurement-form");
-  if (!record || !form) return;
+  if (!form) return;
+
+  if (!record) {
+    showToast("Medida nao encontrada para edicao. Recarregue os dados.", "error");
+    console.error("[GymPulse] Medida nao encontrada no cache:", { id, cache: state.trainerMeasurementsCache });
+    return;
+  }
 
   form.dataset.editId = id;
-  form.elements.measurement_date.value = pick(record, ["measurement_date"], "");
+  setFormTitle(form, "Editar perimetria");
+  form.elements.measurement_date.value = dateInputValue(pick(record, ["measurement_date", "measured_at", "created_at"], ""));
   form.elements.torax.value = normalizeNumberInput(pick(record, ["torax", "chest_cm", "chest"], ""));
   form.elements.waist_cm.value = normalizeNumberInput(pick(record, ["waist_cm", "waist", "cintura"], ""));
   form.elements.abdomen_cm.value = normalizeNumberInput(pick(record, ["abdomen_cm", "abdomen", "abdome"], ""));
@@ -3335,7 +3380,7 @@ function editMeasurement(id) {
   form.elements.bi_femoral.value = normalizeNumberInput(pick(record, ["bi_femoral"], ""));
   form.elements.bi_maleolar.value = normalizeNumberInput(pick(record, ["bi_maleolar"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
-  form.querySelector("button[type='submit']").textContent = "Atualizar medidas";
+  setSubmitLabel(form, "Atualizar medidas");
   switchTrainerTab("measurements");
 }
 
