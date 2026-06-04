@@ -298,37 +298,82 @@
 
               <section class="trainer-tab" id="trainer-tab-assessments">
                 <form class="form-box" id="new-assessment-form">
-                  <h3>Adicionar avalia&ccedil;&atilde;o f&iacute;sica</h3>
+                  <h3>Avalia&ccedil;&atilde;o f&iacute;sica completa</h3>
+                  <h4>Dados da avalia&ccedil;&atilde;o</h4>
                   <div class="mini-grid">
+                    <input name="objective" type="text" placeholder="Objetivo" />
+                    <input name="assessment_date" type="date" />
+                    <input name="reassessment_date" type="date" />
+                    <input name="professor_responsavel" type="text" placeholder="Professor responsavel" />
                     <input name="weight_kg" type="number" step="0.01" placeholder="Peso" />
-                    <input name="height" type="number" step="0.01" placeholder="Altura" />
-                    <input name="body_fat_percent" type="number" step="0.01" placeholder="Gordura corporal" />
-                    <input name="muscle_mass_kg" type="number" step="0.01" placeholder="Massa muscular" />
-                    <input name="visceral_fat" type="number" step="0.01" placeholder="Gordura visceral" />
-                    <input name="body_water_percent" type="number" step="0.01" placeholder="Agua corporal" />
-                    <input name="imc" type="number" step="0.01" placeholder="IMC" />
-                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es" />
+                    <input name="height" type="number" step="0.01" placeholder="Estatura em cm" />
+                    <input name="peso_ideal" type="number" step="0.01" placeholder="Peso ideal" />
+                    <input name="body_fat_percent" type="number" step="0.01" placeholder="% gordura atual" />
+                    <input name="percentual_gordura_ideal" type="number" step="0.01" placeholder="% gordura ideal" />
+                    <input name="pa_repouso" type="text" placeholder="PA repouso" />
+                    <input name="fc_repouso" type="number" step="1" placeholder="FC repouso" />
+                    <input name="zona_treino" type="text" placeholder="Zona de treino" />
+                    <input name="imc" type="number" step="0.01" placeholder="IMC automatico" readonly />
+                    <input name="icq" type="number" step="0.01" placeholder="ICQ automatico" readonly />
                   </div>
+                  <h4>Restri&ccedil;&otilde;es de sa&uacute;de</h4>
+                  <div class="checkbox-grid">
+                    <label><input name="cardiopatia" type="checkbox" /> Cardiopatia</label>
+                    <label><input name="has_hipertensao" type="checkbox" /> Hipertens&atilde;o</label>
+                    <label><input name="diabetes" type="checkbox" /> Diabetes</label>
+                    <label><input name="labirintite" type="checkbox" /> Labirintite</label>
+                    <label><input name="endocrino" type="checkbox" /> End&oacute;crino</label>
+                    <label><input name="cirurgia" type="checkbox" /> Cirurgia</label>
+                    <label><input name="snc" type="checkbox" /> SNC</label>
+                    <label><input name="respiratorio" type="checkbox" /> Respirat&oacute;rio</label>
+                    <label><input name="tabagismo" type="checkbox" /> Tabagismo</label>
+                    <label><input name="osteomioarticular" type="checkbox" /> Osteomioarticular</label>
+                  </div>
+                  <textarea name="outros" rows="2" placeholder="Outras restri&ccedil;&otilde;es"></textarea>
+                  <h4>Dobras cut&acirc;neas</h4>
+                  <div class="mini-grid">
+                    <input name="torax_dobra" type="number" step="0.01" placeholder="Torax dobra" />
+                    <input name="axilar_media" type="number" step="0.01" placeholder="Axilar media" />
+                    <input name="supra_iliaca" type="number" step="0.01" placeholder="Supra iliaca" />
+                    <input name="abdomen_dobra" type="number" step="0.01" placeholder="Abdomen dobra" />
+                    <input name="coxa_dobra" type="number" step="0.01" placeholder="Coxa dobra" />
+                    <input name="subescapular" type="number" step="0.01" placeholder="Subescapular" />
+                    <input name="triceps" type="number" step="0.01" placeholder="Triceps" />
+                    <input name="biceps" type="number" step="0.01" placeholder="Biceps" />
+                    <input name="panturrilha_dobra" type="number" step="0.01" placeholder="Panturrilha dobra" />
+                    <input name="protocolo" type="text" placeholder="Protocolo" />
+                  </div>
+                  <textarea name="notes" rows="2" placeholder="Observa&ccedil;&otilde;es"></textarea>
                   <button class="primary-button" type="submit">Salvar avalia&ccedil;&atilde;o</button>
                 </form>
+                <div class="list compact-list" id="trainer-assessment-comparison"></div>
                 <h3>Hist&oacute;rico de avalia&ccedil;&otilde;es</h3>
                 <div class="list compact-list" id="trainer-assessments"></div>
               </section>
 
               <section class="trainer-tab" id="trainer-tab-measurements">
                 <form class="form-box" id="new-measurement-form">
-                  <h3>Adicionar medidas</h3>
+                  <h3>Perimetria completa</h3>
                   <div class="mini-grid">
-                    <input name="neck_cm" type="number" step="0.01" placeholder="Pescoco" />
-                    <input name="chest_cm" type="number" step="0.01" placeholder="Peitoral" />
+                    <input name="measurement_date" type="date" />
+                    <input name="torax" type="number" step="0.01" placeholder="Torax" />
                     <input name="waist_cm" type="number" step="0.01" placeholder="Cintura" />
                     <input name="abdomen_cm" type="number" step="0.01" placeholder="Abdomen" />
                     <input name="hip_cm" type="number" step="0.01" placeholder="Quadril" />
-                    <input name="arm_cm" type="number" step="0.01" placeholder="Bracos" />
-                    <input name="thigh_cm" type="number" step="0.01" placeholder="Coxas" />
-                    <input name="calf_cm" type="number" step="0.01" placeholder="Panturrilhas" />
-                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es" />
+                    <input name="braco_d" type="number" step="0.01" placeholder="Braco D" />
+                    <input name="braco_e" type="number" step="0.01" placeholder="Braco E" />
+                    <input name="antebraco_d" type="number" step="0.01" placeholder="Antebraco D" />
+                    <input name="antebraco_e" type="number" step="0.01" placeholder="Antebraco E" />
+                    <input name="coxa_d" type="number" step="0.01" placeholder="Coxa D" />
+                    <input name="coxa_e" type="number" step="0.01" placeholder="Coxa E" />
+                    <input name="panturrilha_d" type="number" step="0.01" placeholder="Panturrilha D" />
+                    <input name="panturrilha_e" type="number" step="0.01" placeholder="Panturrilha E" />
+                    <input name="bi_epicondilo" type="number" step="0.01" placeholder="Bi epicondilo" />
+                    <input name="bi_estiloide" type="number" step="0.01" placeholder="Bi estiloide" />
+                    <input name="bi_femoral" type="number" step="0.01" placeholder="Bi femoral" />
+                    <input name="bi_maleolar" type="number" step="0.01" placeholder="Bi maleolar" />
                   </div>
+                  <textarea name="notes" rows="2" placeholder="Observa&ccedil;&otilde;es"></textarea>
                   <button class="primary-button" type="submit">Salvar medidas</button>
                 </form>
                 <h3>Hist&oacute;rico de medidas</h3>

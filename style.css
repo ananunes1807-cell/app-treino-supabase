@@ -200,7 +200,8 @@ h3 {
 .cards,
 .grid,
 .diagnostic-grid,
-.mini-grid {
+.mini-grid,
+.checkbox-grid {
   display: grid;
   gap: 14px;
 }
@@ -880,6 +881,27 @@ label {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.checkbox-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  padding: 8px 10px;
+}
+
+.checkbox-grid input {
+  width: auto;
+  min-height: auto;
+}
+
 .diagnostic-grid {
   grid-template-columns: 1fr;
 }
@@ -962,7 +984,8 @@ label {
     grid-template-columns: 1fr;
   }
 
-  .mini-grid {
+  .mini-grid,
+  .checkbox-grid {
     grid-template-columns: 1fr;
   }
 }

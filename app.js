@@ -55,18 +55,19 @@ const DEFAULT_EXERCISES = [
   ["Crucifixo na maquina", "Peitoral", "Maquina", "Iniciante", "Aproximar os bracos mantendo leve flexao dos cotovelos."],
   ["Puxada frontal", "Dorsal", "Pulley", "Iniciante", "Puxar a barra em direcao ao peito mantendo o tronco firme."],
   ["Remada baixa", "Dorsal", "Cabo", "Iniciante", "Trazer o puxador ao abdomen contraindo as costas."],
-  ["Rosca direta", "Bracos", "Barra", "Iniciante", "Flexionar os cotovelos sem balancar o tronco."],
-  ["Triceps pulley", "Bracos", "Cabo", "Iniciante", "Estender os cotovelos mantendo os bracos proximos ao corpo."],
+  ["Rosca direta", "Braços", "Barra", "Iniciante", "Flexionar os cotovelos sem balancar o tronco."],
+  ["Triceps pulley", "Braços", "Cabo", "Iniciante", "Estender os cotovelos mantendo os bracos proximos ao corpo."],
   ["Mesa flexora", "Posterior", "Maquina", "Iniciante", "Flexionar os joelhos contraindo posterior de coxa."],
   ["Stiff", "Posterior", "Barra ou halteres", "Intermediario", "Descer com quadril para tras e coluna neutra."],
-  ["Elevacao pelvica", "Gluteo", "Banco e barra", "Intermediario", "Elevar o quadril contraindo gluteos no topo."],
-  ["Cadeira abdutora", "Gluteo", "Maquina", "Iniciante", "Abrir as pernas com controle e sem impulso."],
+  ["Elevacao pelvica", "Glúteo", "Banco e barra", "Intermediario", "Elevar o quadril contraindo gluteos no topo."],
+  ["Cadeira abdutora", "Glúteo", "Maquina", "Iniciante", "Abrir as pernas com controle e sem impulso."],
   ["Prancha abdominal", "Abdominal", "Peso corporal", "Iniciante", "Manter o corpo alinhado e abdomen contraido."],
   ["Abdominal crunch", "Abdominal", "Peso corporal", "Iniciante", "Flexionar o tronco com controle sem puxar o pescoco."],
   ["Desenvolvimento com halteres", "Ombro", "Halteres", "Intermediario", "Empurrar os halteres acima da cabeca com controle."],
   ["Elevacao lateral", "Ombro", "Halteres", "Iniciante", "Elevar os bracos ate a linha dos ombros."],
   ["Face pull", "Ombro", "Cabo", "Iniciante", "Puxar a corda em direcao ao rosto contraindo deltoide posterior."]
 ];
+const REQUIRED_EXERCISE_GROUPS = ["Pernas", "Peitoral", "Dorsal", "Braços", "Posterior", "Glúteo", "Abdominal", "Ombro"];
 const DELETE_CONFIRMATION = "Tem certeza que deseja excluir? Esta acao nao podera ser desfeita.";
 
 const state = {
@@ -121,6 +122,7 @@ const el = {
   trainerProfileTitle: document.querySelector("#trainer-profile-title"),
   trainerProfileSummary: document.querySelector("#trainer-profile-summary"),
   trainerAssessments: document.querySelector("#trainer-assessments"),
+  trainerAssessmentComparison: document.querySelector("#trainer-assessment-comparison"),
   trainerMeasurements: document.querySelector("#trainer-measurements"),
   trainerWorkoutSelect: document.querySelector("#trainer-workout-select"),
   trainerExerciseSelect: document.querySelector("#trainer-exercise-select"),
@@ -1149,6 +1151,28 @@ function numberOrNull(value) {
   const normalized = normalizeNumberInput(value);
   if (normalized === "") return null;
   return Number(normalized);
+}
+
+function boolFromForm(formData, name) {
+  return formData.get(name) === "on";
+}
+
+function calculateImc(weightKg, heightCm) {
+  if (!weightKg || !heightCm) return null;
+  const heightM = Number(heightCm) / 100;
+  if (!heightM) return null;
+  return Number((Number(weightKg) / (heightM * heightM)).toFixed(2));
+}
+
+function calculateIcq(waistCm, hipCm) {
+  if (!waistCm || !hipCm) return null;
+  return Number((Number(waistCm) / Number(hipCm)).toFixed(2));
+}
+
+function getLatestMeasurementForStudent(studentId) {
+  return state.trainerMeasurementsCache
+    .filter((measurement) => String(measurement.student_id) === String(studentId))
+    .sort((a, b) => String(pick(b, ["measurement_date", "measured_at", "created_at"], "")).localeCompare(String(pick(a, ["measurement_date", "measured_at", "created_at"], ""))))[0] || null;
 }
 
 /**
@@ -2254,6 +2278,10 @@ async function renderTrainerProfile() {
     state.trainerAssessmentsCache = assessments;
     state.trainerMeasurementsCache = measurements;
 
+    if (el.trainerAssessmentComparison) {
+      el.trainerAssessmentComparison.innerHTML = renderAssessmentComparison(assessments, measurements);
+    }
+
     el.trainerAssessments.innerHTML = assessments.length
       ? assessments.map(renderAssessmentItem).join("")
       : emptyMessage("Nenhuma avaliacao encontrada.");
@@ -2280,19 +2308,45 @@ async function renderTrainerProfile() {
  */
 function renderAssessmentItem(assessment) {
   const notes = pick(assessment, ["notes", "observations"], "");
+  const healthFlags = [
+    ["Cardiopatia", assessment.cardiopatia],
+    ["Hipertensao", assessment.has_hipertensao],
+    ["Diabetes", assessment.diabetes],
+    ["Labirintite", assessment.labirintite],
+    ["Endocrino", assessment.endocrino],
+    ["Cirurgia", assessment.cirurgia],
+    ["SNC", assessment.snc],
+    ["Respiratorio", assessment.respiratorio],
+    ["Tabagismo", assessment.tabagismo],
+    ["Osteomioarticular", assessment.osteomioarticular]
+  ].filter(([, value]) => Boolean(value)).map(([label]) => label).join(", ");
+
   return `
     <article class="data-record" data-assessment-id="${escapeHtml(assessment.id)}">
       <div class="record-title">
-        <strong>${formatDate(pick(assessment, ["assessment_date", "assessed_at", "created_at"]))}</strong>
+        <strong>${formatDate(pick(assessment, ["assessment_date", "data_avaliacao", "assessed_at", "created_at"]))}</strong>
         ${renderRecordActions("assessment", assessment.id)}
       </div>
+      <span><b>Objetivo:</b> ${escapeHtml(pick(assessment, ["objective", "objetivo"], "-"))}</span>
+      <span><b>Reavaliacao:</b> ${escapeHtml(formatDate(pick(assessment, ["reassessment_date", "data_reavaliacao"], "")) || "-")}</span>
+      <span><b>Professor:</b> ${escapeHtml(pick(assessment, ["professor_responsavel"], "-"))}</span>
       <span><b>Peso:</b> ${escapeHtml(formatNumber(pick(assessment, ["weight", "weight_kg", "peso"], "-")))} kg</span>
-      <span><b>Altura:</b> ${escapeHtml(formatNumber(pick(assessment, ["height", "height_cm", "altura"], "-")))} cm</span>
-      <span><b>Gordura corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], "-")))}</span>
+      <span><b>Estatura:</b> ${escapeHtml(formatNumber(pick(assessment, ["estatura_cm", "height", "height_cm", "altura"], "-")))} cm</span>
+      <span><b>Peso ideal:</b> ${escapeHtml(formatNumber(pick(assessment, ["peso_ideal"], "-")))} kg</span>
+      <span><b>Gordura atual:</b> ${escapeHtml(formatNumber(pick(assessment, ["percentual_gordura_atual", "body_fat", "body_fat_percentage", "body_fat_percent", "gordura_corporal"], "-")))}</span>
+      <span><b>Gordura ideal:</b> ${escapeHtml(formatNumber(pick(assessment, ["percentual_gordura_ideal"], "-")))}</span>
       <span><b>Massa muscular:</b> ${escapeHtml(formatNumber(pick(assessment, ["muscle_mass", "lean_mass", "muscle_mass_kg", "massa_muscular"], "-")))}</span>
       <span><b>Gordura visceral:</b> ${escapeHtml(formatNumber(pick(assessment, ["visceral_fat", "gordura_visceral"], "-")))}</span>
       <span><b>Agua corporal:</b> ${escapeHtml(formatNumber(pick(assessment, ["body_water_percent", "body_water", "body_water_percentage", "agua_corporal"], "-")))}</span>
       <span><b>IMC:</b> ${escapeHtml(formatNumber(pick(assessment, ["bmi", "imc"], "-")))}</span>
+      <span><b>ICQ:</b> ${escapeHtml(formatNumber(pick(assessment, ["icq"], "-")))}</span>
+      <span><b>PA repouso:</b> ${escapeHtml(pick(assessment, ["pa_repouso"], "-"))}</span>
+      <span><b>FC repouso:</b> ${escapeHtml(formatNumber(pick(assessment, ["fc_repouso"], "-")))}</span>
+      <span><b>Zona treino:</b> ${escapeHtml(pick(assessment, ["zona_treino"], "-"))}</span>
+      ${healthFlags ? `<span><b>Restricoes:</b> ${escapeHtml(healthFlags)}</span>` : ""}
+      ${pick(assessment, ["outros"], "") ? `<span><b>Outros:</b> ${escapeHtml(pick(assessment, ["outros"], ""))}</span>` : ""}
+      <span><b>Dobras:</b> Torax ${escapeHtml(formatNumber(pick(assessment, ["torax_dobra"], "-")))} | Axilar ${escapeHtml(formatNumber(pick(assessment, ["axilar_media"], "-")))} | Supra ${escapeHtml(formatNumber(pick(assessment, ["supra_iliaca"], "-")))} | Abdomen ${escapeHtml(formatNumber(pick(assessment, ["abdomen_dobra"], "-")))} | Coxa ${escapeHtml(formatNumber(pick(assessment, ["coxa_dobra"], "-")))}</span>
+      <span><b>Protocolo:</b> ${escapeHtml(pick(assessment, ["protocolo"], "-"))}</span>
       ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
     </article>
   `;
@@ -2309,17 +2363,52 @@ function renderMeasurementItem(measurement) {
         <strong>${formatDate(pick(measurement, ["measurement_date", "measured_at", "created_at"]))}</strong>
         ${renderRecordActions("measurement", measurement.id)}
       </div>
-      <span><b>Pescoco:</b> ${escapeHtml(formatNumber(pick(measurement, ["neck_cm"], "-")))} cm</span>
-      <span><b>Peitoral:</b> ${escapeHtml(formatNumber(pick(measurement, ["chest_cm", "chest"], "-")))} cm</span>
+      <span><b>Torax:</b> ${escapeHtml(formatNumber(pick(measurement, ["torax", "chest_cm", "chest"], "-")))} cm</span>
       <span><b>Cintura:</b> ${escapeHtml(formatNumber(pick(measurement, ["waist_cm", "waist", "cintura"], "-")))} cm</span>
       <span><b>Abdomen:</b> ${escapeHtml(formatNumber(pick(measurement, ["abdomen", "abdomen_cm", "abdome"], "-")))} cm</span>
       <span><b>Quadril:</b> ${escapeHtml(formatNumber(pick(measurement, ["hip", "hip_cm", "quadril"], "-")))} cm</span>
-      <span><b>Bracos:</b> ${escapeHtml(formatNumber(pick(measurement, ["right_arm_cm", "left_arm_cm", "arm", "arms", "arm_cm", "arms_cm", "bracos"], "-")))} cm</span>
-      <span><b>Coxas:</b> ${escapeHtml(formatNumber(pick(measurement, ["right_thigh_cm", "left_thigh_cm", "thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], "-")))} cm</span>
-      <span><b>Panturrilhas:</b> ${escapeHtml(formatNumber(pick(measurement, ["right_calf_cm", "left_calf_cm", "calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], "-")))} cm</span>
+      <span><b>Bracos:</b> D ${escapeHtml(formatNumber(pick(measurement, ["braco_d", "right_arm_cm", "arm", "arms", "arm_cm", "arms_cm", "bracos"], "-")))} | E ${escapeHtml(formatNumber(pick(measurement, ["braco_e", "left_arm_cm"], "-")))} cm</span>
+      <span><b>Antebracos:</b> D ${escapeHtml(formatNumber(pick(measurement, ["antebraco_d"], "-")))} | E ${escapeHtml(formatNumber(pick(measurement, ["antebraco_e"], "-")))} cm</span>
+      <span><b>Coxas:</b> D ${escapeHtml(formatNumber(pick(measurement, ["coxa_d", "right_thigh_cm", "thigh", "thighs", "thigh_cm", "thighs_cm", "coxas"], "-")))} | E ${escapeHtml(formatNumber(pick(measurement, ["coxa_e", "left_thigh_cm"], "-")))} cm</span>
+      <span><b>Panturrilhas:</b> D ${escapeHtml(formatNumber(pick(measurement, ["panturrilha_d", "right_calf_cm", "calf", "calves", "calf_cm", "calves_cm", "panturrilhas"], "-")))} | E ${escapeHtml(formatNumber(pick(measurement, ["panturrilha_e", "left_calf_cm"], "-")))} cm</span>
+      <span><b>Bi medidas:</b> Epicondilo ${escapeHtml(formatNumber(pick(measurement, ["bi_epicondilo"], "-")))} | Estiloide ${escapeHtml(formatNumber(pick(measurement, ["bi_estiloide"], "-")))} | Femoral ${escapeHtml(formatNumber(pick(measurement, ["bi_femoral"], "-")))} | Maleolar ${escapeHtml(formatNumber(pick(measurement, ["bi_maleolar"], "-")))}</span>
+      <span><b>ICQ:</b> ${escapeHtml(formatNumber(pick(measurement, ["icq"], "-")))}</span>
       ${notes ? `<span class="record-notes"><b>Obs:</b> ${escapeHtml(notes)}</span>` : ""}
     </article>
   `;
+}
+
+function renderAssessmentComparison(assessments, measurements) {
+  if (!assessments.length && !measurements.length) {
+    return emptyMessage("Sem avaliacoes suficientes para comparar.");
+  }
+
+  const sortedAssessments = [...assessments].sort((a, b) => String(pick(b, ["assessment_date", "data_avaliacao", "created_at"], "")).localeCompare(String(pick(a, ["assessment_date", "data_avaliacao", "created_at"], ""))));
+  const current = sortedAssessments[0] || {};
+  const previous = sortedAssessments[1] || {};
+  const sortedMeasurements = [...measurements].sort((a, b) => String(pick(b, ["measurement_date", "created_at"], "")).localeCompare(String(pick(a, ["measurement_date", "created_at"], ""))));
+  const currentMeasurement = sortedMeasurements[0] || {};
+  const previousMeasurement = sortedMeasurements[1] || {};
+
+  return `
+    <article class="data-record">
+      <strong>Comparativo atual x anterior</strong>
+      ${renderComparisonLine("Peso", pick(previous, ["weight", "weight_kg", "peso"], ""), pick(current, ["weight", "weight_kg", "peso"], ""), "kg")}
+      ${renderComparisonLine("Gordura", pick(previous, ["percentual_gordura_atual", "body_fat_percent"], ""), pick(current, ["percentual_gordura_atual", "body_fat_percent"], ""), "%")}
+      ${renderComparisonLine("IMC", pick(previous, ["imc", "bmi"], ""), pick(current, ["imc", "bmi"], ""), "")}
+      ${renderComparisonLine("Cintura", pick(previousMeasurement, ["waist_cm", "waist"], ""), pick(currentMeasurement, ["waist_cm", "waist"], ""), "cm")}
+      ${renderComparisonLine("Quadril", pick(previousMeasurement, ["hip_cm", "hip"], ""), pick(currentMeasurement, ["hip_cm", "hip"], ""), "cm")}
+    </article>
+  `;
+}
+
+function renderComparisonLine(label, previousValue, currentValue, suffix) {
+  const previousNumber = Number(previousValue);
+  const currentNumber = Number(currentValue);
+  const diff = !Number.isNaN(previousNumber) && !Number.isNaN(currentNumber)
+    ? formatNumber((currentNumber - previousNumber).toFixed(2))
+    : "";
+  return `<span><b>${escapeHtml(label)}:</b> anterior ${escapeHtml(formatNumber(previousValue || "-"))}${suffix} | atual ${escapeHtml(formatNumber(currentValue || "-"))}${suffix}${diff !== "" ? ` | Variacao: ${escapeHtml(diff)}${suffix}` : ""}</span>`;
 }
 
 /**
@@ -2450,9 +2539,9 @@ function getUniqueExercises() {
 function renderExerciseGroupFilter() {
   if (!el.exerciseGroupFilter) return;
   const current = el.exerciseGroupFilter.value;
-  const groups = Array.from(new Set(getUniqueExercises()
+  const groups = Array.from(new Set([...REQUIRED_EXERCISE_GROUPS, ...getUniqueExercises()
     .map((exercise) => pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], ""))
-    .filter(Boolean)))
+    .filter(Boolean)]))
     .sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   el.exerciseGroupFilter.innerHTML = `<option value="">Todos os grupos</option>${groups.map((group) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`).join("")}`;
@@ -2544,6 +2633,20 @@ function clearExerciseLibraryForm(form = el.exerciseLibraryForm) {
   form.querySelector("button[type='submit']").textContent = "Salvar exercicio";
 }
 
+function updateAssessmentCalculatedFields(form) {
+  if (!form) return;
+  const formData = new FormData(form);
+  const weight = numberOrNull(getFormValue(formData, ["weight_kg", "weight"]));
+  const height = numberOrNull(formData.get("height"));
+  const latestMeasurement = getLatestMeasurementForStudent(state.selectedStudentId);
+  const waist = numberOrNull(pick(latestMeasurement, ["waist_cm", "waist", "cintura"], ""));
+  const hip = numberOrNull(pick(latestMeasurement, ["hip_cm", "hip", "quadril"], ""));
+  const imc = calculateImc(weight, height);
+  const icq = calculateIcq(waist, hip);
+  if (form.elements.imc) form.elements.imc.value = imc ?? "";
+  if (form.elements.icq) form.elements.icq.value = icq ?? "";
+}
+
 /**
  * Atualiza perfil do aluno adaptando colunas ao schema real.
  */
@@ -2597,23 +2700,39 @@ async function createAssessment(form) {
   const formData = new FormData(form);
   const weight = numberOrNull(getFormValue(formData, ["weight_kg", "weight"]));
   const height = numberOrNull(formData.get("height"));
+  const latestMeasurement = getLatestMeasurementForStudent(state.selectedStudentId);
+  const waist = numberOrNull(pick(latestMeasurement, ["waist_cm", "waist", "cintura"], ""));
+  const hip = numberOrNull(pick(latestMeasurement, ["hip_cm", "hip", "quadril"], ""));
   const bodyFat = numberOrNull(getFormValue(formData, ["body_fat_percent", "body_fat"]));
   const muscleMass = numberOrNull(getFormValue(formData, ["muscle_mass_kg", "muscle_mass"]));
   const visceralFat = numberOrNull(formData.get("visceral_fat"));
   const bodyWater = numberOrNull(getFormValue(formData, ["body_water_percent", "body_water"]));
-  const imc = numberOrNull(getFormValue(formData, ["imc", "bmi"]));
+  const imc = calculateImc(weight, height) || numberOrNull(getFormValue(formData, ["imc", "bmi"]));
+  const icq = calculateIcq(waist, hip) || numberOrNull(formData.get("icq"));
   const payload = {
     student_id: state.selectedStudentId,
+    trainer_id: state.authProfile?.id || null,
+    objective: formData.get("objective") || null,
+    objetivo: formData.get("objective") || null,
+    assessment_date: formData.get("assessment_date") || null,
+    data_avaliacao: formData.get("assessment_date") || null,
+    reassessment_date: formData.get("reassessment_date") || null,
+    data_reavaliacao: formData.get("reassessment_date") || null,
+    professor_responsavel: formData.get("professor_responsavel") || null,
     weight,
     weight_kg: weight,
     peso: weight,
     height,
     height_cm: height,
     altura: height,
+    estatura_cm: height,
+    peso_ideal: numberOrNull(formData.get("peso_ideal")),
     body_fat: bodyFat,
     body_fat_percentage: bodyFat,
     body_fat_percent: bodyFat,
     gordura_corporal: bodyFat,
+    percentual_gordura_atual: bodyFat,
+    percentual_gordura_ideal: numberOrNull(formData.get("percentual_gordura_ideal")),
     muscle_mass: muscleMass,
     lean_mass: muscleMass,
     muscle_mass_kg: muscleMass,
@@ -2626,6 +2745,31 @@ async function createAssessment(form) {
     agua_corporal: bodyWater,
     bmi: imc,
     imc,
+    icq,
+    pa_repouso: formData.get("pa_repouso") || null,
+    fc_repouso: numberOrNull(formData.get("fc_repouso")),
+    zona_treino: formData.get("zona_treino") || null,
+    cardiopatia: boolFromForm(formData, "cardiopatia"),
+    has_hipertensao: boolFromForm(formData, "has_hipertensao"),
+    diabetes: boolFromForm(formData, "diabetes"),
+    labirintite: boolFromForm(formData, "labirintite"),
+    endocrino: boolFromForm(formData, "endocrino"),
+    cirurgia: boolFromForm(formData, "cirurgia"),
+    snc: boolFromForm(formData, "snc"),
+    respiratorio: boolFromForm(formData, "respiratorio"),
+    tabagismo: boolFromForm(formData, "tabagismo"),
+    osteomioarticular: boolFromForm(formData, "osteomioarticular"),
+    outros: formData.get("outros") || null,
+    torax_dobra: numberOrNull(formData.get("torax_dobra")),
+    axilar_media: numberOrNull(formData.get("axilar_media")),
+    supra_iliaca: numberOrNull(formData.get("supra_iliaca")),
+    abdomen_dobra: numberOrNull(formData.get("abdomen_dobra")),
+    coxa_dobra: numberOrNull(formData.get("coxa_dobra")),
+    subescapular: numberOrNull(formData.get("subescapular")),
+    triceps: numberOrNull(formData.get("triceps")),
+    biceps: numberOrNull(formData.get("biceps")),
+    panturrilha_dobra: numberOrNull(formData.get("panturrilha_dobra")),
+    protocolo: formData.get("protocolo") || null,
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
@@ -2665,18 +2809,22 @@ async function createMeasurement(form) {
   }
 
   const formData = new FormData(form);
-  const neck = numberOrNull(formData.get("neck_cm"));
-  const chest = numberOrNull(formData.get("chest_cm"));
+  const torax = numberOrNull(getFormValue(formData, ["torax", "chest_cm"]));
   const waist = numberOrNull(getFormValue(formData, ["waist_cm", "waist"]));
   const abdomen = numberOrNull(getFormValue(formData, ["abdomen_cm", "abdomen"]));
   const hip = numberOrNull(getFormValue(formData, ["hip_cm", "hip"]));
-  const arm = numberOrNull(getFormValue(formData, ["arm_cm", "arm"]));
-  const thigh = numberOrNull(getFormValue(formData, ["thigh_cm", "thigh"]));
-  const calf = numberOrNull(getFormValue(formData, ["calf_cm", "calf"]));
+  const bracoD = numberOrNull(getFormValue(formData, ["braco_d", "right_arm_cm", "arm_cm", "arm"]));
+  const bracoE = numberOrNull(getFormValue(formData, ["braco_e", "left_arm_cm", "arm_cm", "arm"]));
+  const coxaD = numberOrNull(getFormValue(formData, ["coxa_d", "right_thigh_cm", "thigh_cm", "thigh"]));
+  const coxaE = numberOrNull(getFormValue(formData, ["coxa_e", "left_thigh_cm", "thigh_cm", "thigh"]));
+  const panturrilhaD = numberOrNull(getFormValue(formData, ["panturrilha_d", "right_calf_cm", "calf_cm", "calf"]));
+  const panturrilhaE = numberOrNull(getFormValue(formData, ["panturrilha_e", "left_calf_cm", "calf_cm", "calf"]));
   const payload = {
     student_id: state.selectedStudentId,
-    neck_cm: neck,
-    chest_cm: chest,
+    trainer_id: state.authProfile?.id || null,
+    measurement_date: formData.get("measurement_date") || null,
+    torax,
+    chest_cm: torax,
     waist,
     waist_cm: waist,
     cintura: waist,
@@ -2686,27 +2834,40 @@ async function createMeasurement(form) {
     hip,
     hip_cm: hip,
     quadril: hip,
-    right_arm_cm: arm,
-    left_arm_cm: arm,
-    arm,
-    arm_cm: arm,
-    arms_cm: arm,
-    arms: arm,
-    bracos: arm,
-    right_thigh_cm: thigh,
-    left_thigh_cm: thigh,
-    thigh,
-    thigh_cm: thigh,
-    thighs_cm: thigh,
-    thighs: thigh,
-    coxas: thigh,
-    right_calf_cm: calf,
-    left_calf_cm: calf,
-    calf,
-    calf_cm: calf,
-    calves_cm: calf,
-    calves: calf,
-    panturrilhas: calf,
+    braco_d: bracoD,
+    braco_e: bracoE,
+    right_arm_cm: bracoD,
+    left_arm_cm: bracoE,
+    arm: bracoD,
+    arm_cm: bracoD,
+    arms_cm: bracoD,
+    arms: bracoD,
+    bracos: bracoD,
+    antebraco_d: numberOrNull(formData.get("antebraco_d")),
+    antebraco_e: numberOrNull(formData.get("antebraco_e")),
+    coxa_d: coxaD,
+    coxa_e: coxaE,
+    right_thigh_cm: coxaD,
+    left_thigh_cm: coxaE,
+    thigh: coxaD,
+    thigh_cm: coxaD,
+    thighs_cm: coxaD,
+    thighs: coxaD,
+    coxas: coxaD,
+    panturrilha_d: panturrilhaD,
+    panturrilha_e: panturrilhaE,
+    right_calf_cm: panturrilhaD,
+    left_calf_cm: panturrilhaE,
+    calf: panturrilhaD,
+    calf_cm: panturrilhaD,
+    calves_cm: panturrilhaD,
+    calves: panturrilhaD,
+    panturrilhas: panturrilhaD,
+    bi_epicondilo: numberOrNull(formData.get("bi_epicondilo")),
+    bi_estiloide: numberOrNull(formData.get("bi_estiloide")),
+    bi_femoral: numberOrNull(formData.get("bi_femoral")),
+    bi_maleolar: numberOrNull(formData.get("bi_maleolar")),
+    icq: calculateIcq(waist, hip),
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
@@ -3076,13 +3237,31 @@ function editAssessment(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
+  form.elements.objective.value = pick(record, ["objective", "objetivo"], "");
+  form.elements.assessment_date.value = pick(record, ["assessment_date", "data_avaliacao"], "");
+  form.elements.reassessment_date.value = pick(record, ["reassessment_date", "data_reavaliacao"], "");
+  form.elements.professor_responsavel.value = pick(record, ["professor_responsavel"], "");
   form.elements.weight_kg.value = normalizeNumberInput(pick(record, ["weight_kg", "weight", "peso"], ""));
-  form.elements.height.value = normalizeNumberInput(pick(record, ["height", "height_cm", "altura"], ""));
-  form.elements.body_fat_percent.value = normalizeNumberInput(pick(record, ["body_fat_percent", "body_fat", "body_fat_percentage", "gordura_corporal"], ""));
+  form.elements.height.value = normalizeNumberInput(pick(record, ["estatura_cm", "height", "height_cm", "altura"], ""));
+  form.elements.peso_ideal.value = normalizeNumberInput(pick(record, ["peso_ideal"], ""));
+  form.elements.body_fat_percent.value = normalizeNumberInput(pick(record, ["percentual_gordura_atual", "body_fat_percent", "body_fat", "body_fat_percentage", "gordura_corporal"], ""));
+  form.elements.percentual_gordura_ideal.value = normalizeNumberInput(pick(record, ["percentual_gordura_ideal"], ""));
   form.elements.muscle_mass_kg.value = normalizeNumberInput(pick(record, ["muscle_mass_kg", "muscle_mass", "lean_mass", "massa_muscular"], ""));
   form.elements.visceral_fat.value = normalizeNumberInput(pick(record, ["visceral_fat", "gordura_visceral"], ""));
   form.elements.body_water_percent.value = normalizeNumberInput(pick(record, ["body_water_percent", "body_water", "body_water_percentage", "agua_corporal"], ""));
+  form.elements.pa_repouso.value = pick(record, ["pa_repouso"], "");
+  form.elements.fc_repouso.value = normalizeNumberInput(pick(record, ["fc_repouso"], ""));
+  form.elements.zona_treino.value = pick(record, ["zona_treino"], "");
   form.elements.imc.value = normalizeNumberInput(pick(record, ["imc", "bmi"], ""));
+  form.elements.icq.value = normalizeNumberInput(pick(record, ["icq"], ""));
+  ["cardiopatia", "has_hipertensao", "diabetes", "labirintite", "endocrino", "cirurgia", "snc", "respiratorio", "tabagismo", "osteomioarticular"].forEach((field) => {
+    if (form.elements[field]) form.elements[field].checked = Boolean(record[field]);
+  });
+  form.elements.outros.value = pick(record, ["outros"], "");
+  ["torax_dobra", "axilar_media", "supra_iliaca", "abdomen_dobra", "coxa_dobra", "subescapular", "triceps", "biceps", "panturrilha_dobra"].forEach((field) => {
+    if (form.elements[field]) form.elements[field].value = normalizeNumberInput(pick(record, [field], ""));
+  });
+  form.elements.protocolo.value = pick(record, ["protocolo"], "");
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar avaliacao";
   switchTrainerTab("assessments");
@@ -3097,14 +3276,23 @@ function editMeasurement(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.neck_cm.value = normalizeNumberInput(pick(record, ["neck_cm"], ""));
-  form.elements.chest_cm.value = normalizeNumberInput(pick(record, ["chest_cm", "chest"], ""));
+  form.elements.measurement_date.value = pick(record, ["measurement_date"], "");
+  form.elements.torax.value = normalizeNumberInput(pick(record, ["torax", "chest_cm", "chest"], ""));
   form.elements.waist_cm.value = normalizeNumberInput(pick(record, ["waist_cm", "waist", "cintura"], ""));
   form.elements.abdomen_cm.value = normalizeNumberInput(pick(record, ["abdomen_cm", "abdomen", "abdome"], ""));
   form.elements.hip_cm.value = normalizeNumberInput(pick(record, ["hip_cm", "hip", "quadril"], ""));
-  form.elements.arm_cm.value = normalizeNumberInput(pick(record, ["right_arm_cm", "left_arm_cm", "arm_cm", "arms_cm", "arm", "arms", "bracos"], ""));
-  form.elements.thigh_cm.value = normalizeNumberInput(pick(record, ["right_thigh_cm", "left_thigh_cm", "thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], ""));
-  form.elements.calf_cm.value = normalizeNumberInput(pick(record, ["right_calf_cm", "left_calf_cm", "calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], ""));
+  form.elements.braco_d.value = normalizeNumberInput(pick(record, ["braco_d", "right_arm_cm", "arm_cm", "arms_cm", "arm", "arms", "bracos"], ""));
+  form.elements.braco_e.value = normalizeNumberInput(pick(record, ["braco_e", "left_arm_cm"], ""));
+  form.elements.antebraco_d.value = normalizeNumberInput(pick(record, ["antebraco_d"], ""));
+  form.elements.antebraco_e.value = normalizeNumberInput(pick(record, ["antebraco_e"], ""));
+  form.elements.coxa_d.value = normalizeNumberInput(pick(record, ["coxa_d", "right_thigh_cm", "thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], ""));
+  form.elements.coxa_e.value = normalizeNumberInput(pick(record, ["coxa_e", "left_thigh_cm"], ""));
+  form.elements.panturrilha_d.value = normalizeNumberInput(pick(record, ["panturrilha_d", "right_calf_cm", "calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], ""));
+  form.elements.panturrilha_e.value = normalizeNumberInput(pick(record, ["panturrilha_e", "left_calf_cm"], ""));
+  form.elements.bi_epicondilo.value = normalizeNumberInput(pick(record, ["bi_epicondilo"], ""));
+  form.elements.bi_estiloide.value = normalizeNumberInput(pick(record, ["bi_estiloide"], ""));
+  form.elements.bi_femoral.value = normalizeNumberInput(pick(record, ["bi_femoral"], ""));
+  form.elements.bi_maleolar.value = normalizeNumberInput(pick(record, ["bi_maleolar"], ""));
   form.elements.notes.value = pick(record, ["notes", "observations"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar medidas";
   switchTrainerTab("measurements");
@@ -4398,6 +4586,9 @@ function bindEvents() {
   document.querySelector("#new-assessment-form").addEventListener("submit", (event) => {
     event.preventDefault();
     createAssessment(event.currentTarget);
+  });
+  document.querySelector("#new-assessment-form").addEventListener("input", (event) => {
+    updateAssessmentCalculatedFields(event.currentTarget);
   });
   document.querySelector("#new-measurement-form").addEventListener("submit", (event) => {
     event.preventDefault();
