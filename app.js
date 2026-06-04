@@ -1238,6 +1238,18 @@ function setSubmitLabel(form, label) {
   if (button) button.textContent = label;
 }
 
+function setFormControlValue(form, field, value) {
+  const control = form?.elements?.[field];
+  if (!control) return;
+  control.value = value ?? "";
+}
+
+function setFormControlChecked(form, field, value) {
+  const control = form?.elements?.[field];
+  if (!control) return;
+  control.checked = Boolean(value);
+}
+
 function resetAssessmentEditMode(form) {
   if (!form) return;
   form.dataset.editId = "";
@@ -3316,32 +3328,32 @@ function editAssessment(id) {
 
   form.dataset.editId = id;
   setFormTitle(form, "Editar avaliação física");
-  form.elements.objective.value = pick(record, ["objective", "objetivo"], "");
-  form.elements.assessment_date.value = dateInputValue(pick(record, ["assessment_date", "data_avaliacao", "assessed_at", "created_at"], ""));
-  form.elements.reassessment_date.value = dateInputValue(pick(record, ["reassessment_date", "data_reavaliacao"], ""));
-  form.elements.professor_responsavel.value = pick(record, ["professor_responsavel"], "");
-  form.elements.weight_kg.value = normalizeNumberInput(pick(record, ["weight_kg", "weight", "peso"], ""));
-  form.elements.height.value = normalizeNumberInput(pick(record, ["estatura_cm", "height", "height_cm", "altura"], ""));
-  form.elements.peso_ideal.value = normalizeNumberInput(pick(record, ["peso_ideal"], ""));
-  form.elements.body_fat_percent.value = normalizeNumberInput(pick(record, ["percentual_gordura_atual", "body_fat_percent", "body_fat", "body_fat_percentage", "gordura_corporal"], ""));
-  form.elements.percentual_gordura_ideal.value = normalizeNumberInput(pick(record, ["percentual_gordura_ideal"], ""));
-  form.elements.muscle_mass_kg.value = normalizeNumberInput(pick(record, ["muscle_mass_kg", "muscle_mass", "lean_mass", "massa_muscular"], ""));
-  form.elements.visceral_fat.value = normalizeNumberInput(pick(record, ["visceral_fat", "gordura_visceral"], ""));
-  form.elements.body_water_percent.value = normalizeNumberInput(pick(record, ["body_water_percent", "body_water", "body_water_percentage", "agua_corporal"], ""));
-  form.elements.pa_repouso.value = pick(record, ["pa_repouso"], "");
-  form.elements.fc_repouso.value = normalizeNumberInput(pick(record, ["fc_repouso"], ""));
-  form.elements.zona_treino.value = pick(record, ["zona_treino"], "");
-  form.elements.imc.value = normalizeNumberInput(pick(record, ["imc", "bmi"], ""));
-  form.elements.icq.value = normalizeNumberInput(pick(record, ["icq"], ""));
+  setFormControlValue(form, "objective", pick(record, ["objective", "objetivo"], ""));
+  setFormControlValue(form, "assessment_date", dateInputValue(pick(record, ["assessment_date", "data_avaliacao", "assessed_at", "created_at"], "")));
+  setFormControlValue(form, "reassessment_date", dateInputValue(pick(record, ["reassessment_date", "data_reavaliacao"], "")));
+  setFormControlValue(form, "professor_responsavel", pick(record, ["professor_responsavel"], ""));
+  setFormControlValue(form, "weight_kg", normalizeNumberInput(pick(record, ["weight_kg", "weight", "peso"], "")));
+  setFormControlValue(form, "height", normalizeNumberInput(pick(record, ["estatura_cm", "height", "height_cm", "altura"], "")));
+  setFormControlValue(form, "peso_ideal", normalizeNumberInput(pick(record, ["peso_ideal"], "")));
+  setFormControlValue(form, "body_fat_percent", normalizeNumberInput(pick(record, ["percentual_gordura_atual", "body_fat_percent", "body_fat", "body_fat_percentage", "gordura_corporal"], "")));
+  setFormControlValue(form, "percentual_gordura_ideal", normalizeNumberInput(pick(record, ["percentual_gordura_ideal"], "")));
+  setFormControlValue(form, "muscle_mass_kg", normalizeNumberInput(pick(record, ["muscle_mass_kg", "muscle_mass", "lean_mass", "massa_muscular"], "")));
+  setFormControlValue(form, "visceral_fat", normalizeNumberInput(pick(record, ["visceral_fat", "gordura_visceral"], "")));
+  setFormControlValue(form, "body_water_percent", normalizeNumberInput(pick(record, ["body_water_percent", "body_water", "body_water_percentage", "agua_corporal"], "")));
+  setFormControlValue(form, "pa_repouso", pick(record, ["pa_repouso"], ""));
+  setFormControlValue(form, "fc_repouso", normalizeNumberInput(pick(record, ["fc_repouso"], "")));
+  setFormControlValue(form, "zona_treino", pick(record, ["zona_treino"], ""));
+  setFormControlValue(form, "imc", normalizeNumberInput(pick(record, ["imc", "bmi"], "")));
+  setFormControlValue(form, "icq", normalizeNumberInput(pick(record, ["icq"], "")));
   ["cardiopatia", "has_hipertensao", "diabetes", "labirintite", "endocrino", "cirurgia", "snc", "respiratorio", "tabagismo", "osteomioarticular"].forEach((field) => {
-    if (form.elements[field]) form.elements[field].checked = Boolean(record[field]);
+    setFormControlChecked(form, field, record[field]);
   });
-  form.elements.outros.value = pick(record, ["outros"], "");
+  setFormControlValue(form, "outros", pick(record, ["outros"], ""));
   ["torax_dobra", "axilar_media", "supra_iliaca", "abdomen_dobra", "coxa_dobra", "subescapular", "triceps", "biceps", "panturrilha_dobra"].forEach((field) => {
-    if (form.elements[field]) form.elements[field].value = normalizeNumberInput(pick(record, [field], ""));
+    setFormControlValue(form, field, normalizeNumberInput(pick(record, [field], "")));
   });
-  form.elements.protocolo.value = pick(record, ["protocolo"], "");
-  form.elements.notes.value = pick(record, ["notes", "observations"], "");
+  setFormControlValue(form, "protocolo", pick(record, ["protocolo"], ""));
+  setFormControlValue(form, "notes", pick(record, ["notes", "observations"], ""));
   setSubmitLabel(form, "Atualizar avaliação");
   switchTrainerTab("assessments");
 }
@@ -3362,24 +3374,24 @@ function editMeasurement(id) {
 
   form.dataset.editId = id;
   setFormTitle(form, "Editar perimetria");
-  form.elements.measurement_date.value = dateInputValue(pick(record, ["measurement_date", "measured_at", "created_at"], ""));
-  form.elements.torax.value = normalizeNumberInput(pick(record, ["torax", "chest_cm", "chest"], ""));
-  form.elements.waist_cm.value = normalizeNumberInput(pick(record, ["waist_cm", "waist", "cintura"], ""));
-  form.elements.abdomen_cm.value = normalizeNumberInput(pick(record, ["abdomen_cm", "abdomen", "abdome"], ""));
-  form.elements.hip_cm.value = normalizeNumberInput(pick(record, ["hip_cm", "hip", "quadril"], ""));
-  form.elements.braco_d.value = normalizeNumberInput(pick(record, ["braco_d", "right_arm_cm", "arm_cm", "arms_cm", "arm", "arms", "bracos"], ""));
-  form.elements.braco_e.value = normalizeNumberInput(pick(record, ["braco_e", "left_arm_cm"], ""));
-  form.elements.antebraco_d.value = normalizeNumberInput(pick(record, ["antebraco_d"], ""));
-  form.elements.antebraco_e.value = normalizeNumberInput(pick(record, ["antebraco_e"], ""));
-  form.elements.coxa_d.value = normalizeNumberInput(pick(record, ["coxa_d", "right_thigh_cm", "thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], ""));
-  form.elements.coxa_e.value = normalizeNumberInput(pick(record, ["coxa_e", "left_thigh_cm"], ""));
-  form.elements.panturrilha_d.value = normalizeNumberInput(pick(record, ["panturrilha_d", "right_calf_cm", "calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], ""));
-  form.elements.panturrilha_e.value = normalizeNumberInput(pick(record, ["panturrilha_e", "left_calf_cm"], ""));
-  form.elements.bi_epicondilo.value = normalizeNumberInput(pick(record, ["bi_epicondilo"], ""));
-  form.elements.bi_estiloide.value = normalizeNumberInput(pick(record, ["bi_estiloide"], ""));
-  form.elements.bi_femoral.value = normalizeNumberInput(pick(record, ["bi_femoral"], ""));
-  form.elements.bi_maleolar.value = normalizeNumberInput(pick(record, ["bi_maleolar"], ""));
-  form.elements.notes.value = pick(record, ["notes", "observations"], "");
+  setFormControlValue(form, "measurement_date", dateInputValue(pick(record, ["measurement_date", "measured_at", "created_at"], "")));
+  setFormControlValue(form, "torax", normalizeNumberInput(pick(record, ["torax", "chest_cm", "chest"], "")));
+  setFormControlValue(form, "waist_cm", normalizeNumberInput(pick(record, ["waist_cm", "waist", "cintura"], "")));
+  setFormControlValue(form, "abdomen_cm", normalizeNumberInput(pick(record, ["abdomen_cm", "abdomen", "abdome"], "")));
+  setFormControlValue(form, "hip_cm", normalizeNumberInput(pick(record, ["hip_cm", "hip", "quadril"], "")));
+  setFormControlValue(form, "braco_d", normalizeNumberInput(pick(record, ["braco_d", "right_arm_cm", "arm_cm", "arms_cm", "arm", "arms", "bracos"], "")));
+  setFormControlValue(form, "braco_e", normalizeNumberInput(pick(record, ["braco_e", "left_arm_cm"], "")));
+  setFormControlValue(form, "antebraco_d", normalizeNumberInput(pick(record, ["antebraco_d"], "")));
+  setFormControlValue(form, "antebraco_e", normalizeNumberInput(pick(record, ["antebraco_e"], "")));
+  setFormControlValue(form, "coxa_d", normalizeNumberInput(pick(record, ["coxa_d", "right_thigh_cm", "thigh_cm", "thighs_cm", "thigh", "thighs", "coxas"], "")));
+  setFormControlValue(form, "coxa_e", normalizeNumberInput(pick(record, ["coxa_e", "left_thigh_cm"], "")));
+  setFormControlValue(form, "panturrilha_d", normalizeNumberInput(pick(record, ["panturrilha_d", "right_calf_cm", "calf_cm", "calves_cm", "calf", "calves", "panturrilhas"], "")));
+  setFormControlValue(form, "panturrilha_e", normalizeNumberInput(pick(record, ["panturrilha_e", "left_calf_cm"], "")));
+  setFormControlValue(form, "bi_epicondilo", normalizeNumberInput(pick(record, ["bi_epicondilo"], "")));
+  setFormControlValue(form, "bi_estiloide", normalizeNumberInput(pick(record, ["bi_estiloide"], "")));
+  setFormControlValue(form, "bi_femoral", normalizeNumberInput(pick(record, ["bi_femoral"], "")));
+  setFormControlValue(form, "bi_maleolar", normalizeNumberInput(pick(record, ["bi_maleolar"], "")));
+  setFormControlValue(form, "notes", pick(record, ["notes", "observations"], ""));
   setSubmitLabel(form, "Atualizar medidas");
   switchTrainerTab("measurements");
 }
