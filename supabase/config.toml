@@ -1,0 +1,15 @@
+project_id = "wkxfaogfwowdauxlscux"
+
+[api]
+enabled = true
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[auth]
+enabled = true
+site_url = "https://ananunes1807-cell.github.io/app-treino-supabase/"
+additional_redirect_urls = ["https://ananunes1807-cell.github.io/app-treino-supabase/"]
+
+[db]
+major_version = 15
