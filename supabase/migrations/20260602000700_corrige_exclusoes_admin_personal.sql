@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Correcoes de exclusao depois do fluxo real de roles.
 -- Rode no Supabase SQL Editor depois do arquivo 012.
 

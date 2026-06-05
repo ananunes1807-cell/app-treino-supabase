@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Campos opcionais para enriquecer a biblioteca de exercicios.
 -- Nao altera RLS: exercise_library continua publica apenas para leitura via anon.
 

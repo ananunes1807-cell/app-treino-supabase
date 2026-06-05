@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Correcao de RLS para MVP sem login e ajuste de conflito da exercise_library.
 --
 -- Execute este arquivo no Supabase SQL Editor.

@@ -1,4 +1,4 @@
--- GymPulse - genero do aluno e midias por genero nos exercicios
+-- Alion Treinos - genero do aluno e midias por genero nos exercicios
 -- Migration segura: apenas adiciona colunas opcionais, sem apagar dados existentes.
 
 alter table if exists public.students

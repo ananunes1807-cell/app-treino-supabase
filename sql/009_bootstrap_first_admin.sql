@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Permite criar o primeiro Admin TI pelo proprio app.
 -- Rode este script no Supabase SQL Editor depois do 007.
 

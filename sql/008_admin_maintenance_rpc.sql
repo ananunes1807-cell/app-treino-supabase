@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Funcoes administrativas seguras para limpeza de testes.
 -- Requer app_profiles e current_app_role() do arquivo 007_auth_roles_real_use.sql.
 

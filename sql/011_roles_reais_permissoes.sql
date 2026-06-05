@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Roles reais para producao:
 -- admin_ti: acesso total e manutencao tecnica.
 -- personal: acesso aos proprios alunos.

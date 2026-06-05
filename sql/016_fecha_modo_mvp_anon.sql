@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Fecha o modo MVP/anon para dados sensiveis.
 -- Rode depois de 015_trava_admin_ti_principal.sql.
 

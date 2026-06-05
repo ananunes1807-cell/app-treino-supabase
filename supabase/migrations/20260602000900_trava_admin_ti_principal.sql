@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Trava definitiva do Admin TI principal.
 -- Depois que ananunes1807@gmail.com estiver criado, nao deixe bootstrap publico ativo.
 

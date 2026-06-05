@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Garante colunas numericas usadas pelo formulario de avaliacoes e medidas.
 --
 -- Execute no Supabase SQL Editor caso algum campo numerico nao esteja salvando

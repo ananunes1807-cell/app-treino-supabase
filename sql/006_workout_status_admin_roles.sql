@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Adiciona controle de status dos treinos para separar Aluno, Personal e Admin TI.
 -- Rode este arquivo no Supabase SQL Editor.
 

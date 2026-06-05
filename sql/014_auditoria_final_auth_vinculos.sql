@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Auditoria final de autenticacao, profiles e vinculos.
 -- Rode depois do arquivo 013.
 

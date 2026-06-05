@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Fluxo real de aluno por convite.
 -- Rode no Supabase SQL Editor depois do arquivo 011_roles_reais_permissoes.sql.
 

@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Estrutura recomendada para uso real com Supabase Auth.
 -- Rode no Supabase SQL Editor depois de criar usuarios em Authentication.
 

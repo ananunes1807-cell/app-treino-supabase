@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Avaliacao fisica completa e perimetria de ficha de academia.
 -- Migration segura: apenas adiciona campos opcionais e normaliza grupos da biblioteca.
 

@@ -1,4 +1,4 @@
--- GymPulse / app-treino-supabase
+-- Alion Treinos / app-treino-supabase
 -- Permite cadastro tradicional pelo Supabase Auth e criacao do proprio perfil.
 -- Rode no Supabase SQL Editor depois do arquivo 007_auth_roles_real_use.sql.
 
