@@ -1,4 +1,4 @@
-# GymPulse / app-treino-supabase
+# Alion Treinos / app-treino-supabase
 
 Aplicativo web simples para acompanhamento de treinos de academia, conectado ao Supabase.
 
@@ -49,7 +49,7 @@ O arquivo `012_convites_alunos_vinculos_reais.sql` remove o cadastro aberto de a
 
 O arquivo `013_corrige_exclusoes_admin_personal.sql` corrige exclusoes de avaliacoes/medidas por personal vinculado e adiciona RPC para o Admin TI limpar avaliacoes.
 
-O arquivo `014_auditoria_final_auth_vinculos.sql` adiciona `profile_id` e `trainer_id` onde faltavam, sincroniza `profiles` com `app_profiles` e cria a funcao `gympulse_audit_summary()` para diagnostico rapido.
+O arquivo `014_auditoria_final_auth_vinculos.sql` adiciona `profile_id` e `trainer_id` onde faltavam, sincroniza `profiles` com `app_profiles` e cria a funcao `Alion Treinos_audit_summary()` para diagnostico rapido.
 
 O arquivo `015_trava_admin_ti_principal.sql` remove o bootstrap publico de Admin TI e garante que apenas `ananunes1807@gmail.com` possa manter o papel `admin_ti`.
 

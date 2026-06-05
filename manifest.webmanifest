@@ -1,6 +1,6 @@
 {
-  "name": "App de Treino",
-  "short_name": "Treino",
+  "name": "Alion Treinos",
+  "short_name": "Alion",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

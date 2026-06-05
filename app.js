@@ -1,8 +1,8 @@
 // Senhas temporárias apenas para o MVP. Futuramente substituir por autenticação real com Supabase Auth.
 const TRAINER_TEMP_PASSWORD = "123ac";
 const ADMIN_TEMP_PASSWORD = "ac741";
-const EXECUTION_DRAFT_PREFIX = "gympulse_execution_draft";
-const PENDING_WORKOUT_LOGS_KEY = "gympulse_pending_workout_logs";
+const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
+const PENDING_WORKOUT_LOGS_KEY = "Alion Treinos_pending_workout_logs";
 const APP_PUBLIC_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
 const REQUIRED_TABLES = [
   "app_profiles",
@@ -249,7 +249,7 @@ function readLocalJson(key, fallback) {
     const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch (error) {
-    console.error("[GymPulse] Erro ao ler localStorage:", error);
+    console.error("[Alion Treinos] Erro ao ler localStorage:", error);
     return fallback;
   }
 }
@@ -261,7 +261,7 @@ function writeLocalJson(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
-    console.error("[GymPulse] Erro ao salvar localStorage:", error);
+    console.error("[Alion Treinos] Erro ao salvar localStorage:", error);
   }
 }
 
@@ -272,7 +272,7 @@ async function runQuery(query, fallbackMessage) {
   const { data, error } = await query;
 
   if (error) {
-    console.error("[GymPulse] Erro Supabase:", error);
+    console.error("[Alion Treinos] Erro Supabase:", error);
     state.lastError = error.message;
     throw new Error(`${fallbackMessage}: ${error.message}`);
   }
@@ -622,7 +622,7 @@ function normalizeExercisesSnapshot(value) {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.error("[GymPulse] Erro ao ler exercises_snapshot:", error);
+    console.error("[Alion Treinos] Erro ao ler exercises_snapshot:", error);
     return [];
   }
 }
@@ -1130,7 +1130,7 @@ async function createStudentInvite(student, email) {
       message: "Convite criado. Envie o link para o aluno finalizar o cadastro."
     };
   } catch (error) {
-    console.warn("[GymPulse] Aluno salvo, mas convite nao foi criado.", error);
+    console.warn("[Alion Treinos] Aluno salvo, mas convite nao foi criado.", error);
     return { ok: false, message: `Aluno salvo. Convite nao criado: ${error.message}` };
   }
 }
@@ -1530,7 +1530,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
-        console.log(`[GymPulse] INSERT final em ${tableName}:`, currentPayload);
+        console.log(`[Alion Treinos] INSERT final em ${tableName}:`, currentPayload);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
     } catch (error) {
@@ -1588,7 +1588,7 @@ async function syncPendingWorkoutLogs() {
     try {
       await insertWorkoutLog(payload);
     } catch (error) {
-      console.error("[GymPulse] Erro ao sincronizar log pendente:", error);
+      console.error("[Alion Treinos] Erro ao sincronizar log pendente:", error);
       failed.push(item);
     }
   }
@@ -1648,7 +1648,7 @@ async function completeCurrentWorkout() {
       orderBy: "created_at"
     });
     const exercisesSnapshot = buildWorkoutExecutionSnapshot(workout.id, workoutExercises);
-    console.log("[GymPulse] workout_logs exercises_snapshot:", exercisesSnapshot);
+    console.log("[Alion Treinos] workout_logs exercises_snapshot:", exercisesSnapshot);
 
     await insertWorkoutLog({
       workout_id: workout.id,
@@ -1995,7 +1995,7 @@ async function resetStudentData(studentId) {
 async function runAdminMaintenanceRpc(functionName, studentId, originalMessage) {
   const { error } = await supabaseClient.rpc(functionName, { target_student_id: studentId });
   if (error) {
-    console.error(`[GymPulse] Erro RPC ${functionName}:`, error);
+    console.error(`[Alion Treinos] Erro RPC ${functionName}:`, error);
     throw new Error(`${originalMessage}. RPC ${functionName}: ${error.message}`);
   }
 }
@@ -2068,7 +2068,7 @@ async function handleAdminStudentAction(action, studentId) {
     await loadSupabaseData({ silent: true });
     renderAdminArea();
   } catch (error) {
-    console.error("[GymPulse] Erro na acao Admin aluno:", error);
+    console.error("[Alion Treinos] Erro na acao Admin aluno:", error);
     showToast(error.message, "error");
   }
 }
@@ -2145,7 +2145,7 @@ async function handleAdminMaintenance(action) {
     renderAdminMaintenanceLog(result || "Nenhuma rotina executada.");
     showToast(result || "Manutencao concluida.");
   } catch (error) {
-    console.error("[GymPulse] Erro na manutencao Admin:", error);
+    console.error("[Alion Treinos] Erro na manutencao Admin:", error);
     renderAdminMaintenanceLog(error.message);
     showToast(error.message, "error");
   }
@@ -2812,7 +2812,7 @@ async function updateStudentProfile(form) {
     restrictions: formData.get("restrictions") || null,
     notes: formData.get("notes") || null
   };
-  console.log("[GymPulse] updateStudent(id, payload):", {
+  console.log("[Alion Treinos] updateStudent(id, payload):", {
     id: state.selectedStudentId,
     payload
   });
@@ -2914,7 +2914,7 @@ async function createAssessment(form) {
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
-  console.log("[GymPulse] Enviando assessment para Supabase:", {
+  console.log("[Alion Treinos] Enviando assessment para Supabase:", {
     mode: editId ? "update" : "insert",
     id: editId || null,
     payload
@@ -2933,7 +2933,7 @@ async function createAssessment(form) {
     form.reset();
     await refreshSelectedStudentProfile();
   } catch (error) {
-    console.error("[GymPulse] Erro ao salvar/editar avaliacao:", error);
+    console.error("[Alion Treinos] Erro ao salvar/editar avaliacao:", error);
     showToast(error.message, "error");
   } finally {
     setFormLoading(form, false);
@@ -3012,7 +3012,7 @@ async function createMeasurement(form) {
     notes: formData.get("notes") || null
   };
   const editId = form.dataset.editId;
-  console.log("[GymPulse] Enviando body_measurement para Supabase:", {
+  console.log("[Alion Treinos] Enviando body_measurement para Supabase:", {
     mode: editId ? "update" : "insert",
     id: editId || null,
     payload
@@ -3031,7 +3031,7 @@ async function createMeasurement(form) {
     form.reset();
     await refreshSelectedStudentProfile();
   } catch (error) {
-    console.error("[GymPulse] Erro ao salvar/editar medidas:", error);
+    console.error("[Alion Treinos] Erro ao salvar/editar medidas:", error);
     showToast(error.message, "error");
   } finally {
     setFormLoading(form, false);
@@ -3081,7 +3081,7 @@ async function createWorkout(form) {
       created_by: state.authUser?.id || null
     };
 
-    console.log("[GymPulse] Enviando workout para Supabase:", {
+    console.log("[Alion Treinos] Enviando workout para Supabase:", {
       mode: editId ? "update" : "insert",
       id: editId || null,
       payload
@@ -3136,7 +3136,7 @@ async function addExerciseToWorkout() {
     instructions: el.exerciseNotesInput.value || null
   };
   const editId = el.addExerciseButton.dataset.editId;
-  console.log("[GymPulse] addExerciseToWorkout(payload):", {
+  console.log("[Alion Treinos] addExerciseToWorkout(payload):", {
     mode: editId ? "update" : "insert",
     id: editId || null,
     payload
@@ -3180,7 +3180,7 @@ async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage)
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       if (["students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
-        console.log(`[GymPulse] UPDATE final em ${tableName}:`, { id, payload: currentPayload });
+        console.log(`[Alion Treinos] UPDATE final em ${tableName}:`, { id, payload: currentPayload });
       }
       return await runQuery(supabaseClient.from(tableName).update(currentPayload).eq("id", id).select(), fallbackMessage);
     } catch (error) {
@@ -3206,10 +3206,10 @@ async function deleteById(tableName, id, fallbackMessage) {
     throw new Error(`${fallbackMessage}: id nao informado.`);
   }
 
-  console.log(`[GymPulse] DELETE em ${tableName}:`, { id });
+  console.log(`[Alion Treinos] DELETE em ${tableName}:`, { id });
   const { error } = await supabaseClient.from(tableName).delete().eq("id", id);
   if (error) {
-    console.error(`[GymPulse] Erro DELETE em ${tableName}:`, error);
+    console.error(`[Alion Treinos] Erro DELETE em ${tableName}:`, error);
     state.lastError = error.message;
     throw new Error(`${fallbackMessage}: ${error.message}`);
   }
@@ -3228,7 +3228,7 @@ async function reloadAfterDelete() {
  */
 async function deleteAssessment(id) {
   if (!window.confirm(DELETE_CONFIRMATION)) return;
-  console.log("[GymPulse] deleteAssessment(id):", id);
+  console.log("[Alion Treinos] deleteAssessment(id):", id);
 
   try {
     await deleteById("assessments", id, "Erro ao excluir avaliacao");
@@ -3244,7 +3244,7 @@ async function deleteAssessment(id) {
  */
 async function deleteBodyMeasurement(id) {
   if (!window.confirm(DELETE_CONFIRMATION)) return;
-  console.log("[GymPulse] deleteBodyMeasurement(id):", id);
+  console.log("[Alion Treinos] deleteBodyMeasurement(id):", id);
 
   try {
     await deleteById("body_measurements", id, "Erro ao excluir medida");
@@ -3260,7 +3260,7 @@ async function deleteBodyMeasurement(id) {
  */
 async function deleteWorkoutExercise(id) {
   if (!window.confirm(DELETE_CONFIRMATION)) return;
-  console.log("[GymPulse] deleteWorkoutExercise(id):", id);
+  console.log("[Alion Treinos] deleteWorkoutExercise(id):", id);
 
   try {
     await deleteById("workout_exercises", id, "Erro ao remover exercicio do treino");
@@ -3281,7 +3281,7 @@ async function deleteWorkout(id) {
   }
 
   if (!window.confirm(DELETE_CONFIRMATION)) return;
-  console.log("[GymPulse] deleteWorkout(id):", id);
+  console.log("[Alion Treinos] deleteWorkout(id):", id);
 
   try {
     if (workoutHasLogs(id) && !window.confirm("Este treino possui historico. Como Admin TI, deseja excluir tambem os logs deste treino?")) {
@@ -3338,7 +3338,7 @@ async function deleteStudent(id = state.selectedStudentId) {
   }
 
   if (!window.confirm(DELETE_CONFIRMATION)) return;
-  console.log("[GymPulse] deleteStudent(id):", id);
+  console.log("[Alion Treinos] deleteStudent(id):", id);
 
   try {
     await updateStudentStatus(id, "excluido");
@@ -3360,10 +3360,10 @@ async function deleteStudent(id = state.selectedStudentId) {
  * Exclui registros por uma coluna especifica e mostra erro real do Supabase.
  */
 async function deleteByColumn(tableName, column, value, fallbackMessage) {
-  console.log(`[GymPulse] DELETE em ${tableName} por ${column}:`, value);
+  console.log(`[Alion Treinos] DELETE em ${tableName} por ${column}:`, value);
   const { error } = await supabaseClient.from(tableName).delete().eq(column, value);
   if (error) {
-    console.error(`[GymPulse] Erro DELETE em ${tableName}:`, error);
+    console.error(`[Alion Treinos] Erro DELETE em ${tableName}:`, error);
     state.lastError = error.message;
     throw new Error(`${fallbackMessage}: ${error.message}`);
   }
@@ -3379,7 +3379,7 @@ function editAssessment(id) {
 
   if (!record) {
     showToast("Avaliacao nao encontrada para edicao. Recarregue os dados.", "error");
-    console.error("[GymPulse] Avaliacao nao encontrada no cache:", { id, cache: state.trainerAssessmentsCache });
+    console.error("[Alion Treinos] Avaliacao nao encontrada no cache:", { id, cache: state.trainerAssessmentsCache });
     return;
   }
 
@@ -3425,7 +3425,7 @@ function editMeasurement(id) {
 
   if (!record) {
     showToast("Medida nao encontrada para edicao. Recarregue os dados.", "error");
-    console.error("[GymPulse] Medida nao encontrada no cache:", { id, cache: state.trainerMeasurementsCache });
+    console.error("[Alion Treinos] Medida nao encontrada no cache:", { id, cache: state.trainerMeasurementsCache });
     return;
   }
 
@@ -3608,7 +3608,7 @@ function changeScreen(screenName) {
     "trainer-area": "Área Treinador",
     "admin-area": "Controle do Sistema"
   };
-  el.pageTitle.textContent = labels[screenName] || "GymPulse";
+  el.pageTitle.textContent = labels[screenName] || "Alion Treinos";
 
   if (screenName === "trainer-area") {
     loadSupabaseData();
@@ -3769,7 +3769,7 @@ async function syncCanonicalProfile(user, profilePayload) {
     const { error } = await supabaseClient.from("profiles").upsert(payload).select();
     if (error) throw error;
   } catch (error) {
-    console.warn("[GymPulse] profiles canonico ainda nao disponivel.", error);
+    console.warn("[Alion Treinos] profiles canonico ainda nao disponivel.", error);
   }
 }
 
@@ -3840,7 +3840,7 @@ async function loadInviteFromUrl() {
     state.pendingInvite = invite;
     hydrateInviteRegisterForm(invite);
   } catch (error) {
-    console.error("[GymPulse] Erro ao carregar convite:", error);
+    console.error("[Alion Treinos] Erro ao carregar convite:", error);
     showToast(`Erro ao carregar convite: ${error.message}`, "error");
   }
 }
@@ -3940,7 +3940,7 @@ async function ensureAuthProfile(user, requestedRole = "aluno", name = "") {
     const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao vincular perfil existente");
     return created?.[0] || payload;
   } catch (error) {
-    console.warn("[GymPulse] Nao foi possivel criar app_profiles automaticamente.", error);
+    console.warn("[Alion Treinos] Nao foi possivel criar app_profiles automaticamente.", error);
     showToast(`Login feito, mas o perfil nao foi vinculado: ${error.message}`, "error");
     return {
       user_id: user.id,
@@ -3984,7 +3984,7 @@ async function fetchAuthProfile(user, options = {}) {
       student_id: user.user_metadata?.student_id || null
     };
   } catch (error) {
-    console.warn("[GymPulse] app_profiles indisponivel. Usando metadados do Auth.", error);
+    console.warn("[Alion Treinos] app_profiles indisponivel. Usando metadados do Auth.", error);
     state.lastError = error.message;
     if (options.createIfMissing === false) return null;
     return {
@@ -4020,7 +4020,7 @@ function formatSupabaseAuthError(error) {
 
 function showAuthError(context, error) {
   const formatted = formatSupabaseAuthError(error);
-  console.error(`[GymPulse] ${context}:`, {
+  console.error(`[Alion Treinos] ${context}:`, {
     message: error?.message || null,
     status: error?.status || null,
     code: error?.code || null,
@@ -4046,7 +4046,7 @@ function isEmailConfirmationAuthError(error) {
 function showEmailConfirmationDevelopmentHelp(error) {
   const formatted = formatSupabaseAuthError(error);
   const message = `Supabase bloqueou por confirmacao de e-mail. Erro real: ${formatted}. Para desenvolvimento, desative Confirm email em Authentication > Providers > Email ou confirme novamente o usuario no painel Auth.`;
-  console.warn("[GymPulse] Login bloqueado pelo Supabase Auth:", message);
+  console.warn("[Alion Treinos] Login bloqueado pelo Supabase Auth:", message);
   el.authStatus.textContent = message;
   showToast(message, "error");
 }
@@ -4327,7 +4327,7 @@ async function handleAuthRegister(form) {
     const message = error.message || "Erro ao criar cadastro.";
     el.registerStatus.textContent = message;
     showToast(message, "error");
-    console.error("[GymPulse] Erro ao criar cadastro:", error);
+    console.error("[Alion Treinos] Erro ao criar cadastro:", error);
   } finally {
     setFormLoading(form, false);
   }
@@ -4510,7 +4510,7 @@ async function initAuthSession() {
       return;
     }
   } catch (error) {
-    console.warn("[GymPulse] Nao foi possivel restaurar sessao Auth.", error);
+    console.warn("[Alion Treinos] Nao foi possivel restaurar sessao Auth.", error);
   }
 
   if (state.passwordRecoveryMode) {
@@ -4879,6 +4879,6 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("./service-worker.js")
-      .catch((error) => console.error("[GymPulse] Erro ao registrar service worker:", error));
+      .catch((error) => console.error("[Alion Treinos] Erro ao registrar service worker:", error));
   });
 }
