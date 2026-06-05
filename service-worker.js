@@ -1,4 +1,4 @@
-const CACHE_NAME = "alion-treinos-pwa-v23";
+const CACHE_NAME = "alion-treinos-pwa-v24";
 const APP_SHELL = [
   "./",
   "./index.html",
