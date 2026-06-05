@@ -1,4 +1,4 @@
-const CACHE_NAME = "alion-treinos-pwa-v22";
+const CACHE_NAME = "alion-treinos-pwa-v23";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,8 +6,10 @@ const APP_SHELL = [
   "./app.js?v=20260604-exclusao-admin",
   "./supabase.js?v=20260604-exclusao-admin",
   "./manifest.webmanifest",
+  "./favicon.ico",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./icons/maskable-icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
