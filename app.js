@@ -406,7 +406,15 @@ function renderStudentAreaSelect() {
   const students = getAccessibleStudents();
   el.studentAreaSelect.innerHTML = `<option value="">Selecione um aluno</option>${students.map(renderStudentOption).join("")}`;
   el.studentAreaSelect.value = state.studentAreaId;
-  el.studentAreaSelect.disabled = isStudent() && Boolean(state.authProfile?.student_id);
+  const lockedToOwnProfile = isStudent() && Boolean(state.authProfile?.student_id);
+  el.studentAreaSelect.disabled = lockedToOwnProfile;
+  el.studentAreaSelect.classList.toggle("hidden", lockedToOwnProfile);
+  const helperText = el.studentAreaSelect.closest(".section-title")?.querySelector("p");
+  if (helperText) {
+    helperText.textContent = lockedToOwnProfile
+      ? "Acesse seu treino, historico e evolucao."
+      : "Escolha seu nome para visualizar treino, historico e evolucao.";
+  }
 }
 
 /**
@@ -1801,9 +1809,11 @@ function renderAdminStudentItem(student) {
   const invite = getLatestInviteForStudent(student.id);
   const inviteStatus = invite ? formatInviteStatus(pick(invite, ["status"], "")) : "Sem convite";
   const selected = String(student.id) === String(state.selectedAdminStudentId) ? " active" : "";
+  const exclusionReason = pick(student, ["exclusion_reason", "deletion_reason", "delete_reason", "motivo_exclusao"], "");
   const archiveAction = status === "arquivado"
     ? `<button class="tiny-button" type="button" data-admin-student-action="restore" data-student-id="${escapeHtml(student.id)}">Restaurar</button>`
     : `<button class="tiny-button" type="button" data-admin-student-action="archive" data-student-id="${escapeHtml(student.id)}">Arquivar</button>`;
+  const permanentDeleteLabel = status === "excluido" ? "Excluir definitivo" : "Excluir definitivo";
 
   return `
     <article class="simple-item stacked admin-student-item${selected}">
@@ -1814,6 +1824,7 @@ function renderAdminStudentItem(student) {
       <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</small>
       <small>Convite: ${escapeHtml(inviteStatus)}</small>
       <small>Status: ${escapeHtml(formatWorkoutStatus(status))}</small>
+      ${exclusionReason ? `<small><b>Motivo da exclusao:</b> ${escapeHtml(exclusionReason)}</small>` : ""}
       <div class="record-actions">
         <button class="tiny-button" type="button" data-admin-student-action="select" data-student-id="${escapeHtml(student.id)}">Ver registros</button>
         <button class="tiny-button" type="button" data-admin-student-action="edit" data-student-id="${escapeHtml(student.id)}">Editar</button>
@@ -1821,7 +1832,7 @@ function renderAdminStudentItem(student) {
         <button class="tiny-button" type="button" data-admin-student-action="clear-workouts" data-student-id="${escapeHtml(student.id)}">Excluir treinos</button>
         <button class="tiny-button" type="button" data-admin-student-action="reset" data-student-id="${escapeHtml(student.id)}">Resetar perfil</button>
         ${archiveAction}
-        <button class="tiny-button danger" type="button" data-admin-student-action="delete" data-student-id="${escapeHtml(student.id)}">Excluir</button>
+        <button class="tiny-button danger" type="button" data-admin-student-action="delete-permanent" data-student-id="${escapeHtml(student.id)}">${permanentDeleteLabel}</button>
       </div>
     </article>
   `;
@@ -1919,6 +1930,36 @@ async function updateStudentStatus(id, status) {
     if (!isAdmin() || !rpcByStatus[status]) throw error;
     await runAdminMaintenanceRpc(rpcByStatus[status], id, error.message);
   }
+}
+
+function buildStudentExclusionPayload(reason) {
+  const now = new Date().toISOString();
+  return {
+    status: "excluido",
+    status_usuario: "bloqueado",
+    exclusion_reason: reason,
+    deletion_reason: reason,
+    motivo_exclusao: reason,
+    exclusion_requested_by: state.authUser?.id || null,
+    excluded_by: state.authUser?.id || null,
+    exclusion_requested_at: now,
+    excluded_at: now
+  };
+}
+
+async function requestStudentDeletionByPersonal(id) {
+  if (!id) throw new Error("Selecione um aluno antes de excluir.");
+  const reason = window.prompt("Informe o motivo da exclusao deste aluno para o TI/Admin:");
+  const normalizedReason = String(reason || "").trim();
+
+  if (!normalizedReason) {
+    showToast("Informe o motivo para enviar a exclusao ao TI/Admin.", "error");
+    return false;
+  }
+
+  await updateWithSchemaFallback("students", id, buildStudentExclusionPayload(normalizedReason), "Erro ao marcar aluno como excluido");
+  await updateStudentWorkoutsStatus(id, "excluido");
+  return true;
 }
 
 async function updateStudentWorkoutsStatus(studentId, status) {
@@ -2059,10 +2100,12 @@ async function handleAdminStudentAction(action, studentId) {
       renderAdminMaintenanceLog("Aluno restaurado.");
     }
 
-    if (action === "delete") {
-      await updateStudentStatus(studentId, "excluido");
-      await updateStudentWorkoutsStatus(studentId, "excluido");
-      renderAdminMaintenanceLog("Aluno marcado como excluido.");
+    if (action === "delete-permanent") {
+      await deleteStudentPermanently(studentId);
+      state.selectedAdminStudentId = "";
+      if (String(state.selectedStudentId) === String(studentId)) state.selectedStudentId = "";
+      if (String(state.studentAreaId) === String(studentId)) state.studentAreaId = "";
+      renderAdminMaintenanceLog("Aluno removido definitivamente do banco.");
     }
 
     await loadSupabaseData({ silent: true });
@@ -2216,6 +2259,13 @@ async function removeOrphanWorkoutData() {
 }
 
 async function deleteStudentPermanently(id) {
+  if (isAdmin()) {
+    const { error } = await supabaseClient.rpc("admin_delete_student_permanently", { target_student_id: id });
+    if (!error) return;
+    console.error("[Alion Treinos] Erro RPC admin_delete_student_permanently:", error);
+    state.lastError = error.message;
+  }
+
   const workoutIds = state.workouts
     .filter((workout) => String(workout.student_id) === String(id))
     .map((workout) => workout.id)
@@ -2228,6 +2278,8 @@ async function deleteStudentPermanently(id) {
   await deleteByColumn("workout_logs", "student_id", id, "Erro ao excluir logs do aluno");
   await deleteByColumn("assessments", "student_id", id, "Erro ao excluir avaliacoes do aluno");
   await deleteByColumn("body_measurements", "student_id", id, "Erro ao excluir medidas do aluno");
+  await deleteByColumn("trainer_students", "student_id", id, "Erro ao excluir vinculos do aluno");
+  await deleteByColumn("student_invites", "student_id", id, "Erro ao excluir convites do aluno");
   await deleteById("students", id, "Erro ao excluir aluno");
 }
 
@@ -3327,26 +3379,34 @@ async function updateWorkoutStatus(id, status) {
  * Exclui aluno selecionado e limpa o perfil.
  */
 async function deleteStudent(id = state.selectedStudentId) {
-  if (!isAdmin()) {
-    showToast("Exclusao permanente de alunos e permitida apenas para TI/Admin.", "error");
-    return;
-  }
-
   if (!id) {
     showToast("Selecione um aluno antes de excluir.", "error");
     return;
   }
 
-  if (!window.confirm(DELETE_CONFIRMATION)) return;
+  if (isStudent()) {
+    showToast("Aluno nao pode excluir cadastro. Fale com o Personal ou TI/Admin.", "error");
+    return;
+  }
+
+  const confirmation = isAdmin()
+    ? "Tem certeza que deseja excluir definitivamente? Esta acao nao podera ser desfeita."
+    : "Tem certeza que deseja marcar este aluno como excluido e enviar ao TI/Admin?";
+  if (!window.confirm(confirmation)) return;
   console.log("[Alion Treinos] deleteStudent(id):", id);
 
   try {
-    await updateStudentStatus(id, "excluido");
-    await updateStudentWorkoutsStatus(id, "excluido");
+    if (isAdmin()) {
+      await deleteStudentPermanently(id);
+      showToast("Aluno excluido definitivamente.");
+    } else {
+      const deleted = await requestStudentDeletionByPersonal(id);
+      if (!deleted) return;
+      showToast("Aluno marcado como excluido e enviado ao TI/Admin.");
+    }
 
     state.selectedStudentId = "";
     state.selectedWorkoutId = "";
-    showToast("Aluno marcado como excluido.");
     await loadSupabaseData();
     state.selectedStudentId = "";
     renderTrainerStudents();
