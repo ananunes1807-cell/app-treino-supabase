@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Treino" />
     <title>GymPulse | App Treino Supabase</title>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?v=20260604-media-local" />
+    <link rel="stylesheet" href="style.css?v=20260604-genero-media" />
   </head>
   <body>
     <div class="app">
@@ -232,6 +232,17 @@
                   <input name="birth_date" type="date" />
                 </label>
                 <label>
+                  G&ecirc;nero
+                  <select name="genero">
+                    <option value="">Selecione</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="feminino">Feminino</option>
+                    <option value="nao_binario">N&atilde;o bin&aacute;rio</option>
+                    <option value="prefiro_nao_informar">Prefiro n&atilde;o informar</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                </label>
+                <label>
                   Altura em cm
                   <input name="height_cm" type="number" step="0.01" placeholder="Ex: 170" />
                 </label>
@@ -285,6 +296,14 @@
                     <input name="phone" type="tel" placeholder="Telefone" />
                     <input name="whatsapp" type="tel" placeholder="WhatsApp" />
                     <input name="birth_date" type="date" />
+                    <select name="genero">
+                      <option value="">G&ecirc;nero</option>
+                      <option value="masculino">Masculino</option>
+                      <option value="feminino">Feminino</option>
+                      <option value="nao_binario">N&atilde;o bin&aacute;rio</option>
+                      <option value="prefiro_nao_informar">Prefiro n&atilde;o informar</option>
+                      <option value="outro">Outro</option>
+                    </select>
                     <input name="height_cm" type="number" step="0.01" placeholder="Altura em cm" />
                     <input name="objective" type="text" placeholder="Objetivo" />
                     <input name="difficulties" type="text" placeholder="Dificuldades" />
@@ -458,6 +477,10 @@
                       <input name="difficulty" type="text" placeholder="Dificuldade" />
                       <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
                       <input name="video_url" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio.mp4" />
+                      <input name="image_url_masculino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_m.webp" />
+                      <input name="image_url_feminino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_f.webp" />
+                      <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
+                      <input name="video_url_feminino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_f.mp4" />
                     </div>
                     <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
                     <textarea name="common_mistakes" rows="3" placeholder="Erros comuns"></textarea>
@@ -538,6 +561,10 @@
                     <input name="difficulty" type="text" placeholder="Dificuldade" />
                     <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
                     <input name="video_url" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio.mp4" />
+                    <input name="image_url_masculino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_m.webp" />
+                    <input name="image_url_feminino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_f.webp" />
+                    <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
+                    <input name="video_url_feminino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_f.mp4" />
                   </div>
                   <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
                   <textarea name="common_mistakes" rows="3" placeholder="Erros comuns"></textarea>
@@ -595,7 +622,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260604-media-local"></script>
-    <script src="app.js?v=20260604-media-local"></script>
+    <script src="supabase.js?v=20260604-genero-media"></script>
+    <script src="app.js?v=20260604-genero-media"></script>
   </body>
 </html>

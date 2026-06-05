@@ -1,10 +1,10 @@
-const CACHE_NAME = "gympulse-pwa-v19";
+const CACHE_NAME = "gympulse-pwa-v20";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260604-media-local",
-  "./app.js?v=20260604-media-local",
-  "./supabase.js?v=20260604-media-local",
+  "./style.css?v=20260604-genero-media",
+  "./app.js?v=20260604-genero-media",
+  "./supabase.js?v=20260604-genero-media",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

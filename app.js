@@ -545,10 +545,11 @@ function serializeExerciseExecution(exerciseId) {
 
 function renderWorkoutExerciseItem(item) {
   const exercise = getLibraryExerciseForWorkoutItem(item);
+  const student = getStudentForExerciseMedia(state.studentAreaId);
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
   const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
-  const imageUrl = pick(exercise, ["image_url"], "");
-  const videoUrl = pick(exercise, ["video_url"], "");
+  const imageUrl = getExerciseMediaByGender(exercise, student, "image");
+  const videoUrl = getExerciseMediaByGender(exercise, student, "video");
   const instructions = pick(exercise, ["instructions", "description", "instrucoes"], pick(item, ["instructions"], ""));
   const commonMistakes = pick(exercise, ["common_mistakes"], "");
   const execution = getStudentExerciseExecution(item.id);
@@ -761,6 +762,46 @@ function getExerciseMediaUrl(value, type = "image") {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
   return isLocalExerciseAssetUrl(url, type) ? url.replace(/^\.?\//, "") : "";
+}
+
+function normalizeStudentGender(student) {
+  const value = normalizeText(pick(student, ["genero", "gender"], ""));
+  if (["masculino", "male", "homem"].includes(value)) return "masculino";
+  if (["feminino", "female", "mulher"].includes(value)) return "feminino";
+  if (["nao_binario", "nao-binario", "nÃ£o binÃ¡rio", "non_binary", "non-binary"].includes(value)) return "aleatorio";
+  if (["prefiro_nao_informar", "prefiro-nao-informar", "outro", "other"].includes(value)) return "aleatorio";
+  return "aleatorio";
+}
+
+function formatStudentGender(value) {
+  const normalized = normalizeText(value || "");
+  const labels = {
+    masculino: "Masculino",
+    feminino: "Feminino",
+    nao_binario: "Nao binario",
+    prefiro_nao_informar: "Prefiro nao informar",
+    outro: "Outro"
+  };
+  return labels[normalized] || "Nao informado";
+}
+
+function getStudentForExerciseMedia(studentId = state.studentAreaId || state.selectedStudentId) {
+  return state.students.find((student) => String(student.id) === String(studentId)) || null;
+}
+
+function chooseExerciseMediaVariant(student) {
+  const gender = normalizeStudentGender(student);
+  if (gender === "masculino" || gender === "feminino") return gender;
+  return Math.random() < 0.5 ? "masculino" : "feminino";
+}
+
+function getExerciseMediaByGender(exercise, student, type = "image") {
+  const variant = chooseExerciseMediaVariant(student);
+  const genderField = type === "video"
+    ? (variant === "masculino" ? "video_url_masculino" : "video_url_feminino")
+    : (variant === "masculino" ? "image_url_masculino" : "image_url_feminino");
+  const legacyField = type === "video" ? "video_url" : "image_url";
+  return pick(exercise, [genderField, legacyField], "");
 }
 
 function renderExerciseImage(imageUrl, altText, compact = false) {
@@ -1021,6 +1062,7 @@ async function createStudent(form) {
       telefone: formData.get("phone") || null,
       whatsapp: formData.get("whatsapp") || null,
       birth_date: formData.get("birth_date") || null,
+      genero: formData.get("genero") || null,
       height_cm: numberOrNull(formData.get("height_cm")),
       objective: formData.get("objective") || null,
       difficulties: formData.get("difficulties") || null,
@@ -1561,16 +1603,19 @@ async function syncPendingWorkoutLogs() {
  * Monta o snapshot completo da execucao atual.
  */
 function buildWorkoutExecutionSnapshot(workoutId, exercisesSource = state.workoutExercises) {
+  const student = getStudentForExerciseMedia(state.studentAreaId);
   return exercisesSource
     .filter((exercise) => String(exercise.workout_id) === String(workoutId))
     .map((exercise) => {
       const libraryExercise = getLibraryExerciseForWorkoutItem(exercise);
+      const imageUrl = getExerciseMediaByGender(libraryExercise, student, "image");
+      const videoUrl = getExerciseMediaByGender(libraryExercise, student, "video");
       return {
         exercise_id: pick(exercise, ["exercise_id"], null),
         exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
         muscle_group: pick(libraryExercise, ["muscle_group", "primary_muscle", "grupo_muscular"], null),
-        image_url: getExerciseMediaUrl(pick(libraryExercise, ["image_url"], ""), "image") || null,
-        video_url: getExerciseMediaUrl(pick(libraryExercise, ["video_url"], ""), "video") || null,
+        image_url: getExerciseMediaUrl(imageUrl, "image") || null,
+        video_url: getExerciseMediaUrl(videoUrl, "video") || null,
         instructions: pick(libraryExercise, ["instructions", "description", "instrucoes"], pick(exercise, ["instructions"], null)),
         common_mistakes: pick(libraryExercise, ["common_mistakes"], null),
         sets: numberOrNull(pick(exercise, ["sets"], "")),
@@ -2301,6 +2346,7 @@ function fillStudentProfileForm(student) {
   if (el.editStudentForm.elements.phone) el.editStudentForm.elements.phone.value = pick(student, ["phone", "telefone"], "");
   if (el.editStudentForm.elements.whatsapp) el.editStudentForm.elements.whatsapp.value = pick(student, ["whatsapp"], "");
   el.editStudentForm.elements.birth_date.value = formatInputDate(pick(student, ["birth_date", "date_of_birth"], ""));
+  if (el.editStudentForm.elements.genero) el.editStudentForm.elements.genero.value = pick(student, ["genero", "gender"], "");
   el.editStudentForm.elements.height_cm.value = normalizeNumberInput(pick(student, ["height_cm", "height"], ""));
   el.editStudentForm.elements.objective.value = pick(student, ["objective"], "");
   el.editStudentForm.elements.difficulties.value = pick(student, ["difficulties"], "");
@@ -2341,6 +2387,7 @@ async function renderTrainerProfile() {
         <span>E-mail: ${escapeHtml(pick(student, ["email"], "Nao informado"))}</span>
         <span>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Nao informado"))}</span>
         <span>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</span>
+        <span>Genero: ${escapeHtml(formatStudentGender(pick(student, ["genero", "gender"], "")))}</span>
         <span>Altura: ${escapeHtml(formatNumber(pick(student, ["height_cm", "height"], "-")))} cm</span>
         <small>Objetivo: ${escapeHtml(pick(student, ["objective"], "Nao informado"))}</small>
         <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Nao informado"))}</small>
@@ -2636,8 +2683,9 @@ function renderExerciseGroupFilter() {
  * Renderiza um item da biblioteca de exercicios.
  */
 function renderExerciseLibraryItem(exercise) {
-  const imageUrl = pick(exercise, ["image_url"], "");
-  const videoUrl = pick(exercise, ["video_url"], "");
+  const student = getStudentForExerciseMedia(state.selectedStudentId);
+  const imageUrl = getExerciseMediaByGender(exercise, student, "image");
+  const videoUrl = getExerciseMediaByGender(exercise, student, "video");
   const commonMistakes = pick(exercise, ["common_mistakes"], "");
   const exerciseName = pick(exercise, ["name", "title", "nome"], "Exercicio");
 
@@ -2666,6 +2714,10 @@ function buildExerciseLibraryPayload(form) {
     difficulty: String(formData.get("difficulty") || "").trim() || null,
     image_url: normalizeOptionalUrl(formData.get("image_url"), "URL da imagem"),
     video_url: normalizeOptionalUrl(formData.get("video_url"), "URL do video"),
+    image_url_masculino: normalizeOptionalUrl(formData.get("image_url_masculino"), "URL da imagem masculina"),
+    image_url_feminino: normalizeOptionalUrl(formData.get("image_url_feminino"), "URL da imagem feminina"),
+    video_url_masculino: normalizeOptionalUrl(formData.get("video_url_masculino"), "URL do video masculino"),
+    video_url_feminino: normalizeOptionalUrl(formData.get("video_url_feminino"), "URL do video feminino"),
     instructions: String(formData.get("instructions") || "").trim() || null,
     common_mistakes: String(formData.get("common_mistakes") || "").trim() || null
   };
@@ -2705,6 +2757,10 @@ function editExerciseLibraryItem(id, form = el.exerciseLibraryForm) {
   form.elements.difficulty.value = pick(exercise, ["difficulty", "difficulty_level", "nivel"], "");
   form.elements.image_url.value = pick(exercise, ["image_url"], "");
   form.elements.video_url.value = pick(exercise, ["video_url"], "");
+  if (form.elements.image_url_masculino) form.elements.image_url_masculino.value = pick(exercise, ["image_url_masculino"], "");
+  if (form.elements.image_url_feminino) form.elements.image_url_feminino.value = pick(exercise, ["image_url_feminino"], "");
+  if (form.elements.video_url_masculino) form.elements.video_url_masculino.value = pick(exercise, ["video_url_masculino"], "");
+  if (form.elements.video_url_feminino) form.elements.video_url_feminino.value = pick(exercise, ["video_url_feminino"], "");
   form.elements.instructions.value = pick(exercise, ["instructions", "description", "instrucoes"], "");
   form.elements.common_mistakes.value = pick(exercise, ["common_mistakes"], "");
   form.querySelector("button[type='submit']").textContent = "Atualizar exercicio";
@@ -2749,6 +2805,7 @@ async function updateStudentProfile(form) {
     telefone: formData.get("phone") || null,
     whatsapp: formData.get("whatsapp") || null,
     birth_date: formData.get("birth_date") || null,
+    genero: formData.get("genero") || null,
     height_cm: numberOrNull(formData.get("height_cm")),
     objective: formData.get("objective") || null,
     difficulties: formData.get("difficulties") || null,
