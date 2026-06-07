@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260604-exclusao-admin" />
+    <link rel="stylesheet" href="style.css?v=20260607-convites-persistentes" />
   </head>
   <body>
     <div class="app">
@@ -28,6 +28,7 @@
           <button class="menu-button active" type="button" data-screen="access">Trocar acesso</button>
           <button class="menu-button student-nav" type="button" data-screen="student-area">Area Aluno</button>
           <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Area Treinador</button>
+          <button class="menu-button academy-nav" type="button" data-screen="academy-area">Academia</button>
           <button class="menu-button admin-entry" type="button" data-screen="admin-area">TI/Admin</button>
         </nav>
       </aside>
@@ -46,6 +47,28 @@
             <div>
               <p class="subtitle">Alion Treinos</p>
               <h2>Entrar no app</h2>
+            </div>
+            <div class="login-choice">
+              <h3>Escolha seu perfil</h3>
+              <p class="muted-text">Toque no card que combina com voce. Depois entre com e-mail e senha.</p>
+              <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
+                <button class="role-chip active" type="button" data-login-role="student">
+                  <strong>Aluno</strong>
+                  <span>Meu treino</span>
+                </button>
+                <button class="role-chip" type="button" data-login-role="trainer">
+                  <strong>Personal</strong>
+                  <span>Meus alunos</span>
+                </button>
+                <button class="role-chip" type="button" data-login-role="owner">
+                  <strong>Academia</strong>
+                  <span>Gestao simples</span>
+                </button>
+                <button class="role-chip" type="button" data-login-role="admin">
+                  <strong>Admin TI</strong>
+                  <span>Manutencao</span>
+                </button>
+              </div>
             </div>
             <form class="auth-login" id="auth-login-form">
               <label>
@@ -96,11 +119,6 @@
               <button class="primary-button" type="submit">Criar cadastro</button>
               <p class="muted-text" id="register-status">Aluno nao cria conta livremente. O personal deve enviar um convite.</p>
             </form>
-            <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
-              <button class="role-chip active" type="button" data-login-role="student">Aluno</button>
-              <button class="role-chip" type="button" data-login-role="trainer">Personal</button>
-              <button class="role-chip" type="button" data-login-role="admin">Admin TI</button>
-            </div>
             <div class="login-helper">
               <strong id="login-helper-title">&Aacute;rea do aluno</strong>
               <span id="login-helper-description">Acesse seus treinos, registre exerc&iacute;cios, cargas, repeti&ccedil;&otilde;es e observa&ccedil;&otilde;es.</span>
@@ -179,6 +197,31 @@
         </section>
 
         <section class="screen" id="screen-trainer-area">
+          <article class="card pilot-card">
+            <div class="section-title">
+              <div>
+                <h2>Modo de trabalho</h2>
+                <p>Informe se voce trabalha vinculado a uma academia ou como personal independente.</p>
+              </div>
+            </div>
+            <form class="form-box compact-form" id="trainer-academy-link-form">
+              <label>
+                Voce trabalha ou vem de uma academia?
+                <select name="works_from_academy" required>
+                  <option value="">Selecione</option>
+                  <option value="sim">Sim, quero vincular a uma academia</option>
+                  <option value="nao">Nao, sou personal independente</option>
+                </select>
+              </label>
+              <div class="mini-grid" id="academy-link-fields">
+                <input name="academy_code" type="text" placeholder="Codigo da academia" />
+                <input name="responsible_contact" type="text" placeholder="E-mail ou WhatsApp do responsavel" />
+              </div>
+              <button class="secondary-button" type="submit">Salvar modo de trabalho</button>
+              <div class="list" id="trainer-academy-status"></div>
+            </form>
+          </article>
+
           <div class="cards">
             <article class="card stat-card">
               <span>Alunos</span>
@@ -285,6 +328,7 @@
                 <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
                 <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
                 <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
+                <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
                 <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
               </div>
 
@@ -456,6 +500,16 @@
                 <div class="list compact-list" id="trainer-history"></div>
               </section>
 
+              <section class="trainer-tab" id="trainer-tab-invites">
+                <div class="section-title compact-title">
+                  <div>
+                    <h3>Convites dos alunos</h3>
+                    <p>Links salvos no Supabase para copiar, reenviar ou cancelar.</p>
+                  </div>
+                </div>
+                <div class="list compact-list" id="trainer-invites-list"></div>
+              </section>
+
               <section class="trainer-tab" id="trainer-tab-library">
                 <div class="form-box">
                   <div class="section-title compact-title">
@@ -496,6 +550,172 @@
               </section>
             </article>
           </div>
+        </section>
+
+        <section class="screen" id="screen-academy-area">
+          <div class="cards">
+            <article class="card stat-card">
+              <span>Academias</span>
+              <strong id="total-academies">0</strong>
+            </article>
+            <article class="card stat-card">
+              <span>Entradas hoje</span>
+              <strong id="total-attendance-today">0</strong>
+            </article>
+            <article class="card stat-card">
+              <span>Recebido</span>
+              <strong id="finance-total-paid">R$ 0</strong>
+            </article>
+            <article class="card stat-card">
+              <span>Pendente</span>
+              <strong id="finance-total-pending">R$ 0</strong>
+            </article>
+          </div>
+
+          <div class="grid two-columns">
+            <article class="card">
+              <div class="section-title">
+                <div>
+                  <h2>Academia piloto</h2>
+                  <p>Cadastro basico para o piloto de 6 meses.</p>
+                </div>
+              </div>
+              <form class="form-box" id="academy-form">
+                <label>
+                  Nome da academia
+                  <input name="name" type="text" required placeholder="Nome da academia" />
+                </label>
+                <label>
+                  CNPJ ou CPF do responsavel
+                  <input name="document" type="text" placeholder="Documento" />
+                </label>
+                <label>
+                  Telefone/WhatsApp
+                  <input name="whatsapp" type="tel" placeholder="(00) 00000-0000" />
+                </label>
+                <label>
+                  Endereco
+                  <input name="address" type="text" placeholder="Rua, numero, bairro" />
+                </label>
+                <label>
+                  Nome do responsavel
+                  <input name="responsible_name" type="text" placeholder="Responsavel" />
+                </label>
+                <label>
+                  E-mail do responsavel
+                  <input name="responsible_email" type="email" placeholder="responsavel@email.com" />
+                </label>
+                <div class="mini-grid">
+                  <label>
+                    Inicio do piloto
+                    <input name="pilot_start_date" type="date" />
+                  </label>
+                  <label>
+                    Fim do piloto
+                    <input name="pilot_end_date" type="date" />
+                  </label>
+                </div>
+                <button class="primary-button" type="submit">Salvar academia</button>
+              </form>
+              <div class="list spaced" id="academy-list"></div>
+              <h3>Solicitacoes de personal</h3>
+              <div class="list compact-list" id="academy-link-list"></div>
+            </article>
+
+            <article class="card">
+              <div class="section-title">
+                <div>
+                  <h2>Alunos da academia</h2>
+                  <p>Cadastro rapido para o piloto.</p>
+                </div>
+              </div>
+              <form class="form-box" id="academy-student-form">
+                <label>
+                  Nome do aluno
+                  <input name="name" type="text" required placeholder="Nome completo" />
+                </label>
+                <label>
+                  E-mail
+                  <input name="email" type="email" placeholder="aluno@email.com" />
+                </label>
+                <label>
+                  WhatsApp
+                  <input name="whatsapp" type="tel" placeholder="(00) 00000-0000" />
+                </label>
+                <label>
+                  Objetivo
+                  <input name="objective" type="text" placeholder="Ex: emagrecimento, saude" />
+                </label>
+                <label>
+                  Status
+                  <select name="status">
+                    <option value="ativo">Ativo</option>
+                    <option value="arquivado">Inativo</option>
+                  </select>
+                </label>
+                <button class="primary-button" type="submit">Cadastrar aluno</button>
+              </form>
+              <h3>Ativos e inativos</h3>
+              <div class="list compact-list" id="academy-students-list"></div>
+              <h3>Convites dos alunos</h3>
+              <div class="list compact-list" id="academy-invites-list"></div>
+            </article>
+
+            <article class="card">
+              <div class="section-title">
+                <div>
+                  <h2>Entrada e saida</h2>
+                  <p>Controle simples de presenca do dia.</p>
+                </div>
+              </div>
+              <form class="form-box" id="attendance-form">
+                <label>
+                  Aluno
+                  <select name="student_id" id="attendance-student-select" required></select>
+                </label>
+                <label>
+                  Observacao
+                  <input name="observation" type="text" placeholder="Opcional" />
+                </label>
+                <div class="button-row">
+                  <button class="primary-button" type="submit" data-attendance-action="checkin">Registrar entrada</button>
+                  <button class="secondary-button" type="submit" data-attendance-action="checkout">Registrar saida</button>
+                </div>
+              </form>
+              <h3>Historico diario</h3>
+              <div class="list compact-list" id="attendance-list"></div>
+            </article>
+          </div>
+
+          <article class="card">
+            <div class="section-title">
+              <div>
+                <h2>Financeiro da academia</h2>
+                <p>Controle simples de mensalidade para o piloto.</p>
+              </div>
+              <input id="finance-month-filter" type="month" />
+            </div>
+            <form class="form-box" id="financial-form">
+              <div class="mini-grid">
+                <label>
+                  Aluno
+                  <select name="student_id" id="financial-student-select" required></select>
+                </label>
+                <input name="monthly_value" type="number" step="0.01" placeholder="Valor mensal" />
+                <input name="due_date" type="date" placeholder="Vencimento" />
+                <select name="status">
+                  <option value="pendente">Pendente</option>
+                  <option value="pago">Pago</option>
+                  <option value="atrasado">Atrasado</option>
+                </select>
+                <input name="payment_method" type="text" placeholder="Forma de pagamento" />
+                <input name="paid_at" type="date" />
+              </div>
+              <input name="observation" type="text" placeholder="Observacao" />
+              <button class="primary-button" type="submit">Salvar financeiro</button>
+            </form>
+            <div class="list compact-list" id="financial-list"></div>
+          </article>
         </section>
 
         <section class="screen" id="screen-admin-area">
@@ -624,7 +844,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260604-exclusao-admin"></script>
-    <script src="app.js?v=20260604-exclusao-admin"></script>
+    <script src="supabase.js?v=20260607-convites-persistentes"></script>
+    <script src="app.js?v=20260607-convites-persistentes"></script>
   </body>
 </html>
