@@ -498,8 +498,8 @@ function renderStudentAreaSelect() {
   const helperText = el.studentAreaSelect.closest(".section-title")?.querySelector("p");
   if (helperText) {
     helperText.textContent = lockedToOwnProfile
-      ? "Acesse seu treino, historico e evolucao."
-      : "Escolha seu nome para visualizar treino, historico e evolucao.";
+      ? "Acesse seu treino, histórico e evolução."
+      : "Escolha seu nome para visualizar treino, histórico e evolução.";
   }
 }
 
@@ -515,8 +515,8 @@ function renderStudentArea() {
   updateStudentModeUi();
   if (!state.studentAreaId) {
     el.studentCurrentWorkout.innerHTML = emptyMessage("Selecione um aluno para visualizar o treino atual.");
-    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o historico.");
-    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolucao.");
+    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o histórico.");
+    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolução.");
     el.studentAssessments.innerHTML = emptyMessage("Selecione um aluno para visualizar suas avaliacoes.");
     el.studentMeasurements.innerHTML = emptyMessage("Selecione um aluno para visualizar suas medidas.");
     el.completeWorkoutButton.disabled = true;
@@ -581,19 +581,19 @@ function renderEasyStudentWorkout(workout, logs) {
     <article class="easy-summary-card">
       <small>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</small>
       <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino de hoje"))}</strong>
-      <span>Proximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Nao informado"))}</span>
-      <span>Ultimo treino feito: ${escapeHtml(lastLog ? formatDate(pick(lastLog, ["completed_at", "created_at"], "")) : "Ainda nao registrado")}</span>
+      <span>Próximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Não informado"))}</span>
+      <span>Último treino feito: ${escapeHtml(lastLog ? formatDate(pick(lastLog, ["completed_at", "created_at"], "")) : "Ainda não registrado")}</span>
       ${personalNotes ? `<small>Aviso do personal: ${escapeHtml(personalNotes)}</small>` : ""}
     </article>
     <div class="easy-exercise-list">
-      ${exercises.length ? exercises.map(renderEasyExerciseCard).join("") : emptyMessage("Este treino ainda nao possui exercicios.")}
+      ${exercises.length ? exercises.map(renderEasyExerciseCard).join("") : emptyMessage("Este treino ainda não possui exercícios.")}
     </div>
   `;
 }
 
 function renderEasyExerciseCard(item) {
   const exercise = getLibraryExerciseForWorkoutItem(item);
-  const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
+  const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercício"));
   const execution = getStudentExerciseExecution(item.id);
   const doneClass = execution.completed && !execution.skipped ? " done" : "";
   const restLeft = Math.max(0, Number(state.restTimers[item.id] || 0));
@@ -602,13 +602,13 @@ function renderEasyExerciseCard(item) {
   return `
     <article class="easy-exercise-card${doneClass}">
       <strong>${escapeHtml(exerciseName)}</strong>
-      <span>Series: ${escapeHtml(pick(item, ["sets"], "-"))}</span>
+      <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))}</span>
       <span>Repeticoes: ${escapeHtml(pick(item, ["reps"], "-"))}</span>
       <span>Carga prevista: ${escapeHtml(pick(item, ["weight"], "-"))}</span>
       <label>Carga usada hoje
         <input class="easy-big-input" data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" placeholder="Ex: 10 kg" />
       </label>
-      <label>Observacao
+      <label>Observação
         <input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.notes)}" placeholder="Opcional" />
       </label>
       <div class="easy-rest-row">
@@ -616,11 +616,11 @@ function renderEasyExerciseCard(item) {
         <strong class="rest-timer">${restLeft ? `${restLeft}s` : `${escapeHtml(pick(item, ["rest_seconds"], "0"))}s`}</strong>
       </div>
       <button class="primary-button easy-done-button" type="button" data-workout-exercise-quick="confirm-done" data-workout-exercise-id="${escapeHtml(item.id)}">
-        ${execution.completed && !execution.skipped ? "Exercicio concluido" : "Concluir exercicio"}
+        ${execution.completed && !execution.skipped ? "Exercício concluído" : "Concluir exercício"}
       </button>
       ${isConfirming ? `
         <div class="easy-confirm-box">
-          <strong>Concluir este exercicio?</strong>
+          <strong>Concluir este exercício?</strong>
           <div class="easy-confirm-actions">
             <button class="primary-button" type="button" data-workout-exercise-quick="confirm-yes" data-workout-exercise-id="${escapeHtml(item.id)}">Sim, concluir</button>
             <button class="secondary-button" type="button" data-workout-exercise-quick="confirm-back" data-workout-exercise-id="${escapeHtml(item.id)}">Voltar</button>
@@ -633,7 +633,7 @@ function renderEasyExerciseCard(item) {
 
 function renderStudentProgressMessage(logs) {
   if (logs.length < 2) {
-    return `<article class="simple-item stacked progress-message"><strong>Ainda nao ha historico suficiente para comparar.</strong></article>`;
+    return `<article class="simple-item stacked progress-message"><strong>Ainda não há histórico suficiente para comparar.</strong></article>`;
   }
 
   const currentSnapshot = normalizeExercisesSnapshot(pick(logs[0], ["exercises_snapshot"], []));
@@ -650,8 +650,8 @@ function renderMobileProgressDetails() {
   const completedCount = state.workoutLogs.filter((log) => String(log.student_id) === String(state.studentAreaId)).length;
   return `
     <div class="mobile-progress-details">
-      <details><summary>Ver evolucao de carga</summary><div class="mini-card"><span>Cargas anteriores aparecem no historico do treino.</span></div></details>
-      <details><summary>Ver evolucao de repeticoes</summary><div class="mini-card"><span>Compare as repeticoes registradas nos treinos concluidos.</span></div></details>
+      <details><summary>Ver evolução de carga</summary><div class="mini-card"><span>Cargas anteriores aparecem no histórico do treino.</span></div></details>
+      <details><summary>Ver evolução de repetições</summary><div class="mini-card"><span>Compare as repetições registradas nos treinos concluídos.</span></div></details>
       <details><summary>Ver frequencia de treinos</summary><div class="mini-card"><span>Treinos concluidos: ${escapeHtml(completedCount)}</span></div></details>
     </div>
   `;
@@ -684,13 +684,13 @@ function renderWorkoutWithExercises(workout) {
 function renderStudentExerciseStep(exercise, index, total) {
   return `
     <div class="student-exercise-progress">
-      <strong>Exercicio ${index + 1} de ${total}</strong>
+      <strong>Exercício ${index + 1} de ${total}</strong>
       <span>Faca na ordem que preferir. Os dados ficam salvos no aparelho.</span>
     </div>
     ${renderWorkoutExerciseItem(exercise)}
     <div class="student-exercise-nav">
       <button class="secondary-button" type="button" data-student-exercise-nav="prev" ${index === 0 ? "disabled" : ""}>Anterior</button>
-      <button class="primary-button" type="button" data-student-exercise-nav="next" ${index >= total - 1 ? "disabled" : ""}>Proximo exercicio</button>
+      <button class="primary-button" type="button" data-student-exercise-nav="next" ${index >= total - 1 ? "disabled" : ""}>Próximo exercício</button>
     </div>
   `;
 }
@@ -747,7 +747,7 @@ function serializeExerciseExecution(exerciseId) {
 function renderWorkoutExerciseItem(item) {
   const exercise = getLibraryExerciseForWorkoutItem(item);
   const student = getStudentForExerciseMedia(state.studentAreaId);
-  const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
+  const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercício"));
   const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
   const imageUrl = getExerciseMediaByGender(exercise, student, "image");
   const videoUrl = getExerciseMediaByGender(exercise, student, "video");
@@ -761,10 +761,10 @@ function renderWorkoutExerciseItem(item) {
   return `
     <article class="simple-item workout-execution-item">
       <div class="exercise-execution-main">
-        <small>Exercicio atual</small>
+        <small>Exercício atual</small>
         <strong>${escapeHtml(exerciseName)}</strong>
         ${group ? `<span>Grupo muscular: ${escapeHtml(group)}</span>` : ""}
-      <span>Planejado: Series: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
+      <span>Planejado: Séries: ${escapeHtml(pick(item, ["sets"], "-"))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(pick(item, ["rest_seconds"], "-"))}s</span>
         ${renderExerciseImage(imageUrl, exerciseName)}
         ${renderExerciseVideoButton(videoUrl)}
         ${instructions ? `<small><b>Instrucoes:</b> ${escapeHtml(instructions)}</small>` : ""}
@@ -778,10 +778,10 @@ function renderWorkoutExerciseItem(item) {
         <div class="exercise-execution-grid">
           <label>Carga usada<input data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" /></label>
           <label>Reps feitas<input data-workout-exercise-field="actual_reps" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_reps)}" /></label>
-          <label>Series feitas<input data-workout-exercise-field="actual_sets" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_sets)}" /></label>
+          <label>Séries feitas<input data-workout-exercise-field="actual_sets" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_sets)}" /></label>
           <label>Dor 0-10<input data-workout-exercise-field="pain_level" data-workout-exercise-id="${escapeHtml(item.id)}" type="number" min="0" max="10" value="${escapeHtml(execution.pain_level)}" /></label>
           <label>Dificuldade<input data-workout-exercise-field="difficulty" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.difficulty)}" /></label>
-          <label>Observacao<input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.notes)}" /></label>
+          <label>Observação<input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.notes)}" /></label>
         </div>
       </div>
       <label class="exercise-complete-toggle">
@@ -807,7 +807,7 @@ function renderWorkoutLogItem(log) {
     <article class="history-card">
       <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</strong>
       <span>Concluído em ${formatDate(pick(log, ["completed_at", "created_at"]))}</span>
-      ${snapshot.length ? `<div class="history-exercises"><b>Exercicios:</b>${snapshot.map(renderSnapshotExerciseItem).join("")}</div>` : `<small>Nenhum exercicio salvo neste historico.</small>`}
+      ${snapshot.length ? `<div class="history-exercises"><b>Exercícios:</b>${snapshot.map(renderSnapshotExerciseItem).join("")}</div>` : `<small>Nenhum exercício salvo neste histórico.</small>`}
     </article>
   `;
 }
@@ -836,9 +836,9 @@ function renderSnapshotExerciseItem(exercise, index) {
   const skipped = Boolean(exercise.skipped);
   return `
     <div class="exercise-history-card">
-      <strong>${index + 1}. ${escapeHtml(pick(exercise, ["exercise_name"], "Exercicio"))}</strong>
-      <span>Planejado: Series: ${escapeHtml(formatNumber(pick(exercise, ["planned_sets", "sets"], "-")))} | Reps: ${escapeHtml(pick(exercise, ["planned_reps", "reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["planned_weight", "weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(exercise, ["planned_rest_seconds", "rest_seconds"], "-")))}s</span>
-      <span>Realizado: Series: ${escapeHtml(pick(exercise, ["actual_sets"], "-"))} | Reps: ${escapeHtml(pick(exercise, ["actual_reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["actual_weight"], "-"))}</span>
+      <strong>${index + 1}. ${escapeHtml(pick(exercise, ["exercise_name"], "Exercício"))}</strong>
+      <span>Planejado: Séries: ${escapeHtml(formatNumber(pick(exercise, ["planned_sets", "sets"], "-")))} | Reps: ${escapeHtml(pick(exercise, ["planned_reps", "reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["planned_weight", "weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(exercise, ["planned_rest_seconds", "rest_seconds"], "-")))}s</span>
+      <span>Realizado: Séries: ${escapeHtml(pick(exercise, ["actual_sets"], "-"))} | Reps: ${escapeHtml(pick(exercise, ["actual_reps"], "-"))} | Carga: ${escapeHtml(pick(exercise, ["actual_weight"], "-"))}</span>
       <span>Feito: ${completed ? "Sim" : "Nao"}</span>
       <span>Pulado: ${skipped ? "Sim" : "Nao"}</span>
       ${pick(exercise, ["pain_level"], "") !== "" ? `<span>Dor: ${escapeHtml(pick(exercise, ["pain_level"], ""))}/10</span>` : ""}
@@ -983,7 +983,7 @@ function formatStudentGender(value) {
     prefiro_nao_informar: "Prefiro nao informar",
     outro: "Outro"
   };
-  return labels[normalized] || "Nao informado";
+  return labels[normalized] || "Não informado";
 }
 
 function getStudentForExerciseMedia(studentId = state.studentAreaId || state.selectedStudentId) {
@@ -1042,7 +1042,7 @@ function formatInviteStatus(status) {
     expirado: "Expirado",
     cancelado: "Cancelado"
   };
-  return labels[normalized] || "Nao informado";
+  return labels[normalized] || "Não informado";
 }
 
 /**
@@ -1381,7 +1381,7 @@ function renderStudentAccessResult(email, result) {
   const link = result.inviteLink || "";
   el.studentAccessResult.innerHTML = `
     <strong>Convite do aluno</strong>
-    <span>E-mail: ${escapeHtml(email || "Nao informado")}</span>
+    <span>E-mail: ${escapeHtml(email || "Não informado")}</span>
     ${link ? `<span>Link: <b>${escapeHtml(link)}</b></span>` : ""}
     <small>${escapeHtml(result.message)}</small>
   `;
@@ -1398,7 +1398,7 @@ function normalizePhoneForWhatsApp(value) {
 function buildInviteWhatsAppUrl(invite, student) {
   const link = buildInviteLink(pick(invite, ["token"], ""));
   const phone = normalizePhoneForWhatsApp(pick(student, ["whatsapp", "contact", "phone", "telefone"], ""));
-  const message = `Olá, aqui é o Carlos. Este é seu convite para acessar seus treinos no Alion Treinos: ${link}`;
+  const message = `Olá, aqui é o Carlos. Este é seu convite para acessar seus treinos no GymPulse: ${link}`;
   return phone
     ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     : `https://wa.me/?text=${encodeURIComponent(message)}`;
@@ -1409,8 +1409,8 @@ function buildInviteEmailUrl(invite, student) {
   const email = pick(student, ["email"], pick(invite, ["email"], ""));
   const token = pick(invite, ["token"], "");
   const link = buildInviteLink(token);
-  const subject = "Convite para acessar o Alion Treinos";
-  const body = `Olá, ${name}. Você recebeu um convite para acessar seus treinos no Alion Treinos.\n\nAcesse pelo link:\n${link}\n\nSe não conseguir abrir, copie este token:\n${token}`;
+  const subject = "Convite para acessar o GymPulse";
+  const body = `Olá, ${name}. Você recebeu um convite para acessar seus treinos no GymPulse.\n\nAcesse pelo link:\n${link}\n\nSe não conseguir abrir, copie este token:\n${token}`;
   return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -1438,8 +1438,8 @@ function renderInviteCard(invite) {
   return `
     <article class="simple-item stacked invite-card">
       <strong>${escapeHtml(pick(student, ["name", "nome"], pick(invite, ["name"], "Aluno")))}</strong>
-      <span>E-mail: ${escapeHtml(email || "Nao informado")}</span>
-      <span>WhatsApp/telefone: ${escapeHtml(phone || "Nao informado")}</span>
+      <span>E-mail: ${escapeHtml(email || "Não informado")}</span>
+      <span>WhatsApp/telefone: ${escapeHtml(phone || "Não informado")}</span>
       <span>Status: ${escapeHtml(formatInviteStatus(status))}</span>
       <small>Token: ${escapeHtml(token || "-")}</small>
       <small>Link: ${escapeHtml(link)}</small>
@@ -2041,7 +2041,7 @@ function buildWorkoutExecutionSnapshot(workoutId, exercisesSource = state.workou
       const videoUrl = getExerciseMediaByGender(libraryExercise, student, "video");
       return {
         exercise_id: pick(exercise, ["exercise_id"], null),
-        exercise_name: pick(exercise, ["exercise_name"], "Exercicio"),
+        exercise_name: pick(exercise, ["exercise_name"], "Exercício"),
         muscle_group: pick(libraryExercise, ["muscle_group", "primary_muscle", "grupo_muscular"], null),
         image_url: getExerciseMediaUrl(imageUrl, "image") || null,
         video_url: getExerciseMediaUrl(videoUrl, "video") || null,
@@ -2132,7 +2132,7 @@ function unlockAdminArea(_password) {
   }
 
   renderAdminArea();
-  showToast("Área TI/Admin liberada.");
+  showToast("Área do sistema liberada.");
 }
 
 /**
@@ -2151,13 +2151,13 @@ function maskSupabaseUrl(url) {
     return `${parsed.protocol}//${host.slice(0, 8)}...${host.slice(-14)}`;
   } catch (_error) {
     const value = String(url || "");
-    return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-8)}` : "Nao configurado";
+    return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-8)}` : "Não configurado";
   }
 }
 
 function maskSecret(value) {
   const text = String(value || "");
-  if (!text) return "Nao configurado";
+  if (!text) return "Não configurado";
   return `${text.slice(0, 4)}••••••••••••${text.slice(-4)}`;
 }
 
@@ -2226,7 +2226,7 @@ async function saveAdminSupabaseConfig(form) {
     anonKey: formData.get("anonKey")
   });
   supabaseClient = createSupabaseClient();
-  showToast("Configuracao Supabase salva.");
+  showToast("Configuração do Supabase salva.");
   await loadSupabaseData();
 }
 
@@ -2270,7 +2270,7 @@ function renderAdminArea() {
   const adminExercises = getFilteredAdminExercises();
   el.adminExercisesList.innerHTML = adminExercises.length
     ? adminExercises.map(renderAdminExerciseLibraryItem).join("")
-    : emptyMessage("Nenhum exercicio encontrado.");
+    : emptyMessage("Nenhum exercício encontrado.");
 
   el.adminDiagnostics.innerHTML = `
     ${renderDiagnostic("Status", el.connectionStatus.textContent)}
@@ -2281,7 +2281,7 @@ function renderAdminArea() {
     ${renderDiagnostic("Academias carregadas", state.academies.length)}
     ${renderDiagnostic("Presencas carregadas", state.academyAttendance.length)}
     ${renderDiagnostic("Financeiros carregados", state.academyFinancials.length)}
-    ${renderDiagnostic("Ultimo erro", state.lastError || "Nenhum")}
+    ${renderDiagnostic("Último erro", state.lastError || "Nenhum")}
     ${renderDiagnostic("Erros por tabela", Object.keys(state.tableErrors).length ? Object.values(state.tableErrors).join(" | ") : "Nenhum")}
   `;
 
@@ -2332,9 +2332,9 @@ function renderAdminStudentItem(student) {
     <article class="simple-item stacked admin-student-item${selected}">
       <strong>${escapeHtml(pick(student, ["name", "full_name", "nome"], "Aluno"))}</strong>
       <span>${escapeHtml(pick(student, ["objective", "email"], "Sem objetivo informado"))}</span>
-      <small>E-mail: ${escapeHtml(pick(student, ["email"], "Nao informado"))}</small>
-      <small>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Nao informado"))}</small>
-      <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</small>
+      <small>E-mail: ${escapeHtml(pick(student, ["email"], "Não informado"))}</small>
+      <small>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Não informado"))}</small>
+      <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Não informado"))}</small>
       <small>Convite: ${escapeHtml(inviteStatus)}</small>
       <small>Status: ${escapeHtml(formatWorkoutStatus(status))}</small>
       ${exclusionReason ? `<small><b>Motivo da exclusao:</b> ${escapeHtml(exclusionReason)}</small>` : ""}
@@ -2369,7 +2369,7 @@ function renderAdminExerciseItem(exercise) {
 function renderAdminExerciseLibraryItem(exercise) {
   return `
     <article class="simple-item stacked">
-      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</strong>
+      <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</strong>
       <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-admin-exercise-action="edit" data-id="${escapeHtml(exercise.id)}">Editar</button>
@@ -2489,11 +2489,11 @@ function buildStudentExclusionPayload(reason) {
 
 async function requestStudentDeletionByPersonal(id) {
   if (!id) throw new Error("Selecione um aluno antes de excluir.");
-  const reason = window.prompt("Informe o motivo da exclusao deste aluno para o TI/Admin:");
+  const reason = window.prompt("Informe o motivo da exclusão deste aluno para o sistema:");
   const normalizedReason = String(reason || "").trim();
 
   if (!normalizedReason) {
-    showToast("Informe o motivo para enviar a exclusao ao TI/Admin.", "error");
+    showToast("Informe o motivo para enviar a exclusão ao sistema.", "error");
     return false;
   }
 
@@ -2719,7 +2719,7 @@ async function handleAdminMaintenance(action) {
 
     if (action === "duplicates") {
       const removed = await removeDuplicateExercises();
-      result = `Exercicios duplicados removidos: ${removed}.`;
+      result = `Exercícios duplicados removidos: ${removed}.`;
     }
 
     if (action === "orphans") {
@@ -2754,7 +2754,7 @@ async function handleAdminMaintenance(action) {
     await loadSupabaseData({ silent: true });
     renderAdminArea();
     renderAdminMaintenanceLog(result || "Nenhuma rotina executada.");
-    showToast(result || "Manutencao concluida.");
+    showToast(result || "Manutenção concluída.");
   } catch (error) {
     console.error("[Alion Treinos] Erro na manutencao Admin:", error);
     renderAdminMaintenanceLog(error.message);
@@ -3002,17 +3002,17 @@ async function renderTrainerProfile() {
       <div class="avatar large">${escapeHtml(name.charAt(0).toUpperCase())}</div>
       <div>
         <strong>${escapeHtml(name)}</strong>
-        <span>Apelido: ${escapeHtml(pick(student, ["nickname", "apelido"], "Nao informado"))}</span>
-        <span>Nascimento: ${escapeHtml(birthDate ? formatDate(birthDate) : "Nao informado")}</span>
+        <span>Apelido: ${escapeHtml(pick(student, ["nickname", "apelido"], "Não informado"))}</span>
+        <span>Nascimento: ${escapeHtml(birthDate ? formatDate(birthDate) : "Não informado")}</span>
         <span>Idade: ${escapeHtml(age !== "" ? `${age} anos` : "Nao informada")}</span>
-        <span>E-mail: ${escapeHtml(pick(student, ["email"], "Nao informado"))}</span>
-        <span>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Nao informado"))}</span>
-        <span>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Nao informado"))}</span>
+        <span>E-mail: ${escapeHtml(pick(student, ["email"], "Não informado"))}</span>
+        <span>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Não informado"))}</span>
+        <span>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Não informado"))}</span>
         <span>Genero: ${escapeHtml(formatStudentGender(pick(student, ["genero", "gender"], "")))}</span>
         <span>Altura: ${escapeHtml(formatNumber(pick(student, ["height_cm", "height"], "-")))} cm</span>
-        <small>Objetivo: ${escapeHtml(pick(student, ["objective"], "Nao informado"))}</small>
-        <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Nao informado"))}</small>
-        <small>Restricoes: ${escapeHtml(pick(student, ["restrictions"], "Nao informado"))}</small>
+        <small>Objetivo: ${escapeHtml(pick(student, ["objective"], "Não informado"))}</small>
+        <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Não informado"))}</small>
+        <small>Restrições: ${escapeHtml(pick(student, ["restrictions"], "Não informado"))}</small>
       </div>
     </div>
   `;
@@ -3202,13 +3202,13 @@ function renderWorkoutItem(workout) {
         <div>
           <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
           <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo nao informado"))}</span>
-          <small>Status: ${escapeHtml(formatWorkoutStatus(status))}${hasLogs ? " | possui historico" : ""}</small>
+          <small>Status: ${escapeHtml(formatWorkoutStatus(status))}${hasLogs ? " | possui histórico" : ""}</small>
           <small>Criado em ${formatDate(pick(workout, ["created_at", "start_date"]))}</small>
         </div>
         ${renderWorkoutActions(workout, hasLogs)}
       </div>
       <div class="workout-exercises">
-        ${exercises.length ? exercises.map(renderTrainerWorkoutExerciseItem).join("") : emptyMessage("Nenhum exercicio neste treino.")}
+        ${exercises.length ? exercises.map(renderTrainerWorkoutExerciseItem).join("") : emptyMessage("Nenhum exercício neste treino.")}
       </div>
     </article>
   `;
@@ -3230,8 +3230,8 @@ function renderTrainerWorkoutExerciseItem(item) {
   return `
     <article class="exercise-row" data-workout-exercise-id="${escapeHtml(item.id)}">
       <div>
-        <strong>${escapeHtml(pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio")))}</strong>
-        <span>Series: ${escapeHtml(formatNumber(pick(item, ["sets"], "-")))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(item, ["rest_seconds"], "-")))}s</span>
+        <strong>${escapeHtml(pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercício")))}</strong>
+        <span>Séries: ${escapeHtml(formatNumber(pick(item, ["sets"], "-")))} | Reps: ${escapeHtml(pick(item, ["reps"], "-"))} | Carga: ${escapeHtml(pick(item, ["weight"], "-"))} | Descanso: ${escapeHtml(formatNumber(pick(item, ["rest_seconds"], "-")))}s</span>
         <small>${escapeHtml(pick(item, ["instructions"], ""))}</small>
       </div>
       <div class="record-actions">
@@ -3248,8 +3248,8 @@ function renderTrainerWorkoutExerciseItem(item) {
 function renderExerciseSelect() {
   const exercises = getUniqueExercises();
   el.trainerExerciseSelect.innerHTML = exercises.length
-    ? exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}">${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercicio"))}</option>`).join("")
-    : `<option value="">Nenhum exercicio encontrado</option>`;
+    ? exercises.map((exercise) => `<option value="${escapeHtml(exercise.id)}">${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</option>`).join("")
+    : `<option value="">Nenhum exercício encontrado</option>`;
 }
 
 /**
@@ -3269,7 +3269,7 @@ function renderExerciseLibrary() {
 
   el.trainerExerciseLibrary.innerHTML = exercises.length
     ? exercises.map(renderExerciseLibraryItem).join("")
-    : emptyMessage(state.tableErrors.exercise_library || "Nenhum exercicio encontrado na tabela exercise_library.");
+    : emptyMessage(state.tableErrors.exercise_library || "Nenhum exercício encontrado na biblioteca.");
 }
 
 /**
@@ -3308,7 +3308,7 @@ function renderExerciseLibraryItem(exercise) {
   const imageUrl = getExerciseMediaByGender(exercise, student, "image");
   const videoUrl = getExerciseMediaByGender(exercise, student, "video");
   const commonMistakes = pick(exercise, ["common_mistakes"], "");
-  const exerciseName = pick(exercise, ["name", "title", "nome"], "Exercicio");
+  const exerciseName = pick(exercise, ["name", "title", "nome"], "Exercício");
 
   return `
     <article class="simple-item stacked library-item">
@@ -3348,16 +3348,16 @@ async function saveExerciseLibraryItem(form) {
   try {
     const payload = buildExerciseLibraryPayload(form);
     if (!payload.name) {
-      throw new Error("Informe o nome do exercicio.");
+      throw new Error("Informe o nome do exercício.");
     }
 
     const editId = form.dataset.editId || "";
     if (editId) {
-      await updateWithSchemaFallback("exercise_library", editId, payload, "Erro ao editar exercicio da biblioteca");
-      showToast("Exercicio da biblioteca atualizado.");
+      await updateWithSchemaFallback("exercise_library", editId, payload, "Erro ao editar exercício da biblioteca");
+      showToast("Exercício da biblioteca atualizado.");
     } else {
-      await insertWithSchemaFallback("exercise_library", payload, "Erro ao cadastrar exercicio na biblioteca");
-      showToast("Exercicio cadastrado na biblioteca.");
+      await insertWithSchemaFallback("exercise_library", payload, "Erro ao cadastrar exercício na biblioteca");
+      showToast("Exercício cadastrado na biblioteca.");
     }
 
     clearExerciseLibraryForm(form);
@@ -3384,14 +3384,14 @@ function editExerciseLibraryItem(id, form = el.exerciseLibraryForm) {
   if (form.elements.video_url_feminino) form.elements.video_url_feminino.value = pick(exercise, ["video_url_feminino"], "");
   form.elements.instructions.value = pick(exercise, ["instructions", "description", "instrucoes"], "");
   form.elements.common_mistakes.value = pick(exercise, ["common_mistakes"], "");
-  form.querySelector("button[type='submit']").textContent = "Atualizar exercicio";
+  form.querySelector("button[type='submit']").textContent = "Atualizar exercício";
 }
 
 function clearExerciseLibraryForm(form = el.exerciseLibraryForm) {
   if (!form) return;
   form.reset();
   form.dataset.editId = "";
-  form.querySelector("button[type='submit']").textContent = "Salvar exercicio";
+  form.querySelector("button[type='submit']").textContent = "Salvar exercício";
 }
 
 function updateAssessmentCalculatedFields(form) {
@@ -3736,12 +3736,12 @@ async function addExerciseToWorkout() {
   const exerciseName = pick(selectedExercise, ["name", "title", "nome"], "");
 
   if (!workoutId || !exerciseId) {
-    showToast("Selecione treino e exercicio.", "error");
+    showToast("Selecione treino e exercício.", "error");
     return;
   }
 
   if (!exerciseName) {
-    showToast("Exercicio selecionado nao possui nome cadastrado.", "error");
+    showToast("Exercício selecionado não possui nome cadastrado.", "error");
     return;
   }
 
@@ -3763,13 +3763,13 @@ async function addExerciseToWorkout() {
 
   try {
     if (editId) {
-      await updateWithSchemaFallback("workout_exercises", editId, payload, "Erro ao editar exercicio do treino");
+      await updateWithSchemaFallback("workout_exercises", editId, payload, "Erro ao editar exercício do treino");
       el.addExerciseButton.dataset.editId = "";
-      el.addExerciseButton.textContent = "Adicionar exercicio";
-      showToast("Exercicio atualizado no treino.");
+      el.addExerciseButton.textContent = "Adicionar exercício";
+      showToast("Exercício atualizado no treino.");
     } else {
       await insertWorkoutExerciseWithFallback(payload);
-      showToast("Exercicio adicionado ao treino.");
+      showToast("Exercício adicionado ao treino.");
     }
     clearWorkoutExerciseForm();
     await loadSupabaseData();
@@ -3882,8 +3882,8 @@ async function deleteWorkoutExercise(id) {
   console.log("[Alion Treinos] deleteWorkoutExercise(id):", id);
 
   try {
-    await deleteById("workout_exercises", id, "Erro ao remover exercicio do treino");
-    showToast("Exercicio removido do treino.");
+    await deleteById("workout_exercises", id, "Erro ao remover exercício do treino");
+    showToast("Exercício removido do treino.");
     await reloadAfterDelete();
   } catch (error) {
     showToast(error.message, "error");
@@ -3895,7 +3895,7 @@ async function deleteWorkoutExercise(id) {
  */
 async function deleteWorkout(id) {
   if (!isAdmin()) {
-    showToast("Exclusao permanente de treinos e permitida apenas para TI/Admin. Use arquivar ou desativar.", "error");
+    showToast("Exclusão permanente de treinos é permitida apenas pelo sistema. Use arquivar ou desativar.", "error");
     return;
   }
 
@@ -3912,7 +3912,7 @@ async function deleteWorkout(id) {
   try {
     if (workoutHasLogs(id) && !await confirmAdminDestructiveAction({
       title: "Excluir logs do treino",
-      description: "Este treino possui historico. Confirme para remover tambem os logs vinculados.",
+      description: "Este treino possui histórico. Confirme para remover também os registros vinculados.",
       expectedText: "EXCLUIR LOGS"
     })) {
       return;
@@ -3963,13 +3963,13 @@ async function deleteStudent(id = state.selectedStudentId) {
   }
 
   if (isStudent()) {
-    showToast("Aluno nao pode excluir cadastro. Fale com o Personal ou TI/Admin.", "error");
+    showToast("Aluno não pode excluir cadastro. Fale com o personal ou com o sistema.", "error");
     return;
   }
 
   const confirmation = isAdmin()
     ? "Tem certeza que deseja excluir definitivamente? Esta acao nao podera ser desfeita."
-    : "Tem certeza que deseja marcar este aluno como excluido e enviar ao TI/Admin?";
+    : "Tem certeza que deseja marcar este aluno como excluído e enviar ao sistema?";
   if (!window.confirm(confirmation)) return;
   console.log("[Alion Treinos] deleteStudent(id):", id);
 
@@ -3980,7 +3980,7 @@ async function deleteStudent(id = state.selectedStudentId) {
     } else {
       const deleted = await requestStudentDeletionByPersonal(id);
       if (!deleted) return;
-      showToast("Aluno marcado como excluido e enviado ao TI/Admin.");
+      showToast("Aluno marcado como excluído e enviado ao sistema.");
     }
 
     state.selectedStudentId = "";
@@ -4129,7 +4129,7 @@ function editWorkoutExercise(id) {
   el.restInput.value = normalizeNumberInput(pick(record, ["rest_seconds"], ""));
   el.exerciseNotesInput.value = pick(record, ["instructions"], "");
   el.addExerciseButton.dataset.editId = id;
-  el.addExerciseButton.textContent = "Atualizar exercicio";
+  el.addExerciseButton.textContent = "Atualizar exercício";
   switchTrainerTab("workouts");
 }
 
@@ -4177,7 +4177,7 @@ function renderTrainerHistory() {
     renderHistoryBlock("Treinos concluidos", logs.length
       ? logs.slice(0, 8).map((log) => `${formatDate(pick(log, ["completed_at", "created_at"]))} - ${escapeHtml(pick(state.workouts.find((workout) => String(workout.id) === String(log.workout_id)), ["title", "name", "nome"], "Treino"))}`)
       : ["Nenhum treino concluido ainda."]),
-    renderHistoryBlock("Evolucao de exercicios", renderExerciseEvolution(workouts))
+    renderHistoryBlock("Evolução de exercícios", renderExerciseEvolution(workouts))
   ];
 
   el.trainerHistory.innerHTML = blocks.join("");
@@ -4207,7 +4207,7 @@ function renderExerciseEvolution(workouts) {
       lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(exerciseName)} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["weight"], "-"))}`);
     });
   });
-  return lines.length ? lines.slice(0, 12) : ["Nenhum exercicio cadastrado nos treinos."];
+  return lines.length ? lines.slice(0, 12) : ["Nenhum exercício cadastrado nos treinos."];
 }
 
 /**
@@ -4346,8 +4346,8 @@ function renderAcademyArea() {
       <article class="simple-item stacked">
         <strong>${escapeHtml(pick(academy, ["name"], "Academia"))}</strong>
         <span>Plano: ${escapeHtml(pick(academy, ["plan_name"], "Piloto 6 meses"))}</span>
-        <small>Responsavel: ${escapeHtml(pick(academy, ["responsible_name", "responsible_email"], "Nao informado"))}</small>
-        <small>Piloto: ${formatDate(pick(academy, ["pilot_start_date"], ""))} ate ${formatDate(pick(academy, ["pilot_end_date"], ""))}</small>
+        <small>Responsável: ${escapeHtml(pick(academy, ["responsible_name", "responsible_email"], "Não informado"))}</small>
+        <small>Piloto: ${formatDate(pick(academy, ["pilot_start_date"], ""))} até ${formatDate(pick(academy, ["pilot_end_date"], ""))}</small>
         <small>Status: ${escapeHtml(pick(academy, ["status"], "ativo"))}</small>
       </article>
     `).join("")
@@ -4357,10 +4357,10 @@ function renderAcademyArea() {
     el.academyLinkList.innerHTML = state.academyLinks.length
       ? state.academyLinks.map((link) => `
         <article class="simple-item stacked">
-          <strong>${escapeHtml(pick(link, ["responsible_email", "academy_code"], "Solicitacao"))}</strong>
+          <strong>${escapeHtml(pick(link, ["responsible_email", "academy_code"], "Solicitação"))}</strong>
           <span>Status: ${escapeHtml(formatInviteStatus(pick(link, ["status"], "pendente")))}</span>
-          <small>Codigo: ${escapeHtml(pick(link, ["academy_code"], "Nao informado"))}</small>
-          <small>Personal: ${escapeHtml(pick(link, ["trainer_user_id", "trainer_id"], "Nao informado"))}</small>
+          <small>Código: ${escapeHtml(pick(link, ["academy_code"], "Não informado"))}</small>
+          <small>Personal: ${escapeHtml(pick(link, ["trainer_user_id", "trainer_id"], "Não informado"))}</small>
           ${(isAdmin() || isOwner()) ? `
             <div class="record-actions">
               <button class="tiny-button" type="button" data-academy-link-action="approve" data-id="${escapeHtml(link.id)}">Aprovar</button>
@@ -4369,7 +4369,7 @@ function renderAcademyArea() {
           ` : ""}
         </article>
       `).join("")
-      : emptyMessage(state.tableErrors.academy_personal_links || "Nenhuma solicitacao de personal.");
+      : emptyMessage(state.tableErrors.academy_personal_links || "Nenhuma solicitação encontrada.");
   }
 
   if (el.academyStudentsList) {
@@ -4379,7 +4379,7 @@ function renderAcademyArea() {
         <article class="simple-item stacked">
           <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
           <span>${escapeHtml(pick(student, ["objective"], "Sem objetivo informado"))}</span>
-          <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp", "contact", "phone", "telefone"], "Nao informado"))}</small>
+          <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp", "contact", "phone", "telefone"], "Não informado"))}</small>
           <small>Status: ${escapeHtml(formatWorkoutStatus(pick(student, ["status"], "ativo")))}</small>
         </article>
       `).join("")
@@ -4395,8 +4395,8 @@ function renderAcademyArea() {
         <article class="simple-item stacked">
           <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
           <span>Entrada: ${escapeHtml(formatDateTime(pick(item, ["checkin_at"], "")))}</span>
-          <span>Saida: ${escapeHtml(pick(item, ["checkout_at"], "") ? formatDateTime(pick(item, ["checkout_at"], "")) : "Em aberto")}</span>
-          <small>Registrado por: ${escapeHtml(pick(item, ["registered_by"], "usuario logado"))}</small>
+          <span>Saída: ${escapeHtml(pick(item, ["checkout_at"], "") ? formatDateTime(pick(item, ["checkout_at"], "")) : "Em aberto")}</span>
+          <small>Registrado por: ${escapeHtml(pick(item, ["registered_by"], "usuário logado"))}</small>
           ${pick(item, ["observation"], "") ? `<small>Obs: ${escapeHtml(pick(item, ["observation"], ""))}</small>` : ""}
         </article>
       `;
@@ -4411,7 +4411,7 @@ function renderAcademyArea() {
           <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
           <span>${formatCurrency(pick(item, ["monthly_value"], 0))} - ${escapeHtml(pick(item, ["status"], "pendente"))}</span>
           <small>Vencimento: ${formatDate(pick(item, ["due_date"], ""))}</small>
-          <small>Pagamento: ${escapeHtml(pick(item, ["payment_method"], "Nao informado"))} ${pick(item, ["paid_at"], "") ? `em ${formatDate(pick(item, ["paid_at"], ""))}` : ""}</small>
+          <small>Pagamento: ${escapeHtml(pick(item, ["payment_method"], "Não informado"))} ${pick(item, ["paid_at"], "") ? `em ${formatDate(pick(item, ["paid_at"], ""))}` : ""}</small>
           ${pick(item, ["observation"], "") ? `<small>Obs: ${escapeHtml(pick(item, ["observation"], ""))}</small>` : ""}
         </article>
       `;
@@ -4693,12 +4693,12 @@ function changeScreen(screenName) {
   const labels = {
     access: "Como deseja acessar?",
     "first-access": "Primeiro acesso",
-    "student-area": "Área Aluno",
-    "trainer-area": "Área Treinador",
+    "student-area": "Meu Treino",
+    "trainer-area": "Treinador",
     "admin-area": "Controle do Sistema"
   };
   labels["academy-area"] = "Academia";
-  el.pageTitle.textContent = labels[screenName] || "Alion Treinos";
+  el.pageTitle.textContent = labels[screenName] || "GymPulse";
 
   if (screenName === "trainer-area") {
     loadSupabaseData();
@@ -4752,11 +4752,11 @@ function updateLoginRoleHelper(role) {
   const helpers = {
     student: {
       title: "Area do aluno",
-      description: "Acesse seus treinos, registre exercicios, cargas, repeticoes e observacoes."
+      description: "Acesse seus treinos, registre exercícios, cargas, repetições e observações."
     },
     trainer: {
       title: "Area do personal",
-      description: "Cadastre alunos, monte treinos, acompanhe evolucao e visualize historicos."
+      description: "Cadastre alunos, monte treinos, acompanhe evolução e visualize históricos."
     },
     owner: {
       title: "Area da academia",
@@ -5702,7 +5702,7 @@ function handleStudentWorkoutQuickAction(event) {
     execution.skipped = false;
     state.pendingConfirmExerciseId = "";
     saveCurrentExecutionDraft();
-    showToast("Exercicio concluido.");
+    showToast("Exercício concluído.");
     renderStudentArea();
     return;
   }
@@ -5725,7 +5725,7 @@ function handleStudentWorkoutQuickAction(event) {
 
   if (action === "pain") {
     execution.pain_level = execution.pain_level || "5";
-    execution.notes = execution.notes || "Senti dor durante o exercicio";
+    execution.notes = execution.notes || "Senti dor durante o exercício";
   }
 
   saveCurrentExecutionDraft();
@@ -5751,7 +5751,7 @@ function startExerciseRestTimer(exerciseId) {
 function openExerciseVideo(videoUrl) {
   const url = getExerciseMediaUrl(videoUrl, "video");
   if (!url) {
-    showToast("Video nao cadastrado para este exercicio.", "error");
+    showToast("Vídeo não cadastrado para este exercício.", "error");
     return;
   }
   window.open(url, "_blank", "noopener,noreferrer");

@@ -6,30 +6,30 @@
     <meta name="theme-color" content="#2a0b45" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Alion" />
-    <title>Alion Treinos | App Treino Supabase</title>
+    <meta name="apple-mobile-web-app-title" content="GymPulse" />
+    <title>GymPulse | Gestão de treinos inteligente</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260607-admin-seguro-v30" />
+    <link rel="stylesheet" href="style.css?v=20260607-textos-gympulse-v31" />
   </head>
   <body>
     <div class="app">
       <aside class="sidebar hidden" id="sidebar">
         <div class="brand">
-          <span>AT</span>
+          <span>GP</span>
           <div>
-            <strong>Alion Treinos</strong>
-            <small>app-treino-supabase</small>
+            <strong>GymPulse</strong>
+            <small>Gestão de treinos inteligente</small>
           </div>
         </div>
 
         <nav class="menu" aria-label="Areas do sistema">
           <button class="menu-button active" type="button" data-screen="access">Trocar acesso</button>
-          <button class="menu-button student-nav" type="button" data-screen="student-area">Area Aluno</button>
-          <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Area Treinador</button>
+          <button class="menu-button student-nav" type="button" data-screen="student-area">Meu Treino</button>
+          <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Treinador</button>
           <button class="menu-button academy-nav" type="button" data-screen="academy-area">Academia</button>
-          <button class="menu-button admin-entry" type="button" data-screen="admin-area">TI/Admin</button>
+          <button class="menu-button admin-entry" type="button" data-screen="admin-area">Sistema</button>
         </nav>
       </aside>
 
@@ -45,7 +45,7 @@
         <section class="screen active" id="screen-access">
           <article class="card access-card">
             <div>
-              <p class="subtitle">Alion Treinos</p>
+              <p class="subtitle">GymPulse</p>
               <h2>Entrar no app</h2>
             </div>
             <div class="login-choice">
@@ -66,7 +66,7 @@
                 </button>
                 <button class="role-chip" type="button" data-login-role="admin">
                   <strong>Admin TI</strong>
-                  <span>Manutencao</span>
+                  <span>Manutenção</span>
                 </button>
               </div>
             </div>
@@ -117,7 +117,7 @@
                 </select>
               </label>
               <button class="primary-button" type="submit">Criar cadastro</button>
-              <p class="muted-text" id="register-status">Aluno nao cria conta livremente. O personal deve enviar um convite.</p>
+              <p class="muted-text" id="register-status">Aluno não cria conta livremente. O personal deve enviar um convite.</p>
             </form>
             <div class="login-helper">
               <strong id="login-helper-title">&Aacute;rea do aluno</strong>
@@ -167,7 +167,7 @@
               <div class="section-title">
                 <div>
                   <h2>Meu treino</h2>
-                  <p>Escolha seu nome para visualizar treino, historico e evolucao.</p>
+                  <p>Escolha seu nome para visualizar treino, histórico e evolução.</p>
                 </div>
                 <select id="student-area-select">
                   <option value="">Selecione um aluno</option>
@@ -189,7 +189,7 @@
 
           <article class="card student-advanced-section">
             <div class="section-title">
-              <h2>Minha evolucao</h2>
+              <h2>Minha evolução</h2>
             </div>
             <div class="grid three-columns" id="student-evolution"></div>
           </article>
@@ -260,7 +260,7 @@
               <div class="section-title">
                 <div>
                   <h2>Alunos cadastrados</h2>
-                  <p>Busca real na tabela students.</p>
+                  <p>Pesquise por nome ou objetivo</p>
                 </div>
                 <button class="secondary-button" type="button" id="reload-trainer-data">Atualizar</button>
               </div>
@@ -491,7 +491,7 @@
                     <select id="trainer-exercise-select"></select>
                   </label>
                   <div class="mini-grid">
-                    <input id="sets-input" type="number" min="1" placeholder="Series" />
+                    <input id="sets-input" type="number" min="1" placeholder="Séries" />
                     <input id="reps-input" type="text" placeholder="Repeticoes" />
                     <input id="load-input" type="text" placeholder="Carga" />
                     <input id="rest-input" type="number" min="0" placeholder="Descanso s" />
@@ -591,7 +591,7 @@
               <div class="section-title">
                 <div>
                   <h2>Academia piloto</h2>
-                  <p>Cadastro basico para o piloto de 6 meses.</p>
+                  <p>Configure os dados da academia</p>
                 </div>
               </div>
               <form class="form-box" id="academy-form">
@@ -608,7 +608,7 @@
                   <input name="whatsapp" type="tel" placeholder="(00) 00000-0000" />
                 </label>
                 <label>
-                  Endereco
+                  Endereço
                   <input name="address" type="text" placeholder="Rua, numero, bairro" />
                 </label>
                 <label>
@@ -632,7 +632,7 @@
                 <button class="primary-button" type="submit">Salvar academia</button>
               </form>
               <div class="list spaced" id="academy-list"></div>
-              <h3>Solicitacoes de personal</h3>
+              <h3>Solicitações de personal</h3>
               <div class="list compact-list" id="academy-link-list"></div>
             </article>
 
@@ -640,7 +640,7 @@
               <div class="section-title">
                 <div>
                   <h2>Alunos da academia</h2>
-                  <p>Cadastro rapido para o piloto.</p>
+                  <p>Adicione alunos rapidamente</p>
                 </div>
               </div>
               <form class="form-box" id="academy-student-form">
@@ -688,7 +688,7 @@
                   <select name="student_id" id="attendance-student-select" required></select>
                 </label>
                 <label>
-                  Observacao
+                  Observação
                   <input name="observation" type="text" placeholder="Opcional" />
                 </label>
                 <div class="button-row">
@@ -696,7 +696,7 @@
                   <button class="secondary-button" type="submit" data-attendance-action="checkout">Registrar saida</button>
                 </div>
               </form>
-              <h3>Historico diario</h3>
+              <h3>Histórico diário</h3>
               <div class="list compact-list" id="attendance-list"></div>
             </article>
           </div>
@@ -725,7 +725,7 @@
                 <input name="payment_method" type="text" placeholder="Forma de pagamento" />
                 <input name="paid_at" type="date" />
               </div>
-              <input name="observation" type="text" placeholder="Observacao" />
+              <input name="observation" type="text" placeholder="Observação" />
               <button class="primary-button" type="submit">Salvar financeiro</button>
             </form>
             <div class="list compact-list" id="financial-list"></div>
@@ -748,10 +748,9 @@
             <article class="card">
               <div class="section-title">
                 <div>
-                  <h2>Configuracao Supabase</h2>
-                  <p>Disponivel apenas dentro da area TI/Admin.</p>
+                  <h2>Configuração do Supabase</h2>
                 </div>
-                <span class="connection" id="admin-connection-status">Nao testado</span>
+                <span class="connection" id="admin-connection-status">Não verificado</span>
               </div>
 
               <form class="form-box" id="supabase-config-form">
@@ -818,14 +817,14 @@
             </div>
 
             <article class="card">
-              <h2>Diagnostico do sistema</h2>
+              <h2>Diagnóstico do sistema</h2>
               <div class="diagnostic-grid" id="admin-diagnostics"></div>
             </article>
 
             <article class="card">
               <div class="section-title compact-title">
                 <div>
-                  <h2>Manutencao Admin TI</h2>
+                  <h2>Manutenção do sistema</h2>
                   <p>Exclusoes permanentes apenas para limpar testes, duplicados e dados orfaos.</p>
                 </div>
               </div>
@@ -849,8 +848,8 @@
                 <div class="list" id="admin-errors-list"></div>
               </article>
               <article class="card">
-                <h2>Politicas RLS</h2>
-                <p class="muted-text">A anon key nao consegue consultar pg_policies. Esta area mostra as politicas esperadas para o MVP.</p>
+                <h2>Políticas RLS</h2>
+                <p class="muted-text">A chave pública não consegue consultar políticas internas. Esta área mostra as políticas esperadas para o MVP.</p>
                 <div class="list" id="admin-rls-policies"></div>
               </article>
             </div>
@@ -862,8 +861,8 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="modal-backdrop hidden" id="admin-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title">
       <div class="modal-card">
-        <h2 id="admin-confirm-title">Confirmar acao</h2>
-        <p id="admin-confirm-description">Esta acao exige confirmacao.</p>
+        <h2 id="admin-confirm-title">Confirmar ação</h2>
+        <p id="admin-confirm-description">Esta ação exige confirmação.</p>
         <p class="muted-text">Digite exatamente: <strong id="admin-confirm-expected"></strong></p>
         <input id="admin-confirm-input" type="text" autocomplete="off" />
         <div class="button-row">
@@ -874,7 +873,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260607-admin-seguro-v30"></script>
-    <script src="app.js?v=20260607-admin-seguro-v30"></script>
+    <script src="supabase.js?v=20260607-textos-gympulse-v31"></script>
+    <script src="app.js?v=20260607-textos-gympulse-v31"></script>
   </body>
 </html>
