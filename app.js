@@ -208,6 +208,7 @@ const el = {
 Object.assign(el, {
   totalAcademies: document.querySelector("#total-academies"),
   totalAttendanceToday: document.querySelector("#total-attendance-today"),
+  totalInactiveStudents: document.querySelector("#total-inactive-students"),
   financeTotalPaid: document.querySelector("#finance-total-paid"),
   financeTotalPending: document.querySelector("#finance-total-pending"),
   trainerAcademyLinkForm: document.querySelector("#trainer-academy-link-form"),
@@ -478,11 +479,18 @@ function renderAll() {
  * Renderiza os indicadores da area Treinador.
  */
 function renderMetrics() {
-  el.totalStudents.textContent = state.students.length;
-  el.totalExercises.textContent = state.exercises.length;
-  el.totalWorkouts.textContent = state.workouts.length;
-  el.totalLogs.textContent = state.workoutLogs.length;
+  setKpiValue(el.totalStudents, state.students.length);
+  setKpiValue(el.totalExercises, state.exercises.length);
+  setKpiValue(el.totalWorkouts, state.workouts.length);
+  setKpiValue(el.totalLogs, state.workoutLogs.length);
   if (el.totalAcademies) el.totalAcademies.textContent = state.academies.length;
+}
+
+function setKpiValue(element, value) {
+  if (!element) return;
+  const number = Number(value || 0);
+  element.textContent = number;
+  element.classList.toggle("positive", number > 0);
 }
 
 /**
@@ -947,23 +955,19 @@ function renderTrainerStudentButton(student) {
   const name = pick(student, ["name", "full_name", "nome"], "Aluno sem nome");
   const detail = pick(student, ["objective", "difficulties"], "Sem objetivo informado");
   const invite = getLatestInviteForStudent(student.id);
-  const inviteStatus = invite ? formatInviteStatus(pick(invite, ["status"], "")) : "Sem convite";
-  const contact = [
-    pick(student, ["email"], ""),
-    pick(student, ["phone", "telefone"], ""),
-    pick(student, ["whatsapp"], "")
-  ].filter(Boolean).join(" | ");
+  const inviteStatusRaw = invite ? pick(invite, ["status"], "") : "";
+  const inviteStatus = invite ? formatInviteStatus(inviteStatusRaw) : "Sem convite";
+  const inviteStatusClass = getInviteStatusClass(inviteStatusRaw);
   const active = String(student.id) === String(state.selectedStudentId) ? " active" : "";
 
   return `
-    <button class="list-item selectable${active}" type="button" data-student-id="${escapeHtml(student.id)}">
-      <div class="avatar">${escapeHtml(name.charAt(0).toUpperCase())}</div>
-      <div>
+    <button class="list-item selectable student-list-card${active}" type="button" data-student-id="${escapeHtml(student.id)}">
+      <div class="avatar student-avatar">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+      <div class="student-list-info">
         <strong>${escapeHtml(name)}</strong>
         <span>${escapeHtml(detail)}</span>
-        ${contact ? `<small>${escapeHtml(contact)}</small>` : ""}
-        <small>Convite: ${escapeHtml(inviteStatus)}</small>
       </div>
+      <small class="invite-badge ${escapeHtml(inviteStatusClass)}">${escapeHtml(inviteStatus)}</small>
     </button>
   `;
 }
@@ -1071,6 +1075,14 @@ function formatInviteStatus(status) {
     cancelado: "Cancelado"
   };
   return labels[normalized] || "Não informado";
+}
+
+function getInviteStatusClass(status) {
+  const normalized = normalizeText(status || "");
+  if (["pendente"].includes(normalized)) return "pending";
+  if (["aceito", "aprovado"].includes(normalized)) return "accepted";
+  if (["expirado", "cancelado", "recusado"].includes(normalized)) return "expired";
+  return "neutral";
 }
 
 /**
@@ -4345,6 +4357,43 @@ function renderAcademyStudentOptions() {
   if (el.financialStudentSelect) el.financialStudentSelect.innerHTML = options;
 }
 
+function getStudentLastAttendanceDate(studentId) {
+  const records = state.academyAttendance
+    .filter((item) => String(pick(item, ["student_id", "aluno_id"], "")) === String(studentId))
+    .map((item) => pick(item, ["checkin_at", "created_at"], ""))
+    .filter(Boolean)
+    .sort((a, b) => String(b).localeCompare(String(a)));
+
+  return records[0] || "";
+}
+
+function getDaysSinceDate(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.max(0, Math.floor((end - start) / 86400000));
+}
+
+function getStudentInactivityInfo(student) {
+  const lastAttendance = getStudentLastAttendanceDate(student.id);
+  const fallbackDate = pick(student, ["created_at"], "");
+  const days = getDaysSinceDate(lastAttendance || fallbackDate);
+
+  if (days === null || days < 7) {
+    return { days, badge: "", level: "" };
+  }
+
+  const level = days > 14 ? "danger" : "warning";
+  return {
+    days,
+    level,
+    badge: `${days} dias sem aparecer`
+  };
+}
+
 function renderAcademyArea() {
   if (!el.academyList) return;
   const academyId = getCurrentAcademyId();
@@ -4401,15 +4450,23 @@ function renderAcademyArea() {
 
   if (el.academyStudentsList) {
     const academyStudents = getAccessibleAcademyStudents();
+    const inactiveStudentsCount = academyStudents
+      .filter((student) => (getStudentInactivityInfo(student).days || 0) >= 7)
+      .length;
+    if (el.totalInactiveStudents) el.totalInactiveStudents.textContent = inactiveStudentsCount;
     el.academyStudentsList.innerHTML = academyStudents.length
-      ? academyStudents.map((student) => `
-        <article class="simple-item stacked">
-          <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
-          <span>${escapeHtml(pick(student, ["objective"], "Sem objetivo informado"))}</span>
-          <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp", "contact", "phone", "telefone"], "Não informado"))}</small>
-          <small>Status: ${escapeHtml(formatWorkoutStatus(pick(student, ["status"], "ativo")))}</small>
-        </article>
-      `).join("")
+      ? academyStudents.map((student) => {
+        const inactivity = getStudentInactivityInfo(student);
+        return `
+          <article class="simple-item stacked">
+            <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
+            <span>${escapeHtml(pick(student, ["objective"], "Sem objetivo informado"))}</span>
+            <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp", "contact", "phone", "telefone"], "Não informado"))}</small>
+            <small>Status: ${escapeHtml(formatWorkoutStatus(pick(student, ["status"], "ativo")))}</small>
+            ${inactivity.badge ? `<span class="inactive-badge ${escapeHtml(inactivity.level)}">${escapeHtml(inactivity.badge)}</span>` : ""}
+          </article>
+        `;
+      }).join("")
       : emptyMessage("Nenhum aluno vinculado a esta academia.");
   }
 

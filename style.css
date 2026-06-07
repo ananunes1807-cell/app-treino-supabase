@@ -268,7 +268,28 @@ h3 {
   hyphens: none;
 }
 
-.stat-card span,
+.stat-card {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-height: 122px;
+  align-content: start;
+}
+
+.kpi-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.stat-card span:not(.kpi-icon),
 .mini-card span {
   display: block;
   color: var(--muted);
@@ -278,8 +299,18 @@ h3 {
 
 .stat-card strong {
   display: block;
-  margin-top: 8px;
   font-size: 32px;
+  line-height: 1;
+}
+
+.stat-card strong.positive {
+  color: var(--primary);
+}
+
+.kpi-meta {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .mini-card strong {
@@ -579,6 +610,75 @@ label {
   text-align: left;
 }
 
+.student-list-card {
+  min-height: 76px;
+  align-items: center;
+}
+
+.student-list-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.student-list-info strong {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.student-list-info span {
+  margin-top: 3px;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.invite-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.invite-badge.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.invite-badge.accepted {
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
+.invite-badge.expired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.invite-badge.neutral {
+  background: #eef2f7;
+  color: var(--muted);
+}
+
+.inactive-badge {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inactive-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.inactive-badge.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .data-record {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -618,6 +718,27 @@ label {
 .data-record span,
 .profile-card span,
 .profile-card small {
+  color: var(--muted);
+}
+
+.student-list-card .student-list-info span {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.list-item .invite-badge.pending {
+  color: #92400e;
+}
+
+.list-item .invite-badge.accepted {
+  color: var(--primary-dark);
+}
+
+.list-item .invite-badge.expired {
+  color: #991b1b;
+}
+
+.list-item .invite-badge.neutral {
   color: var(--muted);
 }
 
@@ -698,6 +819,22 @@ label {
   grid-template-columns: 1fr;
   align-items: flex-start;
   gap: 12px;
+}
+
+.work-mode-details {
+  display: grid;
+  gap: 12px;
+}
+
+.work-mode-details summary {
+  min-height: 48px;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.work-mode-details[open] summary {
+  margin-bottom: 12px;
 }
 
 .mode-toggle {
@@ -1216,6 +1353,29 @@ label {
 }
 
 @media (max-width: 640px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trainer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-list-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    min-height: 86px;
+  }
+
+  .student-list-card .invite-badge {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .stat-card {
+    min-height: 132px;
+  }
+
   body[data-student-mode="easy"] .student-advanced-section {
     display: none;
   }
@@ -1272,7 +1432,8 @@ label {
 
   .primary-button,
   .secondary-button,
-  .quick-button {
+  .quick-button,
+  .tiny-button {
     min-height: 52px;
     font-size: 16px;
   }
