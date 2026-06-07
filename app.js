@@ -1,5 +1,3 @@
-// Senha temporaria apenas para o MVP do treinador. TI/Admin usa Supabase Auth + app_profiles.role.
-const TRAINER_TEMP_PASSWORD = "123ac";
 const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
 const PENDING_WORKOUT_LOGS_KEY = "Alion Treinos_pending_workout_logs";
 const APP_PUBLIC_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
@@ -4711,10 +4709,6 @@ function changeScreen(screenName) {
  * Define o papel visual escolhido na tela inicial.
  */
 function setAccessRole(role) {
-  if (role === "trainer" && !validateTemporaryPassword(TRAINER_TEMP_PASSWORD, "Senha do Treinador")) {
-    return;
-  }
-
   state.accessRole = role;
   if (role !== "admin") {
     state.authProfile = state.authProfile || { role };
@@ -4753,17 +4747,6 @@ function setAccessRole(role) {
 /**
  * Solicita senha temporária antes de abrir áreas restritas.
  */
-function validateTemporaryPassword(expectedPassword, label) {
-  const password = window.prompt(label);
-
-  if (password !== expectedPassword) {
-    showToast("Senha incorreta.", "error");
-    return false;
-  }
-
-  return true;
-}
-
 function updateLoginRoleHelper(role) {
   state.preferredLoginRole = role;
   const helpers = {
