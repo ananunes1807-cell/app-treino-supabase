@@ -197,6 +197,7 @@ Object.assign(el, {
   financeTotalPending: document.querySelector("#finance-total-pending"),
   trainerAcademyLinkForm: document.querySelector("#trainer-academy-link-form"),
   academyLinkFields: document.querySelector("#academy-link-fields"),
+  trainerAcademySubmit: document.querySelector("#trainer-academy-submit"),
   trainerAcademyStatus: document.querySelector("#trainer-academy-status"),
   academyForm: document.querySelector("#academy-form"),
   academyList: document.querySelector("#academy-list"),
@@ -3978,10 +3979,18 @@ function formatCurrency(value) {
 
 function getAcademyLinkStatus() {
   const profileIds = getProfileOwnerIds();
-  return state.academyLinks.find((link) => (
+  const links = state.academyLinks
+    .filter((link) => (
     profileIds.includes(String(pick(link, ["trainer_id"], "")))
     || profileIds.includes(String(pick(link, ["trainer_user_id"], "")))
-  ));
+    ))
+    .sort((a, b) => String(pick(b, ["created_at"], "")).localeCompare(String(pick(a, ["created_at"], ""))));
+
+  return links.find((link) => normalizeText(pick(link, ["status"], "")) === "aprovado" && !pick(link, ["independent_personal"], false))
+    || links.find((link) => normalizeText(pick(link, ["status"], "")) === "pendente" && !pick(link, ["independent_personal"], false))
+    || links.find((link) => pick(link, ["independent_personal"], false))
+    || links[0]
+    || null;
 }
 
 function renderTrainerAcademyStatus() {
@@ -3989,25 +3998,34 @@ function renderTrainerAcademyStatus() {
   const link = getAcademyLinkStatus();
 
   if (!link) {
-    el.trainerAcademyStatus.innerHTML = emptyMessage("Escolha seu modo de trabalho para o piloto.");
+    el.trainerAcademyStatus.innerHTML = emptyMessage("Escolha seu modo de trabalho. Voce pode mudar depois.");
     return;
   }
 
-  const status = pick(link, ["status"], "pendente");
-  const mode = pick(link, ["independent_personal"], false)
-    ? "Personal independente"
-    : "Vinculo com academia";
-  const warning = status === "pendente" && !pick(link, ["independent_personal"], false)
-    ? "<small>Enquanto o vinculo nao for aprovado, voce continua usando como independente.</small>"
-    : "";
+  const status = normalizeText(pick(link, ["status"], "pendente"));
+  const isIndependent = Boolean(pick(link, ["independent_personal"], false));
+  const academy = state.academies.find((item) => String(item.id) === String(pick(link, ["academy_id"], "")));
+  const mode = isIndependent ? "Personal independente" : "Vinculo com academia";
+  const details = isIndependent
+    ? `
+      <span>Voce esta usando o painel normalmente como personal independente.</span>
+      <small>Deseja vincular-se a uma academia?</small>
+      <button class="tiny-button" type="button" data-trainer-academy-action="start-link">Solicitar vinculo</button>
+    `
+    : `
+      <span>Status: ${escapeHtml(formatInviteStatus(status))}</span>
+      ${academy ? `<small>Academia: ${escapeHtml(pick(academy, ["name"], "Academia"))}</small>` : ""}
+      ${pick(link, ["academy_code"], "") ? `<small>Codigo solicitado: ${escapeHtml(pick(link, ["academy_code"], ""))}</small>` : ""}
+      ${pick(link, ["responsible_email"], "") ? `<small>Responsavel: ${escapeHtml(pick(link, ["responsible_email"], ""))}</small>` : ""}
+      ${status === "pendente" ? `<small>Enquanto o vinculo nao for aprovado, voce continua usando como independente.</small>` : ""}
+      ${status === "pendente" ? `<button class="tiny-button danger" type="button" data-trainer-academy-action="cancel-link" data-id="${escapeHtml(link.id)}">Cancelar solicitacao</button>` : ""}
+      ${status === "aprovado" ? `<button class="tiny-button" type="button" data-trainer-academy-action="unlink" data-id="${escapeHtml(link.id)}">Sair da academia</button>` : ""}
+    `;
 
   el.trainerAcademyStatus.innerHTML = `
     <article class="simple-item stacked">
       <strong>${escapeHtml(mode)}</strong>
-      <span>Status: ${escapeHtml(formatInviteStatus(status))}</span>
-      ${pick(link, ["academy_code"], "") ? `<small>Codigo: ${escapeHtml(pick(link, ["academy_code"], ""))}</small>` : ""}
-      ${pick(link, ["responsible_email"], "") ? `<small>Responsavel: ${escapeHtml(pick(link, ["responsible_email"], ""))}</small>` : ""}
-      ${warning}
+      ${details}
     </article>
   `;
 }
@@ -4127,25 +4145,26 @@ async function saveTrainerAcademyLink(form) {
   const formData = new FormData(form);
   const answer = String(formData.get("works_from_academy") || "");
   if (!answer) {
-    showToast("Informe se voce trabalha ou vem de uma academia.", "error");
+    showToast("Escolha como deseja trabalhar agora.", "error");
     return;
   }
 
   const responsibleProfile = await fetchAppProfileByUserId(state.authUser?.id);
-  const isIndependent = answer === "nao";
+  const isIndependent = answer === "independent" || answer === "nao";
+  const wantsAcademy = answer === "academy" || answer === "sim";
   const responsibleContact = formData.get("responsible_contact") || formData.get("responsible_email") || null;
   const payload = {
     trainer_id: responsibleProfile?.id || state.authProfile?.id || null,
     trainer_user_id: state.authUser?.id || null,
-    academy_code: isIndependent ? null : formData.get("academy_code") || null,
-    responsible_email: isIndependent ? null : responsibleContact,
-    works_from_academy: !isIndependent,
+    academy_code: wantsAcademy ? formData.get("academy_code") || null : null,
+    responsible_email: wantsAcademy ? responsibleContact : null,
+    works_from_academy: wantsAcademy,
     independent_personal: isIndependent,
     status: isIndependent ? "aprovado" : "pendente",
     notes: isIndependent ? "Personal independente" : "Solicitacao de vinculo enviada"
   };
 
-  if (!isIndependent && (!payload.academy_code || !payload.responsible_email)) {
+  if (wantsAcademy && (!payload.academy_code || !payload.responsible_email)) {
     showToast("Informe codigo da academia e e-mail ou WhatsApp do responsavel.", "error");
     return;
   }
@@ -4157,6 +4176,49 @@ async function saveTrainerAcademyLink(form) {
     await loadSupabaseData({ silent: true });
   } catch (error) {
     showToast(error.message, "error");
+  }
+}
+
+async function handleTrainerAcademyAction(action, id = "") {
+  try {
+    if (action === "start-link") {
+      el.trainerAcademyLinkForm.elements.works_from_academy.value = "academy";
+      updateTrainerAcademyFormMode("academy");
+      el.trainerAcademyLinkForm.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (!id) throw new Error("Solicitacao nao encontrada.");
+
+    if (action === "cancel-link") {
+      if (!window.confirm("Cancelar solicitacao de vinculo?")) return;
+      await updateWithSchemaFallback("academy_personal_links", id, {
+        status: "cancelado",
+        notes: "Solicitacao cancelada pelo personal"
+      }, "Erro ao cancelar solicitacao");
+      showToast("Solicitacao cancelada.");
+    }
+
+    if (action === "unlink") {
+      if (!window.confirm("Sair desta academia? Seus alunos independentes serao preservados.")) return;
+      await updateWithSchemaFallback("academy_personal_links", id, {
+        status: "cancelado",
+        notes: "Personal saiu da academia"
+      }, "Erro ao desvincular academia");
+      showToast("Vinculo removido. Seus dados independentes foram preservados.");
+    }
+
+    await loadSupabaseData({ silent: true });
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function updateTrainerAcademyFormMode(value) {
+  const wantsAcademy = value === "academy" || value === "sim";
+  el.academyLinkFields?.classList.toggle("hidden", !wantsAcademy);
+  if (el.trainerAcademySubmit) {
+    el.trainerAcademySubmit.textContent = wantsAcademy ? "Solicitar vinculo" : "Salvar modo independente";
   }
 }
 
@@ -5444,12 +5506,18 @@ function bindEvents() {
 
   el.trainerAcademyLinkForm?.addEventListener("change", (event) => {
     if (event.target.name !== "works_from_academy") return;
-    el.academyLinkFields?.classList.toggle("hidden", event.target.value === "nao");
+    updateTrainerAcademyFormMode(event.target.value);
   });
 
   el.trainerAcademyLinkForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     saveTrainerAcademyLink(event.currentTarget);
+  });
+
+  el.trainerAcademyStatus?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-trainer-academy-action]");
+    if (!button) return;
+    handleTrainerAcademyAction(button.dataset.trainerAcademyAction, button.dataset.id);
   });
 
   el.academyForm?.addEventListener("submit", (event) => {

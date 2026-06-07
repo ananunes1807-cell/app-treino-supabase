@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260607-convites-persistentes" />
+    <link rel="stylesheet" href="style.css?v=20260607-modo-personal-flexivel" />
   </head>
   <body>
     <div class="app">
@@ -201,23 +201,23 @@
             <div class="section-title">
               <div>
                 <h2>Modo de trabalho</h2>
-                <p>Informe se voce trabalha vinculado a uma academia ou como personal independente.</p>
+                <p>Escolha como deseja trabalhar agora. Voce pode comecar independente e vincular uma academia depois.</p>
               </div>
             </div>
             <form class="form-box compact-form" id="trainer-academy-link-form">
               <label>
-                Voce trabalha ou vem de uma academia?
+                Como deseja trabalhar agora?
                 <select name="works_from_academy" required>
                   <option value="">Selecione</option>
-                  <option value="sim">Sim, quero vincular a uma academia</option>
-                  <option value="nao">Nao, sou personal independente</option>
+                  <option value="independent">Personal independente</option>
+                  <option value="academy">Vinculado a uma academia</option>
                 </select>
               </label>
-              <div class="mini-grid" id="academy-link-fields">
+              <div class="mini-grid hidden" id="academy-link-fields">
                 <input name="academy_code" type="text" placeholder="Codigo da academia" />
                 <input name="responsible_contact" type="text" placeholder="E-mail ou WhatsApp do responsavel" />
               </div>
-              <button class="secondary-button" type="submit">Salvar modo de trabalho</button>
+              <button class="secondary-button" type="submit" id="trainer-academy-submit">Salvar modo independente</button>
               <div class="list" id="trainer-academy-status"></div>
             </form>
           </article>
@@ -844,7 +844,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260607-convites-persistentes"></script>
-    <script src="app.js?v=20260607-convites-persistentes"></script>
+    <script src="supabase.js?v=20260607-modo-personal-flexivel"></script>
+    <script src="app.js?v=20260607-modo-personal-flexivel"></script>
   </body>
 </html>
