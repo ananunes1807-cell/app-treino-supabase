@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260607-modo-personal-flexivel" />
+    <link rel="stylesheet" href="style.css?v=20260607-mobile-aluno-facil-v28" />
   </head>
   <body>
     <div class="app">
@@ -148,8 +148,22 @@
         </section>
 
         <section class="screen" id="screen-student-area">
+          <article class="card student-mode-card">
+            <div class="section-title compact-title">
+              <div>
+                <h2>Meu painel</h2>
+                <p>Escolha o jeito mais confortável de usar.</p>
+              </div>
+            </div>
+            <div class="mode-toggle" id="student-mode-toggle">
+              <button class="mode-button active" type="button" data-student-mode="easy">Modo F&aacute;cil</button>
+              <button class="mode-button" type="button" data-student-mode="advanced">Modo Avan&ccedil;ado</button>
+            </div>
+            <p class="muted-text version-badge">Vers&atilde;o mobile aluno f&aacute;cil v28</p>
+          </article>
+
           <div class="grid two-columns">
-            <article class="card">
+            <article class="card student-main-card">
               <div class="section-title">
                 <div>
                   <h2>Meu treino</h2>
@@ -165,7 +179,7 @@
               </button>
             </article>
 
-            <article class="card">
+            <article class="card student-advanced-section">
               <div class="section-title">
                 <h2>Hist&oacute;rico</h2>
               </div>
@@ -173,14 +187,14 @@
             </article>
           </div>
 
-          <article class="card">
+          <article class="card student-advanced-section">
             <div class="section-title">
               <h2>Minha evolucao</h2>
             </div>
             <div class="grid three-columns" id="student-evolution"></div>
           </article>
 
-          <div class="grid two-columns">
+          <div class="grid two-columns student-advanced-section">
             <article class="card">
               <div class="section-title">
                 <h2>Minhas avalia&ccedil;&otilde;es</h2>
@@ -773,29 +787,37 @@
                 <div class="list" id="admin-students-list"></div>
               </article>
               <article class="card">
-                <h2>Exerc&iacute;cios do banco</h2>
-                <form class="form-box compact-form exercise-library-form" id="admin-exercise-library-form">
-                  <h4>Cadastrar ou editar exerc&iacute;cio</h4>
+                <details class="mobile-collapsible">
+                  <summary>Biblioteca</summary>
                   <div class="mini-grid">
-                    <input name="name" type="text" placeholder="Nome" required />
-                    <input name="muscle_group" type="text" placeholder="Grupo muscular" />
-                    <input name="equipment" type="text" placeholder="Equipamento" />
-                    <input name="difficulty" type="text" placeholder="Dificuldade" />
-                    <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
-                    <input name="video_url" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio.mp4" />
-                    <input name="image_url_masculino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_m.webp" />
-                    <input name="image_url_feminino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_f.webp" />
-                    <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
-                    <input name="video_url_feminino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_f.mp4" />
+                    <input id="admin-exercise-search" type="search" placeholder="Buscar exerc&iacute;cio" />
+                    <select id="admin-exercise-group-filter">
+                      <option value="">Todos os grupos</option>
+                    </select>
                   </div>
-                  <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
-                  <textarea name="common_mistakes" rows="3" placeholder="Erros comuns"></textarea>
-                  <div class="button-row">
-                    <button class="secondary-button" type="submit" id="save-admin-library-exercise">Salvar exerc&iacute;cio</button>
-                    <button class="ghost-button" type="button" data-cancel-library-exercise-edit>Cancelar edi&ccedil;&atilde;o</button>
-                  </div>
-                </form>
-                <div class="list" id="admin-exercises-list"></div>
+                  <form class="form-box compact-form exercise-library-form" id="admin-exercise-library-form">
+                    <h4>Cadastrar ou editar exerc&iacute;cio</h4>
+                    <div class="mini-grid">
+                      <input name="name" type="text" placeholder="Nome" required />
+                      <input name="muscle_group" type="text" placeholder="Grupo muscular" />
+                      <input name="equipment" type="text" placeholder="Equipamento" />
+                      <input name="difficulty" type="text" placeholder="Dificuldade" />
+                      <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
+                      <input name="video_url" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio.mp4" />
+                      <input name="image_url_masculino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_m.webp" />
+                      <input name="image_url_feminino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_f.webp" />
+                      <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
+                      <input name="video_url_feminino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_f.mp4" />
+                    </div>
+                    <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
+                    <textarea name="common_mistakes" rows="3" placeholder="Erros comuns"></textarea>
+                    <div class="button-row">
+                      <button class="secondary-button" type="submit" id="save-admin-library-exercise">Salvar exerc&iacute;cio</button>
+                      <button class="ghost-button" type="button" data-cancel-library-exercise-edit>Cancelar edi&ccedil;&atilde;o</button>
+                    </div>
+                  </form>
+                  <div class="list" id="admin-exercises-list"></div>
+                </details>
               </article>
             </div>
 
@@ -844,7 +866,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260607-modo-personal-flexivel"></script>
-    <script src="app.js?v=20260607-modo-personal-flexivel"></script>
+    <script src="supabase.js?v=20260607-mobile-aluno-facil-v28"></script>
+    <script src="app.js?v=20260607-mobile-aluno-facil-v28"></script>
   </body>
 </html>

@@ -666,6 +666,157 @@ label {
   gap: 12px;
 }
 
+.mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-button {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.mode-button.active {
+  border-color: rgba(22, 163, 74, 0.45);
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
+.version-badge {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.easy-summary-card,
+.easy-exercise-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 14px;
+}
+
+.easy-summary-card {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: #f0fdf4;
+}
+
+.easy-summary-card strong {
+  color: var(--text);
+  font-size: 22px;
+}
+
+.easy-summary-card span,
+.easy-summary-card small {
+  color: var(--muted);
+}
+
+.easy-exercise-list {
+  display: grid;
+  gap: 12px;
+}
+
+.easy-exercise-card.done {
+  border-color: rgba(22, 163, 74, 0.6);
+  background: #f0fdf4;
+}
+
+.easy-exercise-card > strong {
+  font-size: 20px;
+}
+
+.easy-exercise-card span {
+  color: var(--muted);
+}
+
+.easy-exercise-card label {
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.easy-big-input,
+.easy-exercise-card input {
+  min-height: 54px;
+  font-size: 17px;
+}
+
+.easy-rest-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.rest-timer {
+  min-width: 70px;
+  border-radius: var(--radius);
+  background: #eef2ff;
+  color: #4c1d95;
+  font-size: 24px;
+  padding: 10px;
+  text-align: center;
+}
+
+.easy-done-button {
+  min-height: 58px;
+  font-size: 18px;
+}
+
+.easy-confirm-box {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(22, 163, 74, 0.35);
+  border-radius: var(--radius);
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.easy-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.progress-message {
+  border-color: rgba(22, 163, 74, 0.3);
+  background: #f0fdf4;
+}
+
+.mobile-progress-details,
+.mobile-progress-details details,
+.mobile-collapsible {
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-progress-details summary,
+.mobile-collapsible > summary {
+  min-height: 54px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f8fafc;
+  color: var(--text);
+  font-weight: 900;
+  padding: 14px;
+}
+
+.mobile-progress-details details[open] summary,
+.mobile-collapsible[open] > summary {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: #dcfce7;
+  color: var(--primary-dark);
+}
+
 .exercise-execution-main {
   display: grid;
   flex: 1;
@@ -991,6 +1142,41 @@ label {
 }
 
 @media (max-width: 640px) {
+  body[data-student-mode="easy"] .student-advanced-section {
+    display: none;
+  }
+
+  .student-mode-card,
+  .student-main-card {
+    padding: 14px;
+  }
+
+  .student-main-card .section-title {
+    display: grid;
+    gap: 10px;
+  }
+
+  .student-main-card .section-title select {
+    width: 100%;
+  }
+
+  .mode-toggle {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .easy-rest-row,
+  .easy-confirm-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .rest-timer {
+    width: 100%;
+  }
+
+  .mobile-collapsible > summary {
+    list-style-position: inside;
+  }
+
   .record-title,
   .exercise-row {
     display: grid;

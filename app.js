@@ -98,6 +98,9 @@ const state = {
   workoutLogs: [],
   selectedStudentId: "",
   selectedWorkoutId: "",
+  studentMode: localStorage.getItem("alion-student-mode") || "easy",
+  restTimers: {},
+  pendingConfirmExerciseId: "",
   trainerActiveTab: "profile",
   trainerWorkoutFilter: "active",
   trainerAssessmentsCache: [],
@@ -108,6 +111,8 @@ const state = {
   studentSearch: "",
   exerciseSearch: "",
   exerciseGroupFilter: "",
+  adminExerciseSearch: "",
+  adminExerciseGroupFilter: "",
   accessRole: "",
   adminUnlocked: false,
   lastError: "",
@@ -130,6 +135,7 @@ const el = {
   studentAssessments: document.querySelector("#student-assessments"),
   studentMeasurements: document.querySelector("#student-measurements"),
   completeWorkoutButton: document.querySelector("#complete-workout-button"),
+  studentModeToggle: document.querySelector("#student-mode-toggle"),
   trainerStudentsList: document.querySelector("#trainer-students-list"),
   trainerProfileTitle: document.querySelector("#trainer-profile-title"),
   trainerProfileSummary: document.querySelector("#trainer-profile-summary"),
@@ -145,6 +151,8 @@ const el = {
   editStudentForm: document.querySelector("#edit-student-form"),
   exerciseSearch: document.querySelector("#exercise-search"),
   exerciseGroupFilter: document.querySelector("#exercise-group-filter"),
+  adminExerciseSearch: document.querySelector("#admin-exercise-search"),
+  adminExerciseGroupFilter: document.querySelector("#admin-exercise-group-filter"),
   exerciseLibraryForm: document.querySelector("#exercise-library-form"),
   adminExerciseLibraryForm: document.querySelector("#admin-exercise-library-form"),
   cancelLibraryExerciseEdit: document.querySelector("#cancel-library-exercise-edit"),
@@ -496,15 +504,13 @@ function renderStudentOption(student) {
   return `<option value="${escapeHtml(student.id)}">${escapeHtml(name)}</option>`;
 }
 
-/**
- * Renderiza treino atual, histórico e evolução da Área Aluno.
- */
 function renderStudentArea() {
+  updateStudentModeUi();
   if (!state.studentAreaId) {
     el.studentCurrentWorkout.innerHTML = emptyMessage("Selecione um aluno para visualizar o treino atual.");
-    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o histórico.");
-    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolução.");
-    el.studentAssessments.innerHTML = emptyMessage("Selecione um aluno para visualizar suas avaliações.");
+    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o historico.");
+    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolucao.");
+    el.studentAssessments.innerHTML = emptyMessage("Selecione um aluno para visualizar suas avaliacoes.");
     el.studentMeasurements.innerHTML = emptyMessage("Selecione um aluno para visualizar suas medidas.");
     el.completeWorkoutButton.disabled = true;
     return;
@@ -513,16 +519,29 @@ function renderStudentArea() {
   const currentWorkout = getCurrentWorkout(state.studentAreaId);
   const logs = state.workoutLogs.filter((log) => String(log.student_id) === String(state.studentAreaId));
 
-  el.studentCurrentWorkout.innerHTML = currentWorkout
-    ? renderWorkoutWithExercises(currentWorkout)
-    : emptyMessage("Nenhum treino atual encontrado para este aluno.");
-
-  el.studentHistory.innerHTML = logs.length
-    ? logs.map(renderWorkoutLogItem).join("")
-    : emptyMessage("Nenhum treino concluído encontrado.");
+  if (state.studentMode === "easy") {
+    el.studentCurrentWorkout.innerHTML = currentWorkout
+      ? renderEasyStudentWorkout(currentWorkout, logs)
+      : emptyMessage("Nenhum treino atual encontrado para este aluno.");
+    el.studentHistory.innerHTML = "";
+  } else {
+    el.studentCurrentWorkout.innerHTML = currentWorkout
+      ? renderWorkoutWithExercises(currentWorkout)
+      : emptyMessage("Nenhum treino atual encontrado para este aluno.");
+    el.studentHistory.innerHTML = logs.length
+      ? `${renderStudentProgressMessage(logs)}${renderMobileProgressDetails()}${logs.map(renderWorkoutLogItem).join("")}`
+      : `${renderStudentProgressMessage(logs)}${emptyMessage("Nenhum treino concluido encontrado.")}`;
+  }
 
   el.completeWorkoutButton.disabled = !currentWorkout;
   renderStudentDetails();
+}
+
+function updateStudentModeUi() {
+  document.body.dataset.studentMode = state.studentMode;
+  el.studentModeToggle?.querySelectorAll("[data-student-mode]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.studentMode === state.studentMode);
+  });
 }
 
 /**
@@ -533,6 +552,102 @@ function getCurrentWorkout(studentId) {
     const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
     return String(workout.student_id) === String(studentId) && status === "ativo";
   });
+}
+
+function getNextWorkout(studentId, currentWorkoutId) {
+  return state.workouts.find((workout) => {
+    const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
+    return String(workout.student_id) === String(studentId)
+      && status === "ativo"
+      && String(workout.id) !== String(currentWorkoutId);
+  });
+}
+
+function renderEasyStudentWorkout(workout, logs) {
+  const student = state.students.find((item) => String(item.id) === String(state.studentAreaId));
+  const exercises = state.workoutExercises.filter((item) => String(item.workout_id) === String(workout.id));
+  const nextWorkout = getNextWorkout(state.studentAreaId, workout.id);
+  const lastLog = logs[0];
+  const personalNotes = pick(workout, ["notes", "instructions", "description"], "");
+
+  return `
+    <article class="easy-summary-card">
+      <small>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</small>
+      <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino de hoje"))}</strong>
+      <span>Proximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Nao informado"))}</span>
+      <span>Ultimo treino feito: ${escapeHtml(lastLog ? formatDate(pick(lastLog, ["completed_at", "created_at"], "")) : "Ainda nao registrado")}</span>
+      ${personalNotes ? `<small>Aviso do personal: ${escapeHtml(personalNotes)}</small>` : ""}
+    </article>
+    <div class="easy-exercise-list">
+      ${exercises.length ? exercises.map(renderEasyExerciseCard).join("") : emptyMessage("Este treino ainda nao possui exercicios.")}
+    </div>
+  `;
+}
+
+function renderEasyExerciseCard(item) {
+  const exercise = getLibraryExerciseForWorkoutItem(item);
+  const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
+  const execution = getStudentExerciseExecution(item.id);
+  const doneClass = execution.completed && !execution.skipped ? " done" : "";
+  const restLeft = Math.max(0, Number(state.restTimers[item.id] || 0));
+  const isConfirming = String(state.pendingConfirmExerciseId) === String(item.id);
+
+  return `
+    <article class="easy-exercise-card${doneClass}">
+      <strong>${escapeHtml(exerciseName)}</strong>
+      <span>Series: ${escapeHtml(pick(item, ["sets"], "-"))}</span>
+      <span>Repeticoes: ${escapeHtml(pick(item, ["reps"], "-"))}</span>
+      <span>Carga prevista: ${escapeHtml(pick(item, ["weight"], "-"))}</span>
+      <label>Carga usada hoje
+        <input class="easy-big-input" data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" placeholder="Ex: 10 kg" />
+      </label>
+      <label>Observacao
+        <input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.notes)}" placeholder="Opcional" />
+      </label>
+      <div class="easy-rest-row">
+        <button class="secondary-button" type="button" data-workout-exercise-quick="rest" data-workout-exercise-id="${escapeHtml(item.id)}">Iniciar descanso</button>
+        <strong class="rest-timer">${restLeft ? `${restLeft}s` : `${escapeHtml(pick(item, ["rest_seconds"], "0"))}s`}</strong>
+      </div>
+      <button class="primary-button easy-done-button" type="button" data-workout-exercise-quick="confirm-done" data-workout-exercise-id="${escapeHtml(item.id)}">
+        ${execution.completed && !execution.skipped ? "Exercicio concluido" : "Concluir exercicio"}
+      </button>
+      ${isConfirming ? `
+        <div class="easy-confirm-box">
+          <strong>Concluir este exercicio?</strong>
+          <div class="easy-confirm-actions">
+            <button class="primary-button" type="button" data-workout-exercise-quick="confirm-yes" data-workout-exercise-id="${escapeHtml(item.id)}">Sim, concluir</button>
+            <button class="secondary-button" type="button" data-workout-exercise-quick="confirm-back" data-workout-exercise-id="${escapeHtml(item.id)}">Voltar</button>
+          </div>
+        </div>
+      ` : ""}
+    </article>
+  `;
+}
+
+function renderStudentProgressMessage(logs) {
+  if (logs.length < 2) {
+    return `<article class="simple-item stacked progress-message"><strong>Ainda nao ha historico suficiente para comparar.</strong></article>`;
+  }
+
+  const currentSnapshot = normalizeExercisesSnapshot(pick(logs[0], ["exercises_snapshot"], []));
+  const previousSnapshot = normalizeExercisesSnapshot(pick(logs[1], ["exercises_snapshot"], []));
+  const currentTotal = currentSnapshot.reduce((sum, item) => sum + (Number(item.actual_weight || item.weight || 0) || 0) + (Number(item.actual_reps || item.reps || 0) || 0), 0);
+  const previousTotal = previousSnapshot.reduce((sum, item) => sum + (Number(item.actual_weight || item.weight || 0) || 0) + (Number(item.actual_reps || item.reps || 0) || 0), 0);
+  const message = currentTotal >= previousTotal
+    ? "Boa! Voce evoluiu em relacao ao treino anterior."
+    : "Hoje foi mais dificil, mas isso tambem faz parte do processo.";
+  return `<article class="simple-item stacked progress-message"><strong>${escapeHtml(message)}</strong></article>`;
+}
+
+function renderMobileProgressDetails() {
+  const completedCount = state.workoutLogs.filter((log) => String(log.student_id) === String(state.studentAreaId)).length;
+  return `
+    <div class="mobile-progress-details">
+      <details><summary>Ver evolucao de carga</summary><div class="mini-card"><span>Cargas anteriores aparecem no historico do treino.</span></div></details>
+      <details><summary>Ver evolucao de repeticoes</summary><div class="mini-card"><span>Compare as repeticoes registradas nos treinos concluidos.</span></div></details>
+      <details><summary>Ver frequencia de treinos</summary><div class="mini-card"><span>Treinos concluidos: ${escapeHtml(completedCount)}</span></div></details>
+    </div>
+  `;
 }
 
 /**
@@ -1961,7 +2076,7 @@ async function completeCurrentWorkout() {
     });
     localStorage.removeItem(getExecutionDraftKey(workout.id));
     state.studentExerciseExecution = {};
-    showToast("Treino marcado como concluído.");
+    showToast("Treino registrado com sucesso.");
     await loadSupabaseData();
   } catch (error) {
     const isNetworkError = !navigator.onLine || String(error.message).toLowerCase().includes("failed to fetch");
@@ -2057,9 +2172,11 @@ function renderAdminArea() {
     ? state.students.map(renderAdminStudentItem).join("")
     : emptyMessage("Nenhum aluno encontrado.");
 
-  el.adminExercisesList.innerHTML = state.exercises.length
-    ? state.exercises.slice(0, 20).map(renderAdminExerciseLibraryItem).join("")
-    : emptyMessage("Nenhum exercício encontrado.");
+  renderAdminExerciseGroupFilter();
+  const adminExercises = getFilteredAdminExercises();
+  el.adminExercisesList.innerHTML = adminExercises.length
+    ? adminExercises.map(renderAdminExerciseLibraryItem).join("")
+    : emptyMessage("Nenhum exercicio encontrado.");
 
   el.adminDiagnostics.innerHTML = `
     ${renderDiagnostic("Status", el.connectionStatus.textContent)}
@@ -2165,6 +2282,33 @@ function renderAdminExerciseLibraryItem(exercise) {
       </div>
     </article>
   `;
+}
+
+function getFilteredAdminExercises() {
+  const search = state.adminExerciseSearch.toLowerCase().trim();
+  const groupFilter = state.adminExerciseGroupFilter.toLowerCase().trim();
+
+  return getUniqueExercises().filter((exercise) => {
+    const name = pick(exercise, ["name", "title", "nome"], "").toLowerCase();
+    const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "").toLowerCase();
+    const equipment = pick(exercise, ["equipment", "equipamento"], "").toLowerCase();
+    const matchesSearch = !search || name.includes(search) || group.includes(search) || equipment.includes(search);
+    const matchesGroup = !groupFilter || group === groupFilter;
+    return matchesSearch && matchesGroup;
+  });
+}
+
+function renderAdminExerciseGroupFilter() {
+  if (!el.adminExerciseGroupFilter) return;
+  const current = el.adminExerciseGroupFilter.value;
+  const groups = Array.from(new Set([...REQUIRED_EXERCISE_GROUPS, ...getUniqueExercises()
+    .map((exercise) => pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], ""))
+    .filter(Boolean)]))
+    .sort((a, b) => a.localeCompare(b, "pt-BR"));
+
+  el.adminExerciseGroupFilter.innerHTML = `<option value="">Todos os grupos</option>${groups.map((group) => `<option value="${escapeHtml(group)}">${escapeHtml(group)}</option>`).join("")}`;
+  el.adminExerciseGroupFilter.value = groups.includes(current) ? current : "";
+  state.adminExerciseGroupFilter = el.adminExerciseGroupFilter.value;
 }
 
 function renderAdminErrors() {
@@ -5411,6 +5555,33 @@ function handleStudentWorkoutQuickAction(event) {
   const execution = getStudentExerciseExecution(button.dataset.workoutExerciseId);
   const action = button.dataset.workoutExerciseQuick;
 
+  if (action === "rest") {
+    startExerciseRestTimer(button.dataset.workoutExerciseId);
+    return;
+  }
+
+  if (action === "confirm-done") {
+    state.pendingConfirmExerciseId = button.dataset.workoutExerciseId;
+    renderStudentArea();
+    return;
+  }
+
+  if (action === "confirm-back") {
+    state.pendingConfirmExerciseId = "";
+    renderStudentArea();
+    return;
+  }
+
+  if (action === "confirm-yes") {
+    execution.completed = true;
+    execution.skipped = false;
+    state.pendingConfirmExerciseId = "";
+    saveCurrentExecutionDraft();
+    showToast("Exercicio concluido.");
+    renderStudentArea();
+    return;
+  }
+
   if (action === "done") {
     execution.completed = true;
     execution.skipped = false;
@@ -5434,6 +5605,22 @@ function handleStudentWorkoutQuickAction(event) {
 
   saveCurrentExecutionDraft();
   renderStudentArea();
+}
+
+function startExerciseRestTimer(exerciseId) {
+  const exercise = state.workoutExercises.find((item) => String(item.id) === String(exerciseId));
+  const seconds = numberOrNull(pick(exercise, ["rest_seconds"], "")) || 30;
+  state.restTimers[exerciseId] = seconds;
+  renderStudentArea();
+
+  const interval = window.setInterval(() => {
+    state.restTimers[exerciseId] = Math.max(0, Number(state.restTimers[exerciseId] || 0) - 1);
+    renderStudentArea();
+    if (state.restTimers[exerciseId] <= 0) {
+      window.clearInterval(interval);
+      showToast("Descanso finalizado.");
+    }
+  }, 1000);
 }
 
 function openExerciseVideo(videoUrl) {
@@ -5491,6 +5678,14 @@ function bindEvents() {
   el.studentAreaSelect.addEventListener("change", (event) => {
     state.studentAreaId = event.target.value;
     loadCurrentExecutionDraft();
+    renderStudentArea();
+  });
+
+  el.studentModeToggle?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-student-mode]");
+    if (!button) return;
+    state.studentMode = button.dataset.studentMode;
+    localStorage.setItem("alion-student-mode", state.studentMode);
     renderStudentArea();
   });
 
@@ -5564,6 +5759,16 @@ function bindEvents() {
   el.exerciseGroupFilter.addEventListener("change", (event) => {
     state.exerciseGroupFilter = event.target.value;
     renderExerciseLibrary();
+  });
+
+  el.adminExerciseSearch?.addEventListener("input", (event) => {
+    state.adminExerciseSearch = event.target.value;
+    renderAdminArea();
+  });
+
+  el.adminExerciseGroupFilter?.addEventListener("change", (event) => {
+    state.adminExerciseGroupFilter = event.target.value;
+    renderAdminArea();
   });
 
   document.querySelectorAll(".exercise-library-form").forEach((form) => {
