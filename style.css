@@ -390,6 +390,40 @@ label {
   font-size: 17px;
 }
 
+#complete-workout-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.field-label {
+  display: grid;
+  gap: 4px;
+}
+
+.field-label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.invite-details {
+  display: grid;
+  gap: 6px;
+}
+
+.invite-details summary {
+  width: fit-content;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  padding: 6px 9px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;

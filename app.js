@@ -1,4 +1,4 @@
-const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
+﻿const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
 const PENDING_WORKOUT_LOGS_KEY = "Alion Treinos_pending_workout_logs";
 const APP_PUBLIC_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
 const REQUIRED_TABLES = [
@@ -540,8 +540,36 @@ function renderStudentArea() {
       : `${renderStudentProgressMessage(logs)}${emptyMessage("Nenhum treino concluido encontrado.")}`;
   }
 
-  el.completeWorkoutButton.disabled = !currentWorkout;
+  updateCompleteWorkoutButtonState(currentWorkout);
   renderStudentDetails();
+}
+
+function hasCurrentWorkoutExecutionProgress(workout) {
+  if (!workout) return false;
+  const workoutExerciseIds = new Set(
+    state.workoutExercises
+      .filter((item) => String(item.workout_id) === String(workout.id))
+      .map((item) => String(item.id))
+  );
+
+  return Object.entries(state.studentExerciseExecution).some(([exerciseId, execution]) => {
+    if (!workoutExerciseIds.has(String(exerciseId))) return false;
+    return Boolean(
+      execution.completed
+      || execution.skipped
+      || String(execution.actual_weight || "").trim()
+      || String(execution.actual_reps || "").trim()
+      || String(execution.actual_sets || "").trim()
+      || String(execution.pain_level || "").trim()
+      || String(execution.difficulty || "").trim()
+      || String(execution.notes || "").trim()
+    );
+  });
+}
+
+function updateCompleteWorkoutButtonState(workout = getCurrentWorkout(state.studentAreaId)) {
+  if (!el.completeWorkoutButton) return;
+  el.completeWorkoutButton.disabled = !workout || !hasCurrentWorkoutExecutionProgress(workout);
 }
 
 function updateStudentModeUi() {
@@ -1431,32 +1459,25 @@ function renderInviteCard(invite) {
   const token = pick(invite, ["token"], "");
   const link = buildInviteLink(token);
   const status = normalizeText(pick(invite, ["status"], ""));
-  const canCancel = status === "pendente";
-  const email = pick(student, ["email"], pick(invite, ["email"], ""));
-  const phone = pick(student, ["whatsapp", "contact", "phone", "telefone"], "");
+  const expiresAt = pick(invite, ["expires_at"], "");
 
   return `
     <article class="simple-item stacked invite-card">
       <strong>${escapeHtml(pick(student, ["name", "nome"], pick(invite, ["name"], "Aluno")))}</strong>
-      <span>E-mail: ${escapeHtml(email || "Não informado")}</span>
-      <span>WhatsApp/telefone: ${escapeHtml(phone || "Não informado")}</span>
       <span>Status: ${escapeHtml(formatInviteStatus(status))}</span>
-      <small>Token: ${escapeHtml(token || "-")}</small>
-      <small>Link: ${escapeHtml(link)}</small>
-      <small>Criado em: ${escapeHtml(formatDateTime(pick(invite, ["created_at"], "")))}</small>
-      <small>Expira em: ${escapeHtml(pick(invite, ["expires_at"], "") ? formatDateTime(pick(invite, ["expires_at"], "")) : "Sem data")}</small>
+      <small>Validade: ${escapeHtml(expiresAt ? formatDateTime(expiresAt) : "Sem data")}</small>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-invite-action="copy" data-id="${escapeHtml(invite.id)}">Copiar link</button>
-        <button class="tiny-button" type="button" data-invite-action="whatsapp" data-id="${escapeHtml(invite.id)}">Enviar por WhatsApp</button>
-        <button class="tiny-button" type="button" data-invite-action="email" data-id="${escapeHtml(invite.id)}">Enviar por e-mail</button>
-        <button class="tiny-button" type="button" data-invite-action="resend" data-id="${escapeHtml(invite.id)}">Reenviar convite</button>
-        <button class="tiny-button" type="button" data-invite-action="new" data-id="${escapeHtml(invite.id)}">Gerar novo convite</button>
-        ${canCancel ? `<button class="tiny-button danger" type="button" data-invite-action="cancel" data-id="${escapeHtml(invite.id)}">Cancelar convite</button>` : ""}
       </div>
+      <details class="invite-details">
+        <summary>Ver detalhes</summary>
+        <small>Criado em: ${escapeHtml(formatDateTime(pick(invite, ["created_at"], "")))}</small>
+        <small>Token: ${escapeHtml(token || "-")}</small>
+        <small>Link: ${escapeHtml(link)}</small>
+      </details>
     </article>
   `;
 }
-
 function renderInvites() {
   if (el.trainerInvitesList) {
     const trainerInvites = getVisibleInvites("trainer");
@@ -2068,6 +2089,12 @@ async function completeCurrentWorkout() {
 
   if (!workout) {
     showToast("Nenhum treino atual para concluir.", "error");
+    return;
+  }
+
+  if (!hasCurrentWorkoutExecutionProgress(workout)) {
+    showToast("Registre pelo menos um exercício antes de finalizar o treino.", "error");
+    updateCompleteWorkoutButtonState(workout);
     return;
   }
 
@@ -5651,6 +5678,7 @@ function handleStudentWorkoutExecutionChange(event) {
   }
 
   saveCurrentExecutionDraft();
+  updateCompleteWorkoutButtonState();
   if (event.type === "change") {
     renderStudentArea();
   }
