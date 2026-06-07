@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260607-mobile-aluno-facil-v28" />
+    <link rel="stylesheet" href="style.css?v=20260607-admin-seguro-v30" />
   </head>
   <body>
     <div class="app">
@@ -737,16 +737,11 @@
             <div class="section-title">
               <div>
                 <h2>Controle do Sistema</h2>
-                <p>Area temporariamente protegida por senha para o MVP.</p>
+                <p>Acesso restrito para usuario autenticado com perfil Admin TI.</p>
               </div>
             </div>
-            <form class="admin-login" id="admin-login-form">
-              <label>
-                Senha TI/Admin
-                <input id="admin-password" type="password" autocomplete="current-password" placeholder="Digite a senha" />
-              </label>
-              <button class="primary-button" type="submit">Entrar</button>
-            </form>
+            <p class="muted-text">Entre com seu e-mail e senha para continuar.</p>
+            <button class="primary-button" type="button" data-screen="access">Ir para login</button>
           </article>
 
           <div class="admin-panel hidden" id="admin-panel">
@@ -762,14 +757,15 @@
               <form class="form-box" id="supabase-config-form">
                 <label>
                   Project URL
-                  <input id="admin-supabase-url" name="url" type="url" autocomplete="off" />
+                  <input id="admin-supabase-url" type="text" autocomplete="off" readonly />
                 </label>
                 <label>
                   Anon/Public Key
-                  <input id="admin-supabase-key" name="anonKey" type="password" autocomplete="off" />
+                  <input id="admin-supabase-key" type="password" autocomplete="off" readonly />
                 </label>
                 <div class="button-row">
-                  <button class="primary-button" type="submit">Salvar configuracao</button>
+                  <button class="secondary-button" type="button" id="copy-supabase-url">Copiar URL</button>
+                  <button class="secondary-button" type="button" id="copy-supabase-key">Copiar chave</button>
                   <button class="secondary-button" type="button" id="test-connection-button">Testar conexao</button>
                   <button class="secondary-button" type="button" id="admin-reload-data">Recarregar dados</button>
                   <button class="secondary-button" type="button" id="seed-exercise-library">Inserir biblioteca padrao</button>
@@ -864,9 +860,21 @@
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal-backdrop hidden" id="admin-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title">
+      <div class="modal-card">
+        <h2 id="admin-confirm-title">Confirmar acao</h2>
+        <p id="admin-confirm-description">Esta acao exige confirmacao.</p>
+        <p class="muted-text">Digite exatamente: <strong id="admin-confirm-expected"></strong></p>
+        <input id="admin-confirm-input" type="text" autocomplete="off" />
+        <div class="button-row">
+          <button class="secondary-button" type="button" id="admin-confirm-cancel">Cancelar</button>
+          <button class="primary-button danger-button" type="button" id="admin-confirm-submit" disabled>Confirmar</button>
+        </div>
+      </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260607-mobile-aluno-facil-v28"></script>
-    <script src="app.js?v=20260607-mobile-aluno-facil-v28"></script>
+    <script src="supabase.js?v=20260607-admin-seguro-v30"></script>
+    <script src="app.js?v=20260607-admin-seguro-v30"></script>
   </body>
 </html>

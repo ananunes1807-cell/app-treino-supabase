@@ -1,10 +1,10 @@
-const CACHE_NAME = "alion-treinos-pwa-v29";
+const CACHE_NAME = "alion-treinos-pwa-v30";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260607-mobile-aluno-facil-v28",
-  "./app.js?v=20260607-mobile-aluno-facil-v28",
-  "./supabase.js?v=20260607-mobile-aluno-facil-v28",
+  "./style.css?v=20260607-admin-seguro-v30",
+  "./app.js?v=20260607-admin-seguro-v30",
+  "./supabase.js?v=20260607-admin-seguro-v30",
   "./manifest.webmanifest",
   "./favicon.ico",
   "./icons/icon-192.png",

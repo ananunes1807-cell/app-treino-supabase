@@ -1,6 +1,5 @@
-// Senhas temporárias apenas para o MVP. Futuramente substituir por autenticação real com Supabase Auth.
+// Senha temporaria apenas para o MVP do treinador. TI/Admin usa Supabase Auth + app_profiles.role.
 const TRAINER_TEMP_PASSWORD = "123ac";
-const ADMIN_TEMP_PASSWORD = "ac741";
 const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
 const PENDING_WORKOUT_LOGS_KEY = "Alion Treinos_pending_workout_logs";
 const APP_PUBLIC_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
@@ -113,6 +112,7 @@ const state = {
   exerciseGroupFilter: "",
   adminExerciseSearch: "",
   adminExerciseGroupFilter: "",
+  pendingAdminConfirmation: null,
   accessRole: "",
   adminUnlocked: false,
   lastError: "",
@@ -153,6 +153,15 @@ const el = {
   exerciseGroupFilter: document.querySelector("#exercise-group-filter"),
   adminExerciseSearch: document.querySelector("#admin-exercise-search"),
   adminExerciseGroupFilter: document.querySelector("#admin-exercise-group-filter"),
+  adminConfirmModal: document.querySelector("#admin-confirm-modal"),
+  adminConfirmTitle: document.querySelector("#admin-confirm-title"),
+  adminConfirmDescription: document.querySelector("#admin-confirm-description"),
+  adminConfirmExpected: document.querySelector("#admin-confirm-expected"),
+  adminConfirmInput: document.querySelector("#admin-confirm-input"),
+  adminConfirmCancel: document.querySelector("#admin-confirm-cancel"),
+  adminConfirmSubmit: document.querySelector("#admin-confirm-submit"),
+  copySupabaseUrl: document.querySelector("#copy-supabase-url"),
+  copySupabaseKey: document.querySelector("#copy-supabase-key"),
   exerciseLibraryForm: document.querySelector("#exercise-library-form"),
   adminExerciseLibraryForm: document.querySelector("#admin-exercise-library-form"),
   cancelLibraryExerciseEdit: document.querySelector("#cancel-library-exercise-edit"),
@@ -1753,8 +1762,12 @@ function getCurrentRole() {
   return normalizeRole(state.authProfile?.role) || normalizeRole(state.accessRole);
 }
 
+function isAuthenticatedAdminTi() {
+  return Boolean(state.authUser?.id) && normalizeRole(state.authProfile?.role) === "admin";
+}
+
 function isAdmin() {
-  return getCurrentRole() === "admin";
+  return isAuthenticatedAdminTi();
 }
 
 function isOwner() {
@@ -2098,18 +2111,28 @@ async function completeCurrentWorkout() {
 }
 
 /**
- * Libera a area TI/Admin com senha simples provisoria.
+ * Garante que a area TI/Admin so abra para usuarios autenticados com role admin_ti.
  */
-function unlockAdminArea(password) {
-  if (password !== ADMIN_TEMP_PASSWORD) {
-    showToast("Senha TI/Admin incorreta.", "error");
+function enforceAdminAccess() {
+  const allowed = isAdmin();
+  state.adminUnlocked = allowed;
+  el.adminLock?.classList.toggle("hidden", allowed);
+  el.adminPanel?.classList.toggle("hidden", !allowed);
+
+  if (allowed) {
+    hydrateAdminConfigForm();
+    return true;
+  }
+
+  return false;
+}
+
+function unlockAdminArea(_password) {
+  if (!enforceAdminAccess()) {
+    changeScreen("access");
     return;
   }
 
-  state.adminUnlocked = true;
-  el.adminLock.classList.add("hidden");
-  el.adminPanel.classList.remove("hidden");
-  hydrateAdminConfigForm();
   renderAdminArea();
   showToast("Área TI/Admin liberada.");
 }
@@ -2119,15 +2142,87 @@ function unlockAdminArea(password) {
  */
 function hydrateAdminConfigForm() {
   const config = getSupabaseConfig();
-  el.adminSupabaseUrl.value = config.url;
-  el.adminSupabaseKey.value = config.anonKey;
+  el.adminSupabaseUrl.value = maskSupabaseUrl(config.url);
+  el.adminSupabaseKey.value = maskSecret(config.anonKey);
+}
+
+function maskSupabaseUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    return `${parsed.protocol}//${host.slice(0, 8)}...${host.slice(-14)}`;
+  } catch (_error) {
+    const value = String(url || "");
+    return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-8)}` : "Nao configurado";
+  }
+}
+
+function maskSecret(value) {
+  const text = String(value || "");
+  if (!text) return "Nao configurado";
+  return `${text.slice(0, 4)}••••••••••••${text.slice(-4)}`;
+}
+
+async function copySupabaseConfigValue(kind) {
+  if (!await requireAdminTi()) return;
+  const config = getSupabaseConfig();
+  const value = kind === "url" ? config.url : config.anonKey;
+  await navigator.clipboard.writeText(value);
+  showToast(kind === "url" ? "URL copiada." : "Chave copiada.");
+}
+
+async function requireAdminTi() {
+  if (isAdmin()) return true;
+
+  state.adminUnlocked = false;
+  el.adminPanel?.classList.add("hidden");
+  el.adminLock?.classList.remove("hidden");
+  changeScreen("access");
+  return false;
+}
+
+function getStudentConfirmName(studentId) {
+  const student = state.students.find((item) => String(item.id) === String(studentId));
+  return pick(student, ["name", "full_name", "nome"], "CONFIRMAR");
+}
+
+function requestStrongConfirmation({ title, description, expectedText }) {
+  return new Promise((resolve) => {
+    const expected = String(expectedText || "CONFIRMAR").trim();
+    state.pendingAdminConfirmation = { resolve, expected };
+    el.adminConfirmTitle.textContent = title || "Confirmar acao";
+    el.adminConfirmDescription.textContent = description || "Esta acao nao podera ser desfeita.";
+    el.adminConfirmExpected.textContent = expected;
+    el.adminConfirmInput.value = "";
+    el.adminConfirmSubmit.disabled = true;
+    el.adminConfirmModal.classList.remove("hidden");
+    el.adminConfirmInput.focus();
+  });
+}
+
+function closeStrongConfirmation(result = false) {
+  const pending = state.pendingAdminConfirmation;
+  state.pendingAdminConfirmation = null;
+  el.adminConfirmModal?.classList.add("hidden");
+  if (pending?.resolve) pending.resolve(result);
+}
+
+async function confirmAdminDestructiveAction({ title, description, expectedText }) {
+  if (!await requireAdminTi()) return false;
+  return requestStrongConfirmation({ title, description, expectedText });
 }
 
 /**
  * Salva configuracao Supabase pelo TI/Admin e recria o client.
  */
 async function saveAdminSupabaseConfig(form) {
+  if (!await requireAdminTi()) return;
   const formData = new FormData(form);
+  if (!formData.has("url") || !formData.has("anonKey")) {
+    showToast("Credenciais protegidas. Use os botoes de copia.", "error");
+    hydrateAdminConfigForm();
+    return;
+  }
   saveSupabaseConfig({
     url: formData.get("url"),
     anonKey: formData.get("anonKey")
@@ -2141,6 +2236,7 @@ async function saveAdminSupabaseConfig(form) {
  * Testa conexão lendo um registro da tabela students.
  */
 async function testConnection() {
+  if (!await requireAdminTi()) return;
   try {
     setConnectionStatus("Testando...", false);
     await runQuery(supabaseClient.from("students").select("id").limit(1), "Erro ao testar conexão");
@@ -2156,7 +2252,7 @@ async function testConnection() {
  * Renderiza area TI/Admin: tabelas, dados e diagnostico.
  */
 function renderAdminArea() {
-  if (!state.adminUnlocked) return;
+  if (!enforceAdminAccess()) return;
 
   el.adminTablesList.innerHTML = REQUIRED_TABLES.map((tableName) => {
     const status = getTableStatus(tableName);
@@ -2496,10 +2592,7 @@ function renderAdminStudentRecords(studentId) {
 }
 
 async function handleAdminStudentAction(action, studentId) {
-  if (!isAdmin()) {
-    showToast("Apenas Admin TI pode executar esta acao.", "error");
-    return;
-  }
+  if (!await requireAdminTi()) return;
 
   state.selectedAdminStudentId = studentId;
 
@@ -2519,7 +2612,24 @@ async function handleAdminStudentAction(action, studentId) {
       return;
     }
 
-    if (!window.confirm(DELETE_CONFIRMATION)) return;
+    const destructiveLabels = {
+      "clear-logs": "excluir sessoes",
+      "clear-workouts": "excluir treinos",
+      reset: "resetar aluno",
+      archive: "arquivar aluno",
+      restore: "restaurar aluno",
+      "delete-permanent": "excluir definitivo"
+    };
+
+    if (destructiveLabels[action]) {
+      const confirmName = getStudentConfirmName(studentId);
+      const confirmed = await confirmAdminDestructiveAction({
+        title: destructiveLabels[action],
+        description: `Confirme para ${destructiveLabels[action]} de ${confirmName}.`,
+        expectedText: confirmName
+      });
+      if (!confirmed) return;
+    }
 
     if (action === "clear-logs") {
       await clearStudentLogs(studentId);
@@ -2569,12 +2679,26 @@ function isTestRecord(record, fields) {
 }
 
 async function handleAdminMaintenance(action) {
-  if (!state.adminUnlocked || state.accessRole !== "admin") {
-    showToast("Manutencao permitida apenas para TI/Admin.", "error");
-    return;
-  }
+  if (!await requireAdminTi()) return;
 
-  if (!window.confirm(DELETE_CONFIRMATION)) return;
+  const operationLabels = {
+    "selected-sessions": "LIMPAR SESSOES",
+    "selected-measurements": "LIMPAR MEDIDAS",
+    "selected-workouts": "LIMPAR TREINOS",
+    "selected-reset": "RESETAR ALUNO",
+    "test-data": "LIMPAR TESTES",
+    "test-students": "EXCLUIR TESTES",
+    "test-workouts": "EXCLUIR TREINOS TESTE",
+    duplicates: "LIMPAR DUPLICADOS",
+    orphans: "LIMPAR ORFAOS"
+  };
+  const expectedText = operationLabels[action] || "CONFIRMAR";
+  const confirmed = await confirmAdminDestructiveAction({
+    title: "Confirmar manutencao",
+    description: "Esta rotina pode remover ou ocultar dados do banco.",
+    expectedText
+  });
+  if (!confirmed) return;
 
   try {
     let result = "";
@@ -2738,6 +2862,7 @@ async function deleteWorkoutPermanently(id, options = {}) {
 }
 
 async function seedExerciseLibrary() {
+  if (!await requireAdminTi()) return;
   const payload = DEFAULT_EXERCISES.map(([name, muscle_group, equipment, difficulty, instructions]) => ({
     name,
     muscle_group,
@@ -3776,11 +3901,22 @@ async function deleteWorkout(id) {
     return;
   }
 
-  if (!window.confirm(DELETE_CONFIRMATION)) return;
+  const workout = state.workouts.find((item) => String(item.id) === String(id));
+  const workoutName = pick(workout, ["name", "title", "nome"], "EXCLUIR TREINO");
+  const confirmed = await confirmAdminDestructiveAction({
+    title: "Excluir treino definitivamente",
+    description: "Esta acao remove o treino do banco. Historico relacionado pode ser removido quando existir.",
+    expectedText: workoutName
+  });
+  if (!confirmed) return;
   console.log("[Alion Treinos] deleteWorkout(id):", id);
 
   try {
-    if (workoutHasLogs(id) && !window.confirm("Este treino possui historico. Como Admin TI, deseja excluir tambem os logs deste treino?")) {
+    if (workoutHasLogs(id) && !await confirmAdminDestructiveAction({
+      title: "Excluir logs do treino",
+      description: "Este treino possui historico. Confirme para remover tambem os logs vinculados.",
+      expectedText: "EXCLUIR LOGS"
+    })) {
       return;
     }
     await deleteWorkoutPermanently(id, { removeLogs: workoutHasLogs(id) });
@@ -4537,6 +4673,12 @@ async function saveFinancial(form) {
  * Alterna a area visivel do sistema.
  */
 function changeScreen(screenName) {
+  if (screenName === "admin-area" && !enforceAdminAccess()) {
+    document.body.dataset.role = "";
+    el.sidebar.classList.add("hidden");
+    screenName = "access";
+  }
+
   if (!canAccessScreen(screenName)) {
     showToast("Acesso visual indisponível para este perfil.", "error");
     return;
@@ -4573,21 +4715,21 @@ function setAccessRole(role) {
     return;
   }
 
-  if (role === "admin" && !validateTemporaryPassword(ADMIN_TEMP_PASSWORD, "Senha TI/Admin")) {
-    return;
-  }
-
   state.accessRole = role;
-  state.authProfile = state.authProfile || { role };
+  if (role !== "admin") {
+    state.authProfile = state.authProfile || { role };
+  }
   el.sidebar.classList.remove("hidden");
   document.body.dataset.role = role;
   renderAuthStatus();
 
   if (role === "admin") {
-    state.adminUnlocked = true;
-    el.adminLock.classList.add("hidden");
-    el.adminPanel.classList.remove("hidden");
-    hydrateAdminConfigForm();
+    if (!isAdmin()) {
+      el.sidebar.classList.add("hidden");
+      document.body.dataset.role = "";
+    }
+    changeScreen(isAdmin() ? "admin-area" : "access");
+    return;
   }
 
   if (role === "student") {
@@ -5142,14 +5284,14 @@ async function applyAuthenticatedSession(session) {
   }
 
   state.accessRole = role;
-  state.adminUnlocked = role === "admin";
+  state.adminUnlocked = isAdmin();
   document.body.dataset.role = role;
   el.sidebar.classList.remove("hidden");
 
   if (role === "admin") {
-    el.adminLock.classList.add("hidden");
-    el.adminPanel.classList.remove("hidden");
-    hydrateAdminConfigForm();
+    enforceAdminAccess();
+  } else {
+    enforceAdminAccess();
   }
 
   if (role === "student" && state.authProfile?.student_id) {
@@ -5502,7 +5644,7 @@ function canAccessScreen(screenName) {
   if (state.accessRole === "student") return screenName === "student-area";
   if (state.accessRole === "trainer") return screenName === "trainer-area";
   if (state.accessRole === "owner") return ["academy-area", "trainer-area"].includes(screenName);
-  if (state.accessRole === "admin") return ["admin-area", "trainer-area", "student-area", "academy-area"].includes(screenName);
+  if (state.accessRole === "admin" && isAdmin()) return ["admin-area", "trainer-area", "student-area", "academy-area"].includes(screenName);
   return false;
 }
 
@@ -5854,18 +5996,28 @@ function bindEvents() {
   el.trainerMeasurements.addEventListener("click", handleTrainerListAction);
   el.trainerWorkouts.addEventListener("click", handleTrainerListAction);
 
-  document.querySelector("#admin-login-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    unlockAdminArea(document.querySelector("#admin-password").value);
-  });
-
   document.querySelector("#supabase-config-form").addEventListener("submit", (event) => {
     event.preventDefault();
     saveAdminSupabaseConfig(event.currentTarget);
   });
 
+  el.copySupabaseUrl?.addEventListener("click", () => copySupabaseConfigValue("url"));
+  el.copySupabaseKey?.addEventListener("click", () => copySupabaseConfigValue("key"));
+  el.adminConfirmCancel?.addEventListener("click", () => closeStrongConfirmation(false));
+  el.adminConfirmInput?.addEventListener("input", () => {
+    const expected = state.pendingAdminConfirmation?.expected || "";
+    el.adminConfirmSubmit.disabled = el.adminConfirmInput.value.trim() !== expected;
+  });
+  el.adminConfirmSubmit?.addEventListener("click", () => closeStrongConfirmation(true));
+  el.adminConfirmModal?.addEventListener("click", (event) => {
+    if (event.target === el.adminConfirmModal) closeStrongConfirmation(false);
+  });
+
   document.querySelector("#test-connection-button").addEventListener("click", testConnection);
-  document.querySelector("#admin-reload-data").addEventListener("click", loadSupabaseData);
+  document.querySelector("#admin-reload-data").addEventListener("click", async () => {
+    if (!await requireAdminTi()) return;
+    await loadSupabaseData();
+  });
   document.querySelector("#seed-exercise-library").addEventListener("click", seedExerciseLibrary);
   el.adminMaintenanceLog.closest(".card").addEventListener("click", (event) => {
     const button = event.target.closest("[data-admin-maintenance]");
