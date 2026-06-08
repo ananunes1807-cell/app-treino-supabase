@@ -97,6 +97,8 @@ const state = {
   selectedWorkoutId: "",
   studentMode: localStorage.getItem("alion-student-mode") || "easy",
   restTimers: {},
+  workoutAudioContext: null,
+  workoutAudioUnlocked: false,
   pendingConfirmExerciseId: "",
   trainerActiveTab: "profile",
   trainerWorkoutFilter: "active",
@@ -2173,6 +2175,18 @@ async function completeCurrentWorkout() {
     return;
   }
 
+  const summary = getWorkoutExecutionSummary(workout.id);
+  const confirmMessage = [
+    "Finalizar o treino completo?",
+    "",
+    `Exercícios concluídos: ${summary.completed} de ${summary.total}.`,
+    "O histórico será salvo com os exercícios feitos e não feitos.",
+    "",
+    "Para finalizar apenas um exercício, use o botão Concluir série dentro do card."
+  ].join("\n");
+
+  if (!window.confirm(confirmMessage)) return;
+
   try {
     const workoutExercises = await fetchTable("workout_exercises", {
       eq: { column: "workout_id", value: workout.id },
@@ -2208,6 +2222,19 @@ async function completeCurrentWorkout() {
 
     showToast(error.message, "error");
   }
+}
+
+function getWorkoutExecutionSummary(workoutId) {
+  const exercises = state.workoutExercises.filter((item) => String(item.workout_id) === String(workoutId));
+  const completed = exercises.filter((item) => {
+    const execution = getStudentExerciseExecution(item.id);
+    return Boolean(execution.completed && !execution.skipped);
+  }).length;
+
+  return {
+    total: exercises.length,
+    completed
+  };
 }
 
 /**
@@ -2607,19 +2634,11 @@ async function requestStudentDeletionByPersonal(id) {
 async function updateStudentWorkoutsStatus(studentId, status) {
   if (!studentId) throw new Error("Selecione um aluno antes de alterar treinos.");
   const workouts = state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
-  if (isAdmin() && status === "excluido") {
-    await runAdminMaintenanceRpc("admin_clear_student_workouts", studentId, "Erro ao ocultar treinos do aluno");
-    return workouts.length;
+
+  for (const workout of workouts) {
+    await updateWithSchemaFallback("workouts", workout.id, { status }, "Erro ao atualizar treinos do aluno");
   }
 
-  try {
-    for (const workout of workouts) {
-      await updateWithSchemaFallback("workouts", workout.id, { status }, "Erro ao atualizar treinos do aluno");
-    }
-  } catch (error) {
-    if (!isAdmin() || status !== "excluido") throw error;
-    await runAdminMaintenanceRpc("admin_clear_student_workouts", studentId, error.message);
-  }
   return workouts.length;
 }
 
@@ -2714,7 +2733,7 @@ async function handleAdminStudentAction(action, studentId) {
 
     const destructiveLabels = {
       "clear-logs": "excluir sessoes",
-      "clear-workouts": "excluir treinos",
+      "clear-workouts": "ocultar treinos",
       reset: "resetar aluno",
       archive: "arquivar aluno",
       restore: "restaurar aluno",
@@ -2725,7 +2744,9 @@ async function handleAdminStudentAction(action, studentId) {
       const confirmName = getStudentConfirmName(studentId);
       const confirmed = await confirmAdminDestructiveAction({
         title: destructiveLabels[action],
-        description: `Confirme para ${destructiveLabels[action]} de ${confirmName}.`,
+        description: action === "clear-workouts"
+          ? `Confirme para ocultar os treinos de ${confirmName}. O histórico e os exercícios não serão apagados.`
+          : `Confirme para ${destructiveLabels[action]} de ${confirmName}.`,
         expectedText: confirmName
       });
       if (!confirmed) return;
@@ -2738,7 +2759,7 @@ async function handleAdminStudentAction(action, studentId) {
 
     if (action === "clear-workouts") {
       const count = await updateStudentWorkoutsStatus(studentId, "excluido");
-      renderAdminMaintenanceLog(`Treinos ocultados como excluidos: ${count}.`);
+      renderAdminMaintenanceLog(`Treinos ocultados sem apagar histórico: ${count}.`);
     }
 
     if (action === "reset") {
@@ -2784,7 +2805,7 @@ async function handleAdminMaintenance(action) {
   const operationLabels = {
     "selected-sessions": "LIMPAR SESSOES",
     "selected-measurements": "LIMPAR MEDIDAS",
-    "selected-workouts": "LIMPAR TREINOS",
+    "selected-workouts": "OCULTAR TREINOS",
     "selected-reset": "RESETAR ALUNO",
     "test-data": "LIMPAR TESTES",
     "test-students": "EXCLUIR TESTES",
@@ -2795,7 +2816,9 @@ async function handleAdminMaintenance(action) {
   const expectedText = operationLabels[action] || "CONFIRMAR";
   const confirmed = await confirmAdminDestructiveAction({
     title: "Confirmar manutencao",
-    description: "Esta rotina pode remover ou ocultar dados do banco.",
+    description: action === "selected-workouts"
+      ? "Esta rotina oculta os treinos do aluno sem apagar histórico ou exercícios."
+      : "Esta rotina pode remover ou ocultar dados do banco.",
     expectedText
   });
   if (!confirmed) return;
@@ -2844,7 +2867,7 @@ async function handleAdminMaintenance(action) {
     if (action === "selected-workouts") {
       const studentId = getSelectedAdminStudentId();
       const count = await updateStudentWorkoutsStatus(studentId, "excluido");
-      result = `Treinos do aluno selecionado ocultados: ${count}.`;
+      result = `Treinos do aluno selecionado ocultados sem apagar histórico: ${count}.`;
     }
 
     if (action === "selected-reset") {
@@ -5882,6 +5905,7 @@ function handleStudentWorkoutQuickAction(event) {
 
   const execution = getStudentExerciseExecution(button.dataset.workoutExerciseId);
   const action = button.dataset.workoutExerciseQuick;
+  unlockWorkoutAudio();
 
   if (action === "rest") {
     startExerciseRestTimer(button.dataset.workoutExerciseId);
@@ -5938,6 +5962,7 @@ function handleStudentWorkoutQuickAction(event) {
 }
 
 function startExerciseRestTimer(exerciseId) {
+  unlockWorkoutAudio();
   const exercise = state.workoutExercises.find((item) => String(item.id) === String(exerciseId));
   const seconds = numberOrNull(pick(exercise, ["rest_seconds"], "")) || 30;
   state.restTimers[exerciseId] = seconds;
@@ -5977,25 +6002,59 @@ function completeExerciseSeries(exerciseId) {
   startExerciseRestTimer(exerciseId);
 }
 
-function playShortBeep() {
+function getWorkoutAudioContext() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const audioContext = new AudioContext();
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = 880;
-    gain.gain.value = 0.08;
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start();
-    window.setTimeout(() => {
-      oscillator.stop();
-      audioContext.close();
-    }, 180);
+    if (!AudioContext) return null;
+    if (!state.workoutAudioContext) {
+      state.workoutAudioContext = new AudioContext();
+    }
+    return state.workoutAudioContext;
   } catch (_error) {
     // Som é um apoio opcional; se o navegador bloquear, o treino continua normal.
+    return null;
+  }
+}
+
+function unlockWorkoutAudio() {
+  const audioContext = getWorkoutAudioContext();
+  if (!audioContext) return;
+
+  try {
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+    state.workoutAudioUnlocked = true;
+  } catch (_error) {
+    state.workoutAudioUnlocked = false;
+  }
+}
+
+function playShortBeep() {
+  try {
+    const audioContext = getWorkoutAudioContext();
+    if (!audioContext) return;
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const now = audioContext.currentTime;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, now);
+    oscillator.frequency.setValueAtTime(660, now + 0.11);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.26);
+  } catch (_error) {
+    // Som é opcional; vibração e aviso visual continuam funcionando.
   }
 }
 

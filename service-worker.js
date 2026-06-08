@@ -1,4 +1,4 @@
-const CACHE_NAME = "alion-pwa-v34";
+const CACHE_NAME = "alion-pwa-v35";
 const APP_SHELL = [
   "./",
   "./index.html",
