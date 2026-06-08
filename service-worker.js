@@ -1,4 +1,4 @@
-const CACHE_NAME = "gympulse-pwa-v33";
+const CACHE_NAME = "alion-pwa-v34";
 const APP_SHELL = [
   "./",
   "./index.html",

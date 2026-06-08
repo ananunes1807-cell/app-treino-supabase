@@ -224,6 +224,7 @@ Object.assign(el, {
   attendanceForm: document.querySelector("#attendance-form"),
   attendanceStudentSelect: document.querySelector("#attendance-student-select"),
   attendanceList: document.querySelector("#attendance-list"),
+  exportAttendanceCsv: document.querySelector("#export-attendance-csv"),
   financialForm: document.querySelector("#financial-form"),
   financialStudentSelect: document.querySelector("#financial-student-select"),
   financeMonthFilter: document.querySelector("#finance-month-filter"),
@@ -565,6 +566,7 @@ function hasCurrentWorkoutExecutionProgress(workout) {
     return Boolean(
       execution.completed
       || execution.skipped
+      || Number(execution.completed_sets || 0) > 0
       || String(execution.actual_weight || "").trim()
       || String(execution.actual_reps || "").trim()
       || String(execution.actual_sets || "").trim()
@@ -630,17 +632,38 @@ function renderEasyStudentWorkout(workout, logs) {
 function renderEasyExerciseCard(item) {
   const exercise = getLibraryExerciseForWorkoutItem(item);
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercício"));
+  const student = getStudentForExerciseMedia();
+  const imageUrl = getExerciseMediaByGender(exercise, student, "image");
+  const image = renderEasyExerciseThumb(imageUrl, exerciseName);
   const execution = getStudentExerciseExecution(item.id);
   const doneClass = execution.completed && !execution.skipped ? " done" : "";
   const restLeft = Math.max(0, Number(state.restTimers[item.id] || 0));
   const isConfirming = String(state.pendingConfirmExerciseId) === String(item.id);
+  const plannedSets = getPlannedSets(item);
+  const completedSets = Math.min(plannedSets, Math.max(0, Number(execution.completed_sets || 0)));
+  const currentSet = Math.min(plannedSets, completedSets + 1);
+  const reps = pick(item, ["reps"], "-");
+  const restSeconds = pick(item, ["rest_seconds"], "0");
+  const plannedWeight = pick(item, ["weight"], "-");
+  const doneButtonDisabled = execution.completed && !execution.skipped ? " disabled" : "";
+  const currentDisplay = execution.completed ? `${plannedSets} de ${plannedSets}` : `${currentSet} de ${plannedSets}`;
+  const nextDisplay = completedSets >= plannedSets ? "Concluído" : `${Math.min(plannedSets, currentSet + 1)} de ${plannedSets}`;
+  const restLabel = restLeft ? "Descanso em andamento" : `Descanso: ${restSeconds}s`;
 
   return `
     <article class="easy-exercise-card${doneClass}">
-      <strong>${escapeHtml(exerciseName)}</strong>
-      <span>Séries: ${escapeHtml(pick(item, ["sets"], "-"))}</span>
-      <span>Repeticoes: ${escapeHtml(pick(item, ["reps"], "-"))}</span>
-      <span>Carga prevista: ${escapeHtml(pick(item, ["weight"], "-"))}</span>
+      <div class="easy-exercise-main">
+        <div class="easy-exercise-info">
+          <strong>${escapeHtml(exerciseName)}</strong>
+          <div class="easy-plan-list">
+            <span><b class="easy-plan-icon">↻</b> Séries: ${escapeHtml(plannedSets)}</span>
+            <span><b class="easy-plan-icon">⟳</b> Repetições: ${escapeHtml(reps)}</span>
+            <span><b class="easy-plan-icon">▣</b> Carga prevista: ${escapeHtml(plannedWeight)}</span>
+          </div>
+        </div>
+        ${image}
+      </div>
+      <span class="easy-rest-status">${escapeHtml(restLabel)}</span>
       <label>Carga usada hoje
         <input class="easy-big-input" data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" placeholder="Ex: 10 kg" />
       </label>
@@ -648,23 +671,43 @@ function renderEasyExerciseCard(item) {
         <input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.notes)}" placeholder="Opcional" />
       </label>
       <div class="easy-rest-row">
-        <button class="secondary-button" type="button" data-workout-exercise-quick="rest" data-workout-exercise-id="${escapeHtml(item.id)}">Iniciar descanso</button>
-        <strong class="rest-timer">${restLeft ? `${restLeft}s` : `${escapeHtml(pick(item, ["rest_seconds"], "0"))}s`}</strong>
+        <button class="secondary-button easy-rest-button" type="button" data-workout-exercise-quick="rest" data-workout-exercise-id="${escapeHtml(item.id)}">▷ Iniciar descanso</button>
+        <strong class="rest-timer">${restLeft ? `${restLeft}s` : `${escapeHtml(restSeconds)}s`}</strong>
       </div>
-      <button class="primary-button easy-done-button" type="button" data-workout-exercise-quick="confirm-done" data-workout-exercise-id="${escapeHtml(item.id)}">
-        ${execution.completed && !execution.skipped ? "Exercício concluído" : "Concluir exercício"}
+      <button class="primary-button easy-done-button" type="button" data-workout-exercise-quick="confirm-done" data-workout-exercise-id="${escapeHtml(item.id)}"${doneButtonDisabled}>
+        ${execution.completed && !execution.skipped ? "✓ Exercício concluído" : "Concluir série"}
       </button>
+      <div class="series-progress">
+        <div class="series-side">
+          <small>Série atual</small>
+          <strong>${escapeHtml(currentDisplay)}</strong>
+        </div>
+        <div class="series-progress-bar" aria-label="Progresso das séries">
+          ${renderSeriesSegments(plannedSets, completedSets)}
+        </div>
+        <div class="series-side right">
+          <small>Próxima série</small>
+          <strong>${escapeHtml(nextDisplay)}</strong>
+        </div>
+      </div>
       ${isConfirming ? `
         <div class="easy-confirm-box">
-          <strong>Concluir este exercício?</strong>
+          <strong>Concluir esta série?</strong>
           <div class="easy-confirm-actions">
-            <button class="primary-button" type="button" data-workout-exercise-quick="confirm-yes" data-workout-exercise-id="${escapeHtml(item.id)}">Sim, concluir</button>
+            <button class="primary-button" type="button" data-workout-exercise-quick="confirm-yes" data-workout-exercise-id="${escapeHtml(item.id)}">Sim, concluir série</button>
             <button class="secondary-button" type="button" data-workout-exercise-quick="confirm-back" data-workout-exercise-id="${escapeHtml(item.id)}">Voltar</button>
           </div>
         </div>
       ` : ""}
     </article>
   `;
+}
+
+function renderSeriesSegments(plannedSets, completedSets) {
+  return Array.from({ length: plannedSets }, (_, index) => {
+    const activeClass = index < completedSets ? " active" : "";
+    return `<span class="series-segment${activeClass}"></span>`;
+  }).join("");
 }
 
 function renderStudentProgressMessage(logs) {
@@ -748,12 +791,17 @@ function saveCurrentExecutionDraft() {
   writeLocalJson(key, state.studentExerciseExecution);
 }
 
+function getPlannedSets(exercise) {
+  return Math.max(1, Number(numberOrNull(pick(exercise, ["sets"], "")) || 1));
+}
+
 function getStudentExerciseExecution(exerciseId) {
   const key = String(exerciseId);
   if (!(key in state.studentExerciseExecution)) {
     state.studentExerciseExecution[key] = {
-      completed: true,
+      completed: false,
       skipped: false,
+      completed_sets: 0,
       actual_weight: "",
       actual_reps: "",
       actual_sets: "",
@@ -773,7 +821,7 @@ function serializeExerciseExecution(exerciseId) {
     skipped: Boolean(execution.skipped),
     actual_weight: execution.actual_weight || null,
     actual_reps: execution.actual_reps || null,
-    actual_sets: execution.actual_sets || null,
+    actual_sets: execution.actual_sets || (execution.completed_sets ? String(execution.completed_sets) : null),
     pain_level: execution.pain_level === "" ? null : numberOrNull(execution.pain_level),
     difficulty: execution.difficulty || null,
     notes: execution.notes || null
@@ -969,6 +1017,21 @@ function renderTrainerStudentButton(student) {
       </div>
       <small class="invite-badge ${escapeHtml(inviteStatusClass)}">${escapeHtml(inviteStatus)}</small>
     </button>
+  `;
+}
+
+function renderEasyExerciseThumb(imageUrl, exerciseName) {
+  const url = getExerciseMediaUrl(imageUrl, "image");
+  if (!url) {
+    return `
+      <div class="easy-exercise-thumb placeholder" aria-label="Imagem não cadastrada">
+        <span>🏋</span>
+      </div>
+    `;
+  }
+
+  return `
+    <img class="easy-exercise-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(exerciseName)}" loading="lazy" />
   `;
 }
 
@@ -1438,7 +1501,7 @@ function normalizePhoneForWhatsApp(value) {
 function buildInviteWhatsAppUrl(invite, student) {
   const link = buildInviteLink(pick(invite, ["token"], ""));
   const phone = normalizePhoneForWhatsApp(pick(student, ["whatsapp", "contact", "phone", "telefone"], ""));
-  const message = `Olá, aqui é o Carlos. Este é seu convite para acessar seus treinos no GymPulse: ${link}`;
+  const message = `Olá, aqui é o Carlos. Este é seu convite para acessar seus treinos no Alion Treinos: ${link}`;
   return phone
     ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     : `https://wa.me/?text=${encodeURIComponent(message)}`;
@@ -1449,8 +1512,8 @@ function buildInviteEmailUrl(invite, student) {
   const email = pick(student, ["email"], pick(invite, ["email"], ""));
   const token = pick(invite, ["token"], "");
   const link = buildInviteLink(token);
-  const subject = "Convite para acessar o GymPulse";
-  const body = `Olá, ${name}. Você recebeu um convite para acessar seus treinos no GymPulse.\n\nAcesse pelo link:\n${link}\n\nSe não conseguir abrir, copie este token:\n${token}`;
+  const subject = "Convite para acessar o Alion Treinos";
+  const body = `Olá, ${name}. Você recebeu um convite para acessar seus treinos no Alion Treinos.\n\nAcesse pelo link:\n${link}\n\nSe não conseguir abrir, copie este token:\n${token}`;
   return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
@@ -4394,6 +4457,63 @@ function getStudentInactivityInfo(student) {
   };
 }
 
+function getAcademyAttendanceForDate(dateValue = toDateInputValue()) {
+  return state.academyAttendance.filter((item) => (
+    String(pick(item, ["checkin_at", "created_at"], "")).startsWith(dateValue)
+  ));
+}
+
+function getTimeFromDateTime(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function exportAttendanceCsv() {
+  const today = toDateInputValue();
+  const records = getAcademyAttendanceForDate(today);
+  if (!records.length) {
+    showToast("Nenhuma presença registrada hoje para exportar.", "error");
+    return;
+  }
+
+  const rows = records.map((item) => {
+    const student = state.students.find((record) => String(record.id) === String(item.student_id));
+    const checkinAt = pick(item, ["checkin_at"], "");
+    const checkoutAt = pick(item, ["checkout_at"], "");
+    return [
+      pick(student, ["name", "nome"], "Aluno"),
+      formatDate(checkinAt || pick(item, ["created_at"], "")),
+      getTimeFromDateTime(checkinAt),
+      getTimeFromDateTime(checkoutAt),
+      pick(item, ["observation"], "")
+    ].map(escapeCsvCell).join(",");
+  });
+
+  const csv = [
+    ["Nome do aluno", "Data", "Hora de entrada", "Hora de saída", "Observação"].map(escapeCsvCell).join(","),
+    ...rows
+  ].join("\r\n");
+
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `presenca-academia-${today}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showToast("CSV de presença gerado.");
+}
+
 function renderAcademyArea() {
   if (!el.academyList) return;
   const academyId = getCurrentAcademyId();
@@ -4401,9 +4521,7 @@ function renderAcademyArea() {
   const month = el.financeMonthFilter?.value || getMonthInputValue();
   if (el.financeMonthFilter && !el.financeMonthFilter.value) el.financeMonthFilter.value = month;
 
-  const attendanceToday = state.academyAttendance.filter((item) => (
-    String(pick(item, ["checkin_at", "created_at"], "")).startsWith(today)
-  ));
+  const attendanceToday = getAcademyAttendanceForDate(today);
   const finances = state.academyFinancials.filter((item) => String(pick(item, ["month_ref"], "")).startsWith(month));
   const totalPaid = finances
     .filter((item) => normalizeText(pick(item, ["status"], "")) === "pago")
@@ -4782,7 +4900,7 @@ function changeScreen(screenName) {
     "admin-area": "Controle do Sistema"
   };
   labels["academy-area"] = "Academia";
-  el.pageTitle.textContent = labels[screenName] || "GymPulse";
+  el.pageTitle.textContent = labels[screenName] || "Alion Treinos";
 
   if (screenName === "trainer-area") {
     loadSupabaseData();
@@ -5771,6 +5889,10 @@ function handleStudentWorkoutQuickAction(event) {
   }
 
   if (action === "confirm-done") {
+    if (execution.completed && !execution.skipped) {
+      showToast("Exercício já finalizado.");
+      return;
+    }
     state.pendingConfirmExerciseId = button.dataset.workoutExerciseId;
     renderStudentArea();
     return;
@@ -5783,11 +5905,9 @@ function handleStudentWorkoutQuickAction(event) {
   }
 
   if (action === "confirm-yes") {
-    execution.completed = true;
-    execution.skipped = false;
+    completeExerciseSeries(button.dataset.workoutExerciseId);
     state.pendingConfirmExerciseId = "";
     saveCurrentExecutionDraft();
-    showToast("Exercício concluído.");
     renderStudentArea();
     return;
   }
@@ -5828,9 +5948,78 @@ function startExerciseRestTimer(exerciseId) {
     renderStudentArea();
     if (state.restTimers[exerciseId] <= 0) {
       window.clearInterval(interval);
+      notifyRestFinished();
       showToast("Descanso finalizado.");
     }
   }, 1000);
+}
+
+function completeExerciseSeries(exerciseId) {
+  const exercise = state.workoutExercises.find((item) => String(item.id) === String(exerciseId));
+  const execution = getStudentExerciseExecution(exerciseId);
+  const plannedSets = getPlannedSets(exercise || {});
+  const completedSets = Math.min(plannedSets, Math.max(0, Number(execution.completed_sets || 0)) + 1);
+
+  execution.completed_sets = completedSets;
+  execution.actual_sets = String(completedSets);
+  execution.skipped = false;
+
+  if (completedSets >= plannedSets) {
+    execution.completed = true;
+    state.restTimers[exerciseId] = 0;
+    notifyExerciseFinished();
+    showToast("Exercício finalizado.");
+    return;
+  }
+
+  execution.completed = false;
+  showToast(`Série ${completedSets} de ${plannedSets} concluída. Descanso iniciado.`);
+  startExerciseRestTimer(exerciseId);
+}
+
+function playShortBeep() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const audioContext = new AudioContext();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.value = 0.08;
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start();
+    window.setTimeout(() => {
+      oscillator.stop();
+      audioContext.close();
+    }, 180);
+  } catch (_error) {
+    // Som é um apoio opcional; se o navegador bloquear, o treino continua normal.
+  }
+}
+
+function vibrateDevice(pattern = 180) {
+  if ("vibrate" in navigator) navigator.vibrate(pattern);
+}
+
+function speakWorkoutMessage(message) {
+  const enabled = localStorage.getItem("alion-voice-enabled") === "true";
+  if (!enabled || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
+}
+
+function notifyRestFinished() {
+  playShortBeep();
+  vibrateDevice([120, 80, 120]);
+  speakWorkoutMessage("Descanso finalizado. Pode iniciar a próxima série.");
+}
+
+function notifyExerciseFinished() {
+  playShortBeep();
+  vibrateDevice(200);
+  speakWorkoutMessage("Exercício finalizado. Vá para o próximo.");
 }
 
 function openExerciseVideo(videoUrl) {
@@ -5953,6 +6142,8 @@ function bindEvents() {
     const action = event.submitter?.dataset.attendanceAction || "checkin";
     saveAttendance(event.currentTarget, action);
   });
+
+  el.exportAttendanceCsv?.addEventListener("click", exportAttendanceCsv);
 
   el.financialForm?.addEventListener("submit", (event) => {
     event.preventDefault();

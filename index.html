@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#2a0b45" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="GymPulse" />
-    <title>GymPulse | Gestão de treinos inteligente</title>
+    <meta name="apple-mobile-web-app-title" content="Alion Treinos" />
+    <title>Alion Treinos | Gestão de treinos inteligente</title>
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
@@ -17,14 +17,14 @@
     <div class="app">
       <aside class="sidebar hidden" id="sidebar">
         <div class="brand">
-          <span>GP</span>
+          <span>AT</span>
           <div>
-            <strong>GymPulse</strong>
+            <strong>Alion Treinos</strong>
             <small>Gestão de treinos inteligente</small>
           </div>
         </div>
 
-        <nav class="menu" aria-label="Areas do sistema">
+        <nav class="menu" aria-label="Áreas do sistema">
           <button class="menu-button active" type="button" data-screen="access">Trocar acesso</button>
           <button class="menu-button student-nav" type="button" data-screen="student-area">Meu Treino</button>
           <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Treinador</button>
@@ -45,12 +45,12 @@
         <section class="screen active" id="screen-access">
           <article class="card access-card">
             <div>
-              <p class="subtitle">GymPulse</p>
+              <p class="subtitle">Alion Treinos</p>
               <h2>Entrar no app</h2>
             </div>
             <div class="login-choice">
               <h3>Escolha seu perfil</h3>
-              <p class="muted-text">Toque no card que combina com voce. Depois entre com e-mail e senha.</p>
+              <p class="muted-text">Toque no card que combina com você. Depois entre com e-mail e senha.</p>
               <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
                 <button class="role-chip active" type="button" data-login-role="student">
                   <strong>Aluno</strong>
@@ -62,7 +62,7 @@
                 </button>
                 <button class="role-chip" type="button" data-login-role="owner">
                   <strong>Academia</strong>
-                  <span>Gestao simples</span>
+                  <span>Gestão simples</span>
                 </button>
                 <button class="role-chip" type="button" data-login-role="admin">
                   <strong>Admin TI</strong>
@@ -131,7 +131,7 @@
             <div>
               <p class="subtitle" id="password-flow-subtitle">Primeiro acesso</p>
               <h2 id="password-flow-title">Crie sua nova senha</h2>
-              <p class="muted-text" id="password-flow-description">Sua senha temporaria precisa ser substituida antes de usar o app.</p>
+              <p class="muted-text" id="password-flow-description">Sua senha temporária precisa ser substituída antes de usar o app.</p>
             </div>
             <form class="auth-login" id="first-access-form">
               <label>
@@ -294,11 +294,11 @@
                 </label>
                 <label>
                   Dificuldades
-                  <input name="difficulties" type="text" placeholder="Ex: constancia, rotina" />
+                  <input name="difficulties" type="text" placeholder="Ex: constância, rotina" />
                 </label>
                 <label>
                   Restri&ccedil;&otilde;es
-                  <input name="restrictions" type="text" placeholder="Ex: dores, limitacoes" />
+                  <input name="restrictions" type="text" placeholder="Ex: dores, limitações" />
                 </label>
                 <label>
                   Observa&ccedil;&otilde;es importantes
@@ -368,7 +368,7 @@
                     <input name="objective" type="text" placeholder="Objetivo" />
                     <input name="assessment_date" type="date" />
                     <input name="reassessment_date" type="date" />
-                    <input name="professor_responsavel" type="text" placeholder="Professor responsavel" />
+                    <input name="professor_responsavel" type="text" placeholder="Professor responsável" />
                     <input name="weight_kg" type="number" step="0.01" placeholder="Peso" />
                     <input name="height" type="number" step="0.01" placeholder="Estatura em cm" />
                     <input name="peso_ideal" type="number" step="0.01" placeholder="Peso ideal" />
@@ -376,12 +376,12 @@
                     <input name="percentual_gordura_ideal" type="number" step="0.01" placeholder="% gordura ideal" />
                     <input name="muscle_mass_kg" type="number" step="0.01" placeholder="Massa muscular" />
                     <input name="visceral_fat" type="number" step="0.01" placeholder="Gordura visceral" />
-                    <input name="body_water_percent" type="number" step="0.01" placeholder="Agua corporal" />
+                    <input name="body_water_percent" type="number" step="0.01" placeholder="Água corporal" />
                     <input name="pa_repouso" type="text" placeholder="PA repouso" />
                     <input name="fc_repouso" type="number" step="1" placeholder="FC repouso" />
                     <input name="zona_treino" type="text" placeholder="Zona de treino" />
-                    <input name="imc" type="number" step="0.01" placeholder="IMC automatico" readonly />
-                    <input name="icq" type="number" step="0.01" placeholder="ICQ automatico" readonly />
+                    <input name="imc" type="number" step="0.01" placeholder="IMC automático" readonly />
+                    <input name="icq" type="number" step="0.01" placeholder="ICQ automático" readonly />
                   </div>
                   <h4>Restri&ccedil;&otilde;es de sa&uacute;de</h4>
                   <div class="checkbox-grid">
@@ -399,10 +399,10 @@
                   <textarea name="outros" rows="2" placeholder="Outras restri&ccedil;&otilde;es"></textarea>
                   <h4>Dobras cut&acirc;neas</h4>
                   <div class="mini-grid">
-                    <input name="torax_dobra" type="number" step="0.01" placeholder="Torax dobra" />
-                    <input name="axilar_media" type="number" step="0.01" placeholder="Axilar media" />
-                    <input name="supra_iliaca" type="number" step="0.01" placeholder="Supra iliaca" />
-                    <input name="abdomen_dobra" type="number" step="0.01" placeholder="Abdomen dobra" />
+                    <input name="torax_dobra" type="number" step="0.01" placeholder="Tórax dobra" />
+                    <input name="axilar_media" type="number" step="0.01" placeholder="Axilar média" />
+                    <input name="supra_iliaca" type="number" step="0.01" placeholder="Supra-ilíaca" />
+                    <input name="abdomen_dobra" type="number" step="0.01" placeholder="Abdômen dobra" />
                     <input name="coxa_dobra" type="number" step="0.01" placeholder="Coxa dobra" />
                     <input name="subescapular" type="number" step="0.01" placeholder="Subescapular" />
                     <input name="triceps" type="number" step="0.01" placeholder="Triceps" />
@@ -423,20 +423,20 @@
                   <h3>Adicionar perimetria</h3>
                   <div class="mini-grid">
                     <input name="measurement_date" type="date" />
-                    <input name="torax" type="number" step="0.01" placeholder="Torax" />
+                    <input name="torax" type="number" step="0.01" placeholder="Tórax" />
                     <input name="waist_cm" type="number" step="0.01" placeholder="Cintura" />
-                    <input name="abdomen_cm" type="number" step="0.01" placeholder="Abdomen" />
+                    <input name="abdomen_cm" type="number" step="0.01" placeholder="Abdômen" />
                     <input name="hip_cm" type="number" step="0.01" placeholder="Quadril" />
-                    <input name="braco_d" type="number" step="0.01" placeholder="Braco D" />
-                    <input name="braco_e" type="number" step="0.01" placeholder="Braco E" />
-                    <input name="antebraco_d" type="number" step="0.01" placeholder="Antebraco D" />
-                    <input name="antebraco_e" type="number" step="0.01" placeholder="Antebraco E" />
+                    <input name="braco_d" type="number" step="0.01" placeholder="Braço D" />
+                    <input name="braco_e" type="number" step="0.01" placeholder="Braço E" />
+                    <input name="antebraco_d" type="number" step="0.01" placeholder="Antebraço D" />
+                    <input name="antebraco_e" type="number" step="0.01" placeholder="Antebraço E" />
                     <input name="coxa_d" type="number" step="0.01" placeholder="Coxa D" />
                     <input name="coxa_e" type="number" step="0.01" placeholder="Coxa E" />
                     <input name="panturrilha_d" type="number" step="0.01" placeholder="Panturrilha D" />
                     <input name="panturrilha_e" type="number" step="0.01" placeholder="Panturrilha E" />
-                    <input name="bi_epicondilo" type="number" step="0.01" placeholder="Bi epicondilo" />
-                    <input name="bi_estiloide" type="number" step="0.01" placeholder="Bi estiloide" />
+                    <input name="bi_epicondilo" type="number" step="0.01" placeholder="Bi epicôndilo" />
+                    <input name="bi_estiloide" type="number" step="0.01" placeholder="Bi estilóide" />
                     <input name="bi_femoral" type="number" step="0.01" placeholder="Bi femoral" />
                     <input name="bi_maleolar" type="number" step="0.01" placeholder="Bi maleolar" />
                   </div>
@@ -555,7 +555,7 @@
             <div class="section-title">
               <div>
                 <h2>Modo de trabalho</h2>
-                <p>Escolha como deseja trabalhar agora. Voce pode comecar independente e vincular uma academia depois.</p>
+                <p>Escolha como deseja trabalhar agora. Você pode começar independente e vincular uma academia depois.</p>
               </div>
             </div>
             <form class="form-box compact-form" id="trainer-academy-link-form">
@@ -568,8 +568,8 @@
                 </select>
               </label>
               <div class="mini-grid hidden" id="academy-link-fields">
-                <input name="academy_code" type="text" placeholder="Codigo da academia" />
-                <input name="responsible_contact" type="text" placeholder="E-mail ou WhatsApp do responsavel" />
+                <input name="academy_code" type="text" placeholder="Código da academia" />
+                <input name="responsible_contact" type="text" placeholder="E-mail ou WhatsApp do responsável" />
               </div>
               <button class="secondary-button" type="submit" id="trainer-academy-submit">Salvar modo independente</button>
               <div class="list" id="trainer-academy-status"></div>
@@ -616,7 +616,7 @@
                   <input name="name" type="text" required placeholder="Nome da academia" />
                 </label>
                 <label>
-                  CNPJ ou CPF do responsavel
+                  CNPJ ou CPF do responsável
                   <input name="document" type="text" placeholder="Documento" />
                 </label>
                 <label>
@@ -625,19 +625,19 @@
                 </label>
                 <label>
                   Endereço
-                  <input name="address" type="text" placeholder="Rua, numero, bairro" />
+                  <input name="address" type="text" placeholder="Rua, número, bairro" />
                 </label>
                 <label>
-                  Nome do responsavel
-                  <input name="responsible_name" type="text" placeholder="Responsavel" />
+                  Nome do responsável
+                  <input name="responsible_name" type="text" placeholder="Responsável" />
                 </label>
                 <label>
-                  E-mail do responsavel
+                  E-mail do responsável
                   <input name="responsible_email" type="email" placeholder="responsavel@email.com" />
                 </label>
                 <div class="mini-grid">
                   <label>
-                    Inicio do piloto
+                    Início do piloto
                     <input name="pilot_start_date" type="date" />
                   </label>
                   <label>
@@ -674,7 +674,7 @@
                 </label>
                 <label>
                   Objetivo
-                  <input name="objective" type="text" placeholder="Ex: emagrecimento, saude" />
+                  <input name="objective" type="text" placeholder="Ex: emagrecimento, saúde" />
                 </label>
                 <label>
                   Status
@@ -694,9 +694,10 @@
             <article class="card">
               <div class="section-title">
                 <div>
-                  <h2>Entrada e saida</h2>
-                  <p>Controle simples de presenca do dia.</p>
+                  <h2>Entrada e saída</h2>
+                  <p>Controle simples de presença do dia.</p>
                 </div>
+                <button class="secondary-button" type="button" id="export-attendance-csv">Exportar CSV</button>
               </div>
               <form class="form-box" id="attendance-form">
                 <label>
@@ -709,7 +710,7 @@
                 </label>
                 <div class="button-row">
                   <button class="primary-button" type="submit" data-attendance-action="checkin">Registrar entrada</button>
-                  <button class="secondary-button" type="submit" data-attendance-action="checkout">Registrar saida</button>
+                  <button class="secondary-button" type="submit" data-attendance-action="checkout">Registrar saída</button>
                 </div>
               </form>
               <h3>Histórico diário</h3>
@@ -753,7 +754,7 @@
             <div class="section-title">
               <div>
                 <h2>Controle do Sistema</h2>
-                <p>Acesso restrito para usuario autenticado com perfil Admin TI.</p>
+                <p>Acesso restrito para usuário autenticado com perfil Admin TI.</p>
               </div>
             </div>
             <p class="muted-text">Entre com seu e-mail e senha para continuar.</p>
@@ -781,9 +782,9 @@
                 <div class="button-row">
                   <button class="secondary-button" type="button" id="copy-supabase-url">Copiar URL</button>
                   <button class="secondary-button" type="button" id="copy-supabase-key">Copiar chave</button>
-                  <button class="secondary-button" type="button" id="test-connection-button">Testar conexao</button>
+                  <button class="secondary-button" type="button" id="test-connection-button">Testar conexão</button>
                   <button class="secondary-button" type="button" id="admin-reload-data">Recarregar dados</button>
-                  <button class="secondary-button" type="button" id="seed-exercise-library">Inserir biblioteca padrao</button>
+                  <button class="secondary-button" type="button" id="seed-exercise-library">Inserir biblioteca padrão</button>
                 </div>
               </form>
             </article>
@@ -841,19 +842,19 @@
               <div class="section-title compact-title">
                 <div>
                   <h2>Manutenção do sistema</h2>
-                  <p>Exclusoes permanentes apenas para limpar testes, duplicados e dados orfaos.</p>
+                  <p>Exclusões permanentes apenas para limpar testes, duplicados e dados órfãos.</p>
                 </div>
               </div>
               <div class="button-row">
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessoes do aluno selecionado</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessões do aluno selecionado</button>
                 <button class="secondary-button" type="button" data-admin-maintenance="selected-measurements">Limpar medidas do aluno selecionado</button>
                 <button class="secondary-button" type="button" data-admin-maintenance="selected-workouts">Limpar treinos do aluno selecionado</button>
                 <button class="secondary-button" type="button" data-admin-maintenance="selected-reset">Resetar aluno selecionado</button>
                 <button class="secondary-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-students">Excluir usuarios de teste</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="test-students">Excluir usuários de teste</button>
                 <button class="secondary-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
                 <button class="secondary-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="orphans">Limpar dados orfaos</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
               </div>
               <div class="list spaced" id="admin-maintenance-log"></div>
             </article>

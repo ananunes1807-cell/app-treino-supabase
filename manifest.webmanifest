@@ -1,6 +1,6 @@
 {
-  "name": "GymPulse",
-  "short_name": "GymPulse",
+  "name": "Alion Treinos",
+  "short_name": "Alion",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
