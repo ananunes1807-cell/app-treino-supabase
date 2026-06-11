@@ -1,5 +1,11 @@
 ﻿const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
 const PENDING_WORKOUT_LOGS_KEY = "Alion Treinos_pending_workout_logs";
+const THEME_STORAGE_KEY = "alion-theme-preference";
+const THEME_VALUES = ["system", "light", "dark"];
+const THEME_COLORS = {
+  light: "#f4f7fb",
+  dark: "#160822"
+};
 const APP_PUBLIC_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
 const REQUIRED_TABLES = [
   "app_profiles",
@@ -99,6 +105,7 @@ const state = {
   restTimers: {},
   workoutAudioContext: null,
   workoutAudioUnlocked: false,
+  themePreference: getStoredThemePreference(),
   pendingConfirmExerciseId: "",
   trainerActiveTab: "profile",
   trainerWorkoutFilter: "active",
@@ -123,6 +130,7 @@ const el = {
   pageTitle: document.querySelector("#page-title"),
   sidebar: document.querySelector("#sidebar"),
   connectionStatus: document.querySelector("#connection-status"),
+  themeSelect: document.querySelector("#theme-select"),
   toast: document.querySelector("#toast"),
   totalStudents: document.querySelector("#total-students"),
   totalExercises: document.querySelector("#total-exercises"),
@@ -6091,9 +6099,84 @@ function openExerciseVideo(videoUrl) {
 }
 
 /**
+ * Recupera a preferencia visual salva. O padrao segue o sistema.
+ */
+function getStoredThemePreference() {
+  const savedPreference = localStorage.getItem(THEME_STORAGE_KEY);
+  return THEME_VALUES.includes(savedPreference) ? savedPreference : "system";
+}
+
+/**
+ * Detecta o tema atual do sistema operacional.
+ */
+function getSystemTheme() {
+  if (!window.matchMedia) return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/**
+ * Resolve qual tema deve ser aplicado no momento.
+ */
+function getEffectiveTheme(preference = state.themePreference) {
+  return preference === "system" ? getSystemTheme() : preference;
+}
+
+/**
+ * Atualiza a cor da barra do PWA/navegador conforme o tema ativo.
+ */
+function updateThemeColor(theme) {
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (!themeColor) return;
+  themeColor.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS.light);
+}
+
+/**
+ * Aplica o tema visual sem alterar regras de negocio do app.
+ */
+function applyTheme(preference = state.themePreference) {
+  const normalizedPreference = THEME_VALUES.includes(preference) ? preference : "system";
+  state.themePreference = normalizedPreference;
+  const effectiveTheme = getEffectiveTheme(normalizedPreference);
+  document.documentElement.dataset.theme = effectiveTheme;
+  document.documentElement.dataset.themePreference = normalizedPreference;
+  updateThemeColor(effectiveTheme);
+  if (el.themeSelect) el.themeSelect.value = normalizedPreference;
+}
+
+/**
+ * Salva a escolha manual de tema.
+ */
+function setThemePreference(preference) {
+  const normalizedPreference = THEME_VALUES.includes(preference) ? preference : "system";
+  localStorage.setItem(THEME_STORAGE_KEY, normalizedPreference);
+  applyTheme(normalizedPreference);
+}
+
+/**
+ * Se o usuario escolher "Sistema", acompanha mudancas do celular/computador.
+ */
+function bindSystemThemeListener() {
+  if (!window.matchMedia) return;
+  const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const handleThemeChange = () => {
+    if (state.themePreference === "system") applyTheme("system");
+  };
+
+  if (themeQuery.addEventListener) {
+    themeQuery.addEventListener("change", handleThemeChange);
+  } else if (themeQuery.addListener) {
+    themeQuery.addListener(handleThemeChange);
+  }
+}
+
+/**
  * Registra eventos de interface.
  */
 function bindEvents() {
+  el.themeSelect?.addEventListener("change", (event) => {
+    setThemePreference(event.currentTarget.value);
+  });
+
   el.authLoginForm.addEventListener("submit", (event) => {
     event.preventDefault();
     handleAuthLogin(event.currentTarget);
@@ -6413,6 +6496,8 @@ function renderWorkoutActions(workout, hasLogs) {
  * Inicializa o app com Supabase Auth e fallback temporario de MVP.
  */
 async function init() {
+  applyTheme();
+  bindSystemThemeListener();
   bindEvents();
   bindAuthRecoveryEvents();
   hydrateAdminConfigForm();

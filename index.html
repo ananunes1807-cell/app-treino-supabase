@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260608-mobile-facil-v35" />
+    <link rel="stylesheet" href="style.css?v=20260611-tema-v36" />
   </head>
   <body>
     <div class="app">
@@ -35,11 +35,21 @@
 
       <main class="content">
         <header class="topbar">
-          <div>
+          <div class="topbar-title">
             <p class="subtitle">Sistema de acompanhamento de treinos</p>
             <h1 id="page-title">Como deseja acessar?</h1>
           </div>
-          <span class="connection" id="connection-status">Conectando...</span>
+          <div class="topbar-actions">
+            <label class="theme-control" for="theme-select">
+              <span>Tema</span>
+              <select id="theme-select" aria-label="Tema visual">
+                <option value="system">Sistema</option>
+                <option value="light">Claro</option>
+                <option value="dark">Escuro</option>
+              </select>
+            </label>
+            <span class="connection" id="connection-status">Conectando...</span>
+          </div>
         </header>
 
         <section class="screen active" id="screen-access">
@@ -159,7 +169,7 @@
               <button class="mode-button active" type="button" data-student-mode="easy">Modo F&aacute;cil</button>
               <button class="mode-button" type="button" data-student-mode="advanced">Modo Avan&ccedil;ado</button>
             </div>
-            <p class="muted-text version-badge">Vers&atilde;o mobile aluno f&aacute;cil v35</p>
+            <p class="muted-text version-badge">Vers&atilde;o mobile aluno f&aacute;cil v36</p>
           </article>
 
           <div class="grid two-columns">
