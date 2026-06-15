@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260615-redesign-roxo-v38" />
+    <link rel="stylesheet" href="style.css?v=20260615-ux-journey-v39" />
   </head>
   <body>
     <div class="app">
@@ -80,7 +80,7 @@
                 <button class="role-chip active" type="button" data-login-role="student">
                   <span class="role-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20c0-4 2.7-7 6-7s6 3 6 7"/></svg></span>
                   <strong>Aluno</strong>
-                  <span>Meu treino</span>
+                  <span>Entra por convite</span>
                 </button>
                 <button class="role-chip" type="button" data-login-role="trainer">
                   <span class="role-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17v-2a4 4 0 014-4h8a4 4 0 014 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3l2 2-2 2"/></svg></span>
@@ -351,10 +351,10 @@
               <div class="tab-row-wrapper">
                 <div class="tab-row" id="trainer-tabs">
                   <button class="tab-button active" type="button" data-trainer-tab="profile">Perfil</button>
-                  <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
-                  <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
                   <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
                   <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
+                  <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
+                  <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
                   <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
                   <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
                 </div>
@@ -389,6 +389,58 @@
                   <button class="primary-button" type="submit">Salvar perfil</button>
                   <button class="secondary-button danger-outline-button" type="button" id="delete-student-button">Excluir aluno</button>
                 </form>
+              </section>
+
+              <section class="trainer-tab" id="trainer-tab-workouts">
+                <form class="form-box" id="new-workout-form">
+                  <h3>Criar treino para aluno</h3>
+                  <label>
+                    Nome do treino
+                    <input name="name" type="text" required placeholder="Ex: Treino A - Superiores" />
+                  </label>
+                  <label>
+                    Objetivo
+                    <input name="goal" type="text" placeholder="Ex: hipertrofia" />
+                  </label>
+                  <label>
+                    Observa&ccedil;&otilde;es
+                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es do treino" />
+                  </label>
+                  <button class="primary-button" type="submit">Criar treino</button>
+                </form>
+
+                <div class="form-box">
+                  <h3>Adicionar exerc&iacute;cio ao treino</h3>
+                  <label>
+                    Treino
+                    <select id="trainer-workout-select"></select>
+                  </label>
+                  <label>
+                    Exerc&iacute;cio
+                    <select id="trainer-exercise-select"></select>
+                  </label>
+                  <div class="mini-grid">
+                    <input id="sets-input" type="number" min="1" placeholder="Séries" />
+                    <input id="reps-input" type="text" placeholder="Repeticoes" />
+                    <input id="load-input" type="text" placeholder="Carga" />
+                    <input id="rest-input" type="number" min="0" placeholder="Descanso s" />
+                    <input id="exercise-notes-input" type="text" placeholder="Instrucoes" />
+                  </div>
+                  <button class="secondary-button" type="button" id="add-exercise-to-workout">Adicionar exerc&iacute;cio</button>
+                </div>
+
+                <h3>Treinos do aluno</h3>
+                <div class="segmented-filter" id="trainer-workout-filter">
+                  <button class="tiny-button active" type="button" data-workout-filter="active">Ativos</button>
+                  <button class="tiny-button" type="button" data-workout-filter="archived">Arquivados</button>
+                  <button class="tiny-button" type="button" data-workout-filter="all">Todos</button>
+                </div>
+                <div class="list compact-list" id="trainer-workouts"></div>
+              </section>
+
+              <section class="trainer-tab" id="trainer-tab-history">
+                <h3>Hist&oacute;rico do aluno</h3>
+                <div class="list compact-list" id="trainer-history"></div>
               </section>
 
               <section class="trainer-tab" id="trainer-tab-assessments">
@@ -478,58 +530,6 @@
                 <div class="list compact-list" id="trainer-measurements"></div>
               </section>
 
-              <section class="trainer-tab" id="trainer-tab-workouts">
-                <form class="form-box" id="new-workout-form">
-                  <h3>Criar treino para aluno</h3>
-                  <label>
-                    Nome do treino
-                    <input name="name" type="text" required placeholder="Ex: Treino A - Superiores" />
-                  </label>
-                  <label>
-                    Objetivo
-                    <input name="goal" type="text" placeholder="Ex: hipertrofia" />
-                  </label>
-                  <label>
-                    Observa&ccedil;&otilde;es
-                    <input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es do treino" />
-                  </label>
-                  <button class="primary-button" type="submit">Criar treino</button>
-                </form>
-
-                <div class="form-box">
-                  <h3>Adicionar exerc&iacute;cio ao treino</h3>
-                  <label>
-                    Treino
-                    <select id="trainer-workout-select"></select>
-                  </label>
-                  <label>
-                    Exerc&iacute;cio
-                    <select id="trainer-exercise-select"></select>
-                  </label>
-                  <div class="mini-grid">
-                    <input id="sets-input" type="number" min="1" placeholder="Séries" />
-                    <input id="reps-input" type="text" placeholder="Repeticoes" />
-                    <input id="load-input" type="text" placeholder="Carga" />
-                    <input id="rest-input" type="number" min="0" placeholder="Descanso s" />
-                    <input id="exercise-notes-input" type="text" placeholder="Instrucoes" />
-                  </div>
-                  <button class="secondary-button" type="button" id="add-exercise-to-workout">Adicionar exerc&iacute;cio</button>
-                </div>
-
-                <h3>Treinos do aluno</h3>
-                <div class="segmented-filter" id="trainer-workout-filter">
-                  <button class="tiny-button active" type="button" data-workout-filter="active">Ativos</button>
-                  <button class="tiny-button" type="button" data-workout-filter="archived">Arquivados</button>
-                  <button class="tiny-button" type="button" data-workout-filter="all">Todos</button>
-                </div>
-                <div class="list compact-list" id="trainer-workouts"></div>
-              </section>
-
-              <section class="trainer-tab" id="trainer-tab-history">
-                <h3>Hist&oacute;rico do aluno</h3>
-                <div class="list compact-list" id="trainer-history"></div>
-              </section>
-
               <section class="trainer-tab" id="trainer-tab-invites">
                 <div class="section-title compact-title">
                   <div>
@@ -582,27 +582,40 @@
           </div>
 
           <details class="card work-mode-details">
-            <summary>Modo de trabalho</summary>
+            <summary>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+              Modo de trabalho
+            </summary>
             <div class="section-title">
               <div>
-                <h2>Modo de trabalho</h2>
-                <p>Escolha como deseja trabalhar agora. Você pode começar independente e vincular uma academia depois.</p>
+                <h2>Como você trabalha?</h2>
+                <p>Escolha seu modo de atuação. Você pode começar independente e vincular uma academia depois.</p>
               </div>
             </div>
             <form class="form-box compact-form" id="trainer-academy-link-form">
-              <label>
-                Como deseja trabalhar agora?
-                <select name="works_from_academy" required>
-                  <option value="">Selecione</option>
-                  <option value="independent">Personal independente</option>
-                  <option value="academy">Vinculado a uma academia</option>
-                </select>
-              </label>
+              <div class="work-mode-cards">
+                <label class="work-mode-card">
+                  <input type="radio" name="works_from_academy" value="independent" />
+                  <span class="work-mode-card-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M6 20c0-4 2.7-7 6-7s6 3 6 7"/></svg>
+                  </span>
+                  <strong>Personal independente</strong>
+                  <span>Atende alunos diretamente, sem vínculo com academia</span>
+                </label>
+                <label class="work-mode-card">
+                  <input type="radio" name="works_from_academy" value="academy" />
+                  <span class="work-mode-card-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v4m-2-2h4"/></svg>
+                  </span>
+                  <strong>Vinculado a uma academia</strong>
+                  <span>Trabalha dentro de uma academia cadastrada no sistema</span>
+                </label>
+              </div>
               <div class="mini-grid hidden" id="academy-link-fields">
                 <input name="academy_code" type="text" placeholder="Código da academia" />
                 <input name="responsible_contact" type="text" placeholder="E-mail ou WhatsApp do responsável" />
               </div>
-              <button class="secondary-button" type="submit" id="trainer-academy-submit">Salvar modo independente</button>
+              <button class="secondary-button" type="submit" id="trainer-academy-submit">Salvar configuração</button>
               <div class="list" id="trainer-academy-status"></div>
             </form>
           </details>
@@ -684,7 +697,15 @@
                 <button class="primary-button" type="submit">Salvar academia</button>
               </form>
               <div class="list spaced" id="academy-list"></div>
-              <h3>Solicitações de personal</h3>
+            </article>
+
+            <article class="card">
+              <div class="section-title">
+                <div>
+                  <h2>Personals vinculados</h2>
+                  <p>Profissionais que solicitaram vínculo com esta academia</p>
+                </div>
+              </div>
               <div class="list compact-list" id="academy-link-list"></div>
             </article>
 
@@ -692,7 +713,7 @@
               <div class="section-title">
                 <div>
                   <h2>Alunos da academia</h2>
-                  <p>Adicione alunos rapidamente</p>
+                  <p>Alunos vinculados a esta academia — não são todos os alunos do sistema</p>
                 </div>
               </div>
               <form class="form-box" id="academy-student-form">
@@ -825,6 +846,11 @@
               </form>
             </article>
 
+            <article class="card">
+              <h2>Diagnóstico do sistema</h2>
+              <div class="diagnostic-grid" id="admin-diagnostics"></div>
+            </article>
+
             <div class="grid three-columns">
               <article class="card">
                 <h2>Tabelas existentes</h2>
@@ -869,16 +895,27 @@
               </article>
             </div>
 
-            <article class="card">
-              <h2>Diagnóstico do sistema</h2>
-              <div class="diagnostic-grid" id="admin-diagnostics"></div>
-            </article>
+            <div class="grid two-columns">
+              <article class="card">
+                <h2>Erros do Supabase</h2>
+                <div class="list" id="admin-errors-list"></div>
+              </article>
+              <article class="card">
+                <h2>Políticas RLS</h2>
+                <p class="muted-text">A chave pública não consegue consultar políticas internas. Esta área mostra as políticas esperadas para o MVP.</p>
+                <div class="list" id="admin-rls-policies"></div>
+              </article>
+            </div>
 
-            <article class="card">
+            <details class="card admin-danger-details">
+              <summary>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Manutenção perigosa — abrir somente se souber o que está fazendo
+              </summary>
               <div class="section-title compact-title">
                 <div>
                   <h2>Manutenção do sistema</h2>
-                  <p>Exclusões permanentes apenas para limpar testes, duplicados e dados órfãos.</p>
+                  <p>Exclusões permanentes apenas para limpar testes, duplicados e dados órfãos. Essas ações não podem ser desfeitas.</p>
                 </div>
               </div>
               <div class="button-row">
@@ -893,19 +930,7 @@
                 <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
               </div>
               <div class="list spaced" id="admin-maintenance-log"></div>
-            </article>
-
-            <div class="grid two-columns">
-              <article class="card">
-                <h2>Erros do Supabase</h2>
-                <div class="list" id="admin-errors-list"></div>
-              </article>
-              <article class="card">
-                <h2>Políticas RLS</h2>
-                <p class="muted-text">A chave pública não consegue consultar políticas internas. Esta área mostra as políticas esperadas para o MVP.</p>
-                <div class="list" id="admin-rls-policies"></div>
-              </article>
-            </div>
+            </details>
           </div>
         </section>
       </main>
@@ -926,7 +951,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260615-redesign-roxo-v38"></script>
-    <script src="app.js?v=20260615-redesign-roxo-v38"></script>
+    <script src="supabase.js?v=20260615-ux-journey-v39"></script>
+    <script src="app.js?v=20260615-ux-journey-v39"></script>
   </body>
 </html>
