@@ -432,8 +432,17 @@ label {
 
 .secondary-button {
   border: 1px solid var(--line);
-  background: #eef4f8;
+  background: var(--surface-soft);
   color: var(--text);
+}
+
+.danger-outline-button {
+  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--danger);
+}
+
+.danger-outline-button:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .link-button {
@@ -535,6 +544,21 @@ label {
   border-radius: var(--radius);
   background: var(--surface-soft);
   padding: 14px;
+}
+
+.tab-row-wrapper {
+  position: relative;
+}
+
+.tab-row-wrapper::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 4px;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--card));
+  pointer-events: none;
 }
 
 .tab-row {
@@ -1483,7 +1507,7 @@ label {
   transform: translateY(16px);
   border-radius: var(--radius);
   background: var(--text);
-  color: #fff;
+  color: var(--bg);
   opacity: 0;
   padding: 12px 14px;
   pointer-events: none;
@@ -1772,7 +1796,7 @@ label {
     justify-content: center;
     border-radius: var(--radius);
     background: var(--text);
-    color: #fff;
+    color: var(--bg);
     font-weight: 800;
   }
 

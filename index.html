@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260611-tema-v36" />
+    <link rel="stylesheet" href="style.css?v=20260615-fix-contraste-tema-v37" />
   </head>
   <body>
     <div class="app">
@@ -329,14 +329,16 @@
 
               <div class="profile-header" id="trainer-profile-summary"></div>
 
-              <div class="tab-row" id="trainer-tabs">
-                <button class="tab-button active" type="button" data-trainer-tab="profile">Perfil</button>
-                <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
-                <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
-                <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
-                <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
-                <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
-                <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
+              <div class="tab-row-wrapper">
+                <div class="tab-row" id="trainer-tabs">
+                  <button class="tab-button active" type="button" data-trainer-tab="profile">Perfil</button>
+                  <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
+                  <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
+                  <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
+                  <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
+                  <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
+                  <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
+                </div>
               </div>
 
               <section class="trainer-tab active" id="trainer-tab-profile">
@@ -366,7 +368,7 @@
                     <label class="field-label"><span>Observa&ccedil;&otilde;es</span><input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es gerais" /></label>
                   </div>
                   <button class="primary-button" type="submit">Salvar perfil</button>
-                  <button class="secondary-button" type="button" id="delete-student-button">Excluir aluno</button>
+                  <button class="secondary-button danger-outline-button" type="button" id="delete-student-button">Excluir aluno</button>
                 </form>
               </section>
 
@@ -856,15 +858,15 @@
                 </div>
               </div>
               <div class="button-row">
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessões do aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-measurements">Limpar medidas do aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-workouts">Ocultar treinos do aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-reset">Resetar aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-students">Excluir usuários de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessões do aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-measurements">Limpar medidas do aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-workouts">Ocultar treinos do aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-reset">Resetar aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-students">Excluir usuários de teste</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
               </div>
               <div class="list spaced" id="admin-maintenance-log"></div>
             </article>
