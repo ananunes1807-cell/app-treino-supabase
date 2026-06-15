@@ -1083,15 +1083,123 @@ label {
   gap: 12px;
 }
 
-.work-mode-details summary {
+.work-mode-details summary,
+.admin-danger-details summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: 48px;
-  color: var(--text);
   cursor: pointer;
   font-weight: 900;
+  list-style: none;
 }
 
-.work-mode-details[open] summary {
+.work-mode-details summary::marker,
+.admin-danger-details summary::marker { display: none; }
+
+.work-mode-details summary svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.work-mode-details summary {
+  color: var(--text);
+}
+
+.work-mode-details[open] summary,
+.admin-danger-details[open] summary {
   margin-bottom: 12px;
+}
+
+.work-mode-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.work-mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.work-mode-card input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.work-mode-card:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.work-mode-card-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--gradient-primary);
+  color: #fff;
+}
+
+.work-mode-card-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.work-mode-card strong {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.work-mode-card span:not(.work-mode-card-icon) {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.admin-danger-details {
+  display: grid;
+  gap: 12px;
+  border: 2px solid var(--danger);
+}
+
+.admin-danger-details summary {
+  color: var(--danger);
+}
+
+.admin-danger-details summary svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: var(--danger);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .mode-toggle {
