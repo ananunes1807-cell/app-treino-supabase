@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260611-tema-v36" />
+    <link rel="stylesheet" href="style.css?v=20260615-redesign-roxo-v38" />
   </head>
   <body>
     <div class="app">
@@ -25,11 +25,26 @@
         </div>
 
         <nav class="menu" aria-label="Áreas do sistema">
-          <button class="menu-button active" type="button" data-screen="access">Trocar acesso</button>
-          <button class="menu-button student-nav" type="button" data-screen="student-area">Meu Treino</button>
-          <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">Treinador</button>
-          <button class="menu-button academy-nav" type="button" data-screen="academy-area">Academia</button>
-          <button class="menu-button admin-entry" type="button" data-screen="admin-area">Sistema</button>
+          <button class="menu-button active" type="button" data-screen="access">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Trocar acesso</span>
+          </button>
+          <button class="menu-button student-nav" type="button" data-screen="student-area">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12M3 9v6M21 9v6M3 10.5h2v3H3zM19 10.5h2v3h-2z"/></svg>
+            <span>Meu Treino</span>
+          </button>
+          <button class="menu-button trainer-nav" type="button" data-screen="trainer-area">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+            <span>Treinador</span>
+          </button>
+          <button class="menu-button academy-nav" type="button" data-screen="academy-area">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v4m-2-2h4"/></svg>
+            <span>Academia</span>
+          </button>
+          <button class="menu-button admin-entry" type="button" data-screen="admin-area">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <span>Sistema</span>
+          </button>
         </nav>
       </aside>
 
@@ -63,18 +78,22 @@
               <p class="muted-text">Toque no card que combina com você. Depois entre com e-mail e senha.</p>
               <div class="role-picker" id="login-role-picker" aria-label="Perfil de acesso">
                 <button class="role-chip active" type="button" data-login-role="student">
+                  <span class="role-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20c0-4 2.7-7 6-7s6 3 6 7"/></svg></span>
                   <strong>Aluno</strong>
                   <span>Meu treino</span>
                 </button>
                 <button class="role-chip" type="button" data-login-role="trainer">
+                  <span class="role-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17v-2a4 4 0 014-4h8a4 4 0 014 4v2"/><circle cx="12" cy="7" r="4"/><path d="M16 3l2 2-2 2"/></svg></span>
                   <strong>Personal</strong>
                   <span>Meus alunos</span>
                 </button>
                 <button class="role-chip" type="button" data-login-role="owner">
+                  <span class="role-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v4m-2-2h4"/></svg></span>
                   <strong>Academia</strong>
                   <span>Gestão simples</span>
                 </button>
                 <button class="role-chip" type="button" data-login-role="admin">
+                  <span class="role-chip-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
                   <strong>Admin TI</strong>
                   <span>Manutenção</span>
                 </button>
@@ -223,25 +242,25 @@
         <section class="screen" id="screen-trainer-area">
           <div class="cards">
             <article class="card stat-card">
-              <span class="kpi-icon" aria-hidden="true">A</span>
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
               <span>Alunos</span>
               <strong class="kpi-value" id="total-students">0</strong>
               <small class="kpi-meta">cadastrados</small>
             </article>
             <article class="card stat-card">
-              <span class="kpi-icon" aria-hidden="true">E</span>
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 12h12M3 9v6M21 9v6M3 10.5h2v3H3zM19 10.5h2v3h-2z"/></svg></span>
               <span>Exerc&iacute;cios</span>
               <strong class="kpi-value" id="total-exercises">0</strong>
               <small class="kpi-meta">na biblioteca</small>
             </article>
             <article class="card stat-card">
-              <span class="kpi-icon" aria-hidden="true">T</span>
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
               <span>Treinos</span>
               <strong class="kpi-value" id="total-workouts">0</strong>
               <small class="kpi-meta">criados</small>
             </article>
             <article class="card stat-card">
-              <span class="kpi-icon" aria-hidden="true">C</span>
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
               <span>Conclu&iacute;dos</span>
               <strong class="kpi-value" id="total-logs">0</strong>
               <small class="kpi-meta">finalizados</small>
@@ -329,14 +348,16 @@
 
               <div class="profile-header" id="trainer-profile-summary"></div>
 
-              <div class="tab-row" id="trainer-tabs">
-                <button class="tab-button active" type="button" data-trainer-tab="profile">Perfil</button>
-                <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
-                <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
-                <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
-                <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
-                <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
-                <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
+              <div class="tab-row-wrapper">
+                <div class="tab-row" id="trainer-tabs">
+                  <button class="tab-button active" type="button" data-trainer-tab="profile">Perfil</button>
+                  <button class="tab-button" type="button" data-trainer-tab="assessments">Avalia&ccedil;&otilde;es</button>
+                  <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
+                  <button class="tab-button" type="button" data-trainer-tab="workouts">Treinos</button>
+                  <button class="tab-button" type="button" data-trainer-tab="history">Hist&oacute;rico</button>
+                  <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
+                  <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
+                </div>
               </div>
 
               <section class="trainer-tab active" id="trainer-tab-profile">
@@ -366,7 +387,7 @@
                     <label class="field-label"><span>Observa&ccedil;&otilde;es</span><input name="notes" type="text" placeholder="Observa&ccedil;&otilde;es gerais" /></label>
                   </div>
                   <button class="primary-button" type="submit">Salvar perfil</button>
-                  <button class="secondary-button" type="button" id="delete-student-button">Excluir aluno</button>
+                  <button class="secondary-button danger-outline-button" type="button" id="delete-student-button">Excluir aluno</button>
                 </form>
               </section>
 
@@ -590,23 +611,28 @@
         <section class="screen" id="screen-academy-area">
           <div class="cards">
             <article class="card stat-card">
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><path d="M12 12v4m-2-2h4"/></svg></span>
               <span>Academias</span>
               <strong id="total-academies">0</strong>
             </article>
             <article class="card stat-card">
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
               <span>Entradas hoje</span>
               <strong id="total-attendance-today">0</strong>
             </article>
             <article class="card stat-card">
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span>
               <span>Inativos</span>
               <strong id="total-inactive-students">0</strong>
               <small class="kpi-meta">alunos inativos há 7+ dias</small>
             </article>
             <article class="card stat-card">
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></span>
               <span>Recebido</span>
               <strong id="finance-total-paid">R$ 0</strong>
             </article>
             <article class="card stat-card">
+              <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
               <span>Pendente</span>
               <strong id="finance-total-pending">R$ 0</strong>
             </article>
@@ -856,15 +882,15 @@
                 </div>
               </div>
               <div class="button-row">
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessões do aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-measurements">Limpar medidas do aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-workouts">Ocultar treinos do aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="selected-reset">Resetar aluno selecionado</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-students">Excluir usuários de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessões do aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-measurements">Limpar medidas do aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-workouts">Ocultar treinos do aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-reset">Resetar aluno selecionado</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-students">Excluir usuários de teste</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
+                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
               </div>
               <div class="list spaced" id="admin-maintenance-log"></div>
             </article>
@@ -900,7 +926,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase.js?v=20260607-dashboard-treinador-v33"></script>
-    <script src="app.js?v=20260607-dashboard-treinador-v33"></script>
+    <script src="supabase.js?v=20260615-redesign-roxo-v38"></script>
+    <script src="app.js?v=20260615-redesign-roxo-v38"></script>
   </body>
 </html>

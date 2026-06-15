@@ -265,6 +265,20 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+const AVATAR_COLOR_CLASSES = ["color-1", "color-2", "color-3", "color-4", "color-5"];
+
+/**
+ * Gera uma classe de cor estavel para o avatar com base no nome.
+ */
+function getAvatarColor(name) {
+  const text = String(name || "");
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) % AVATAR_COLOR_CLASSES.length;
+  }
+  return AVATAR_COLOR_CLASSES[Math.abs(hash) % AVATAR_COLOR_CLASSES.length];
+}
+
 /**
  * Formata datas do Supabase para exibicao em pt-BR.
  */
@@ -302,10 +316,11 @@ function parseDateOnly(value) {
 /**
  * Exibe mensagem de sucesso ou erro.
  */
-function showToast(message, type = "success") {
+function showToast(message, type = "success", { celebrate = false } = {}) {
   el.toast.textContent = message;
   el.toast.dataset.type = type;
   el.toast.classList.add("visible");
+  el.toast.classList.toggle("celebrate", celebrate);
   window.setTimeout(() => el.toast.classList.remove("visible"), 3500);
 }
 
@@ -624,6 +639,8 @@ function renderEasyStudentWorkout(workout, logs) {
   const nextWorkout = getNextWorkout(state.studentAreaId, workout.id);
   const lastLog = logs[0];
   const personalNotes = pick(workout, ["notes", "instructions", "description"], "");
+  const summary = getWorkoutExecutionSummary(workout.id);
+  const progressPercent = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
 
   return `
     <article class="easy-summary-card">
@@ -632,6 +649,17 @@ function renderEasyStudentWorkout(workout, logs) {
       <span>Próximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Não informado"))}</span>
       <span>Último treino feito: ${escapeHtml(lastLog ? formatDate(pick(lastLog, ["completed_at", "created_at"], "")) : "Ainda não registrado")}</span>
       ${personalNotes ? `<small>Aviso do personal: ${escapeHtml(personalNotes)}</small>` : ""}
+      ${summary.total ? `
+        <div class="workout-progress">
+          <div class="workout-progress-label">
+            <span>Progresso do treino</span>
+            <span>${summary.completed} de ${summary.total}</span>
+          </div>
+          <div class="workout-progress-bar">
+            <div class="workout-progress-fill" style="width: ${progressPercent}%"></div>
+          </div>
+        </div>
+      ` : ""}
     </article>
     <div class="easy-exercise-list">
       ${exercises.length ? exercises.map(renderEasyExerciseCard).join("") : emptyMessage("Este treino ainda não possui exercícios.")}
@@ -1020,7 +1048,7 @@ function renderTrainerStudentButton(student) {
 
   return `
     <button class="list-item selectable student-list-card${active}" type="button" data-student-id="${escapeHtml(student.id)}">
-      <div class="avatar student-avatar">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+      <div class="avatar student-avatar ${getAvatarColor(name)}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
       <div class="student-list-info">
         <strong>${escapeHtml(name)}</strong>
         <span>${escapeHtml(detail)}</span>
@@ -1177,7 +1205,7 @@ async function renderTrainerProfile() {
   el.trainerProfileTitle.textContent = name;
   el.trainerProfileSummary.innerHTML = `
     <div class="profile-card">
-      <div class="avatar large">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+      <div class="avatar large ${getAvatarColor(name)}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
       <div>
         <strong>${escapeHtml(name)}</strong>
         <span>Objetivo: ${escapeHtml(pick(student, ["objective", "email"], "Não informado"))}</span>
@@ -2211,7 +2239,7 @@ async function completeCurrentWorkout() {
     });
     localStorage.removeItem(getExecutionDraftKey(workout.id));
     state.studentExerciseExecution = {};
-    showToast("Treino registrado com sucesso.");
+    showToast("🎉 Treino concluído! Bom trabalho.", "success", { celebrate: true });
     await loadSupabaseData();
   } catch (error) {
     const isNetworkError = !navigator.onLine || String(error.message).toLowerCase().includes("failed to fetch");
@@ -3132,7 +3160,7 @@ async function renderTrainerProfile() {
   el.trainerProfileTitle.textContent = name;
   el.trainerProfileSummary.innerHTML = `
     <div class="profile-card">
-      <div class="avatar large">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+      <div class="avatar large ${getAvatarColor(name)}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
       <div>
         <strong>${escapeHtml(name)}</strong>
         <span>Apelido: ${escapeHtml(pick(student, ["nickname", "apelido"], "Não informado"))}</span>
