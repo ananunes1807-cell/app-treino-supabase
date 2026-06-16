@@ -1,9 +1,9 @@
-const CACHE_NAME = "alion-pwa-v41";
+const CACHE_NAME = "alion-pwa-v42";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css?v=20260615-ux-journey-v39",
-  "./app.js?v=20260615-auth-link-v41",
+  "./app.js?v=20260615-google-v42",
   "./supabase.js",
   "./manifest.webmanifest",
   "./favicon.ico",

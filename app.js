@@ -198,6 +198,7 @@ const el = {
   authLoginForm: document.querySelector("#auth-login-form"),
   authRegisterForm: document.querySelector("#auth-register-form"),
   registerStatus: document.querySelector("#register-status"),
+  googleLoginButton: document.querySelector("#google-login-button"),
   forgotPasswordButton: document.querySelector("#forgot-password-button"),
   inviteRegisterButton: document.querySelector("#invite-register-button"),
   authEmail: document.querySelector("#auth-email"),
@@ -1948,10 +1949,7 @@ function getAccessibleAcademyStudents() {
   const academyId = getCurrentAcademyId();
   const students = getAccessibleStudents();
   if (!academyId || isAdmin()) return students;
-  return students.filter((student) => (
-    String(pick(student, ["academy_id"], academyId)) === String(academyId)
-    || String(pick(student, ["personal_id", "trainer_id"], "")) === String(getCurrentTrainerProfileId())
-  ));
+  return students.filter((student) => String(pick(student, ["academy_id"], "")) === String(academyId));
 }
 
 function getProfileOwnerIds() {
@@ -5245,6 +5243,14 @@ function pickSafeStudentForAuthLink(students, userId, invite = null) {
   return unlinked.length === 1 ? unlinked[0] : null;
 }
 
+function hasAmbiguousStudentMatch(students, userId, invite = null) {
+  if (pick(invite, ["student_id"], "")) return false;
+  if (students.some((student) => String(pick(student, ["auth_user_id", "profile_id"], "")) === String(userId))) {
+    return false;
+  }
+  return students.filter((student) => !pick(student, ["auth_user_id", "profile_id"], "")).length > 1;
+}
+
 async function ensureTrainerStudentLink(student, user, invite = null) {
   const trainerId = pick(invite, ["trainer_id"], "") || pick(student, ["trainer_id", "personal_id"], "");
   if (!student?.id || !trainerId) return;
@@ -5304,6 +5310,12 @@ async function ensureUserProfileAndStudentLink(user, options = {}) {
   }
 
   if (!appProfile) {
+    const normalizedRequestedRole = normalizeRole(getDefaultRoleForEmail(email, requestedRole));
+    if (normalizedRequestedRole === "student" && !invite) {
+      showToast("Seu login foi feito, mas ainda não encontramos um aluno vinculado.", "error");
+      return null;
+    }
+
     const payload = getProfilePayload(user, requestedRole, displayName);
     const normalizedRole = normalizeRole(payload.role);
     if (normalizedRole === "student" && !invite) {
@@ -5322,13 +5334,14 @@ async function ensureUserProfileAndStudentLink(user, options = {}) {
   });
 
   const students = await fetchStudentsByIdentity({ userId: user.id, email, phone });
+  const ambiguousStudentMatch = hasAmbiguousStudentMatch(students, user.id, invite);
   const student = pickSafeStudentForAuthLink(students, user.id, invite);
 
   if (!student && normalizeRole(appProfile.role) === "student") {
-    if (students.length > 1) {
-      showToast("Encontramos mais de um aluno com este e-mail/telefone. Peça revisão ao Admin TI.", "error");
+    if (ambiguousStudentMatch) {
+      showToast("Encontramos mais de um aluno com este e-mail. Peça revisão ao responsável.", "error");
     } else {
-      showToast("Seu cadastro existe, mas ainda não está vinculado a um aluno. Solicite ao personal.", "error");
+      showToast("Seu login foi feito, mas ainda não encontramos um aluno vinculado.", "error");
     }
     return appProfile;
   }
@@ -5752,7 +5765,10 @@ async function applyAuthenticatedSession(session) {
   const role = getCurrentRole();
 
   if (!role) {
-    showToast("Usuario sem perfil. Configure app_profiles no Supabase.", "error");
+    const message = normalizeRole(state.preferredLoginRole) === "student"
+      ? "Seu login foi feito, mas ainda não encontramos um aluno vinculado."
+      : "Usuario sem perfil. Configure app_profiles no Supabase.";
+    showToast(message, "error");
     renderAuthStatus();
     return;
   }
@@ -5785,6 +5801,31 @@ async function applyAuthenticatedSession(session) {
   if (role === "trainer") changeScreen("trainer-area");
   if (role === "admin") changeScreen("admin-area");
   if (role === "owner") changeScreen("academy-area");
+}
+
+function getGoogleRedirectUrl() {
+  const token = state.inviteToken || getInviteTokenFromUrl();
+  if (!token) return getAuthRedirectUrl();
+  return `${APP_PUBLIC_URL}?invite=${encodeURIComponent(token)}`;
+}
+
+async function signInWithGoogle() {
+  try {
+    el.authStatus.textContent = "Entrando com Google...";
+    showToast("Entrando com Google...");
+
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: getGoogleRedirectUrl()
+      }
+    });
+
+    if (error) throw error;
+    el.authStatus.textContent = "Conta Google conectada. Verificando seu cadastro...";
+  } catch (error) {
+    showAuthError("Erro ao entrar com Google", error);
+  }
 }
 
 async function handleAuthLogin(form) {
@@ -6443,6 +6484,7 @@ function bindEvents() {
     event.preventDefault();
     handleAuthRegister(event.currentTarget);
   });
+  el.googleLoginButton?.addEventListener("click", signInWithGoogle);
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
