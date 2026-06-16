@@ -5160,6 +5160,213 @@ async function fetchAppProfileByUserId(userId) {
   return data || null;
 }
 
+function normalizeAuthEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeAuthPhone(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+async function fetchAppProfileByEmail(email) {
+  const normalizedEmail = normalizeAuthEmail(email);
+  if (!normalizedEmail) return null;
+
+  const { data, error } = await supabaseClient
+    .from("app_profiles")
+    .select("*")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+async function fetchStudentsByIdentity({ userId = "", email = "", phone = "" } = {}) {
+  const matches = [];
+  const seen = new Set();
+  const addMatches = (records = []) => {
+    records.forEach((record) => {
+      if (!record?.id || seen.has(String(record.id))) return;
+      seen.add(String(record.id));
+      matches.push(record);
+    });
+  };
+
+  if (userId) {
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("*")
+      .or(`auth_user_id.eq.${userId},profile_id.eq.${userId}`);
+    if (error) throw error;
+    addMatches(data || []);
+  }
+
+  const normalizedEmail = normalizeAuthEmail(email);
+  if (normalizedEmail) {
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("*")
+      .ilike("email", normalizedEmail);
+    if (error) throw error;
+    addMatches(data || []);
+  }
+
+  const normalizedPhone = normalizeAuthPhone(phone);
+  if (normalizedPhone) {
+    const { data, error } = await supabaseClient
+      .from("students")
+      .select("*")
+      .or(`phone.eq.${normalizedPhone},telefone.eq.${normalizedPhone},whatsapp.eq.${normalizedPhone}`);
+    if (error) throw error;
+    addMatches(data || []);
+  }
+
+  return matches;
+}
+
+function pickSafeStudentForAuthLink(students, userId, invite = null) {
+  if (!students.length) return null;
+
+  const inviteStudentId = pick(invite, ["student_id"], "");
+  if (inviteStudentId) {
+    return students.find((student) => String(student.id) === String(inviteStudentId)) || null;
+  }
+
+  const alreadyLinked = students.find((student) => (
+    String(pick(student, ["auth_user_id", "profile_id"], "")) === String(userId)
+  ));
+  if (alreadyLinked) return alreadyLinked;
+
+  const unlinked = students.filter((student) => (
+    !pick(student, ["auth_user_id", "profile_id"], "")
+  ));
+
+  return unlinked.length === 1 ? unlinked[0] : null;
+}
+
+async function ensureTrainerStudentLink(student, user, invite = null) {
+  const trainerId = pick(invite, ["trainer_id"], "") || pick(student, ["trainer_id", "personal_id"], "");
+  if (!student?.id || !trainerId) return;
+
+  const { data, error } = await supabaseClient
+    .from("trainer_students")
+    .select("*")
+    .eq("student_id", student.id)
+    .eq("trainer_id", trainerId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (data?.id) {
+    const payload = {};
+    if (!pick(data, ["student_user_id"], "") && user?.id) payload.student_user_id = user.id;
+    if (normalizeText(pick(data, ["status"], "")) !== "ativo") payload.status = "ativo";
+    if (Object.keys(payload).length) {
+      await updateWithSchemaFallback("trainer_students", data.id, payload, "Erro ao atualizar vinculo aluno-personal");
+    }
+    return;
+  }
+
+  await insertWithSchemaFallback("trainer_students", {
+    trainer_id: trainerId,
+    student_id: student.id,
+    student_user_id: user?.id || null,
+    status: "ativo",
+    invite_id: pick(invite, ["id"], null)
+  }, "Erro ao criar vinculo aluno-personal");
+}
+
+async function ensureUserProfileAndStudentLink(user, options = {}) {
+  if (!user?.id) return null;
+
+  const email = normalizeAuthEmail(user.email);
+  const phone = normalizeAuthPhone(user.phone || user.user_metadata?.phone || user.user_metadata?.telefone || "");
+  const requestedRole = options.requestedRole || user.user_metadata?.role || state.preferredLoginRole || "aluno";
+  const displayName = options.name || user.user_metadata?.nome || user.user_metadata?.name || email;
+  const invite = options.invite || state.pendingInvite || null;
+
+  let appProfile = await fetchAppProfileByUserId(user.id);
+  const profileByEmail = appProfile ? null : await fetchAppProfileByEmail(email);
+
+  if (!appProfile && profileByEmail) {
+    const linkedUserId = pick(profileByEmail, ["user_id", "auth_user_id"], "");
+    if (!linkedUserId) {
+      await updateWithSchemaFallback("app_profiles", profileByEmail.id, { user_id: user.id }, "Erro ao vincular perfil existente");
+      appProfile = { ...profileByEmail, user_id: user.id };
+      showToast("Conta encontrada. Vinculamos seu acesso ao perfil existente.");
+    } else if (String(linkedUserId) === String(user.id)) {
+      appProfile = profileByEmail;
+    } else {
+      showToast("Este e-mail já está vinculado a outra conta. Peça revisão ao Admin TI.", "error");
+      return profileByEmail;
+    }
+  }
+
+  if (!appProfile) {
+    const payload = getProfilePayload(user, requestedRole, displayName);
+    const normalizedRole = normalizeRole(payload.role);
+    if (normalizedRole === "student" && !invite) {
+      payload.role = "aluno";
+    }
+    const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao criar perfil de acesso");
+    appProfile = created?.[0] || payload;
+  }
+
+  await syncCanonicalProfile(user, {
+    ...appProfile,
+    email: appProfile.email || email,
+    nome: appProfile.nome || appProfile.full_name || displayName,
+    full_name: appProfile.full_name || appProfile.nome || displayName,
+    role: appProfile.role || getDefaultRoleForEmail(email, requestedRole)
+  });
+
+  const students = await fetchStudentsByIdentity({ userId: user.id, email, phone });
+  const student = pickSafeStudentForAuthLink(students, user.id, invite);
+
+  if (!student && normalizeRole(appProfile.role) === "student") {
+    if (students.length > 1) {
+      showToast("Encontramos mais de um aluno com este e-mail/telefone. Peça revisão ao Admin TI.", "error");
+    } else {
+      showToast("Seu cadastro existe, mas ainda não está vinculado a um aluno. Solicite ao personal.", "error");
+    }
+    return appProfile;
+  }
+
+  if (student) {
+    const linkedAuthUserId = pick(student, ["auth_user_id", "profile_id"], "");
+    if (linkedAuthUserId && String(linkedAuthUserId) !== String(user.id)) {
+      showToast("Encontramos um cadastro com este telefone/e-mail, mas ele já está vinculado a outra conta. Peça revisão.", "error");
+      return appProfile;
+    }
+
+    const studentPayload = {};
+    if (!pick(student, ["auth_user_id"], "")) studentPayload.auth_user_id = user.id;
+    if (!pick(student, ["profile_id"], "")) studentPayload.profile_id = user.id;
+    if (normalizeText(pick(student, ["status"], "")) !== "ativo") studentPayload.status = "ativo";
+    if (normalizeText(pick(student, ["status_usuario"], "")) !== "ativo") studentPayload.status_usuario = "ativo";
+
+    if (Object.keys(studentPayload).length) {
+      await updateWithSchemaFallback("students", student.id, studentPayload, "Erro ao vincular aluno ao login");
+      showToast("Conta encontrada. Vinculamos seu acesso ao perfil existente.");
+    }
+
+    if (normalizeRole(appProfile.role) === "student") {
+      const appProfilePayload = {};
+      if (!pick(appProfile, ["student_id"], "")) appProfilePayload.student_id = student.id;
+      if (normalizeRole(appProfile.role) !== "student") appProfilePayload.role = "aluno";
+      if (Object.keys(appProfilePayload).length && appProfile.id) {
+        await updateWithSchemaFallback("app_profiles", appProfile.id, appProfilePayload, "Erro ao atualizar perfil do aluno");
+        appProfile = { ...appProfile, ...appProfilePayload };
+      }
+      appProfile.student_id = appProfile.student_id || student.id;
+      await ensureTrainerStudentLink(student, user, invite);
+    }
+  }
+
+  return appProfile;
+}
+
 function hydrateInviteRegisterForm(invite) {
   if (!invite) return;
   switchAuthMode("register");
@@ -5512,12 +5719,25 @@ async function applyAuthenticatedSession(session) {
     showToast("Convite aceito e aluno vinculado ao personal.");
   }
 
-  if (!state.authProfile) {
-    state.authProfile = await ensureAuthProfile(
-      session.user,
-      session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
-      session.user.user_metadata?.nome || session.user.user_metadata?.name || ""
-    );
+  try {
+    if (!state.authProfile) {
+      state.authProfile = await ensureUserProfileAndStudentLink(session.user, {
+        requestedRole: session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
+        name: session.user.user_metadata?.nome || session.user.user_metadata?.name || ""
+      });
+    } else {
+      state.authProfile = await ensureUserProfileAndStudentLink(session.user, {
+        requestedRole: state.authProfile.role || session.user.user_metadata?.role || state.preferredLoginRole || "aluno",
+        name: state.authProfile.nome || state.authProfile.full_name || session.user.user_metadata?.nome || session.user.user_metadata?.name || "",
+        invite: state.pendingInvite
+      }) || state.authProfile;
+    }
+  } catch (error) {
+    console.warn("[Alion Treinos] Nao foi possivel reconciliar perfil/aluno no pos-login.", error);
+    showToast("Login feito, mas alguns vínculos precisam de revisão.", "error");
+    if (!state.authProfile) {
+      state.authProfile = await fetchAuthProfile(session.user);
+    }
   }
 
   if (state.passwordRecoveryMode) {
