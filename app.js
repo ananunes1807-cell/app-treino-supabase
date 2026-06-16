@@ -1099,21 +1099,29 @@ function getExerciseMediaUrl(value, type = "image") {
 }
 
 function normalizeStudentGender(student) {
-  const value = normalizeText(pick(student, ["genero", "gender"], ""));
-  if (["masculino", "male", "homem"].includes(value)) return "masculino";
-  if (["feminino", "female", "mulher"].includes(value)) return "feminino";
-  if (["nao_binario", "nao-binario", "nÃ£o binÃ¡rio", "non_binary", "non-binary"].includes(value)) return "aleatorio";
-  if (["prefiro_nao_informar", "prefiro-nao-informar", "outro", "other"].includes(value)) return "aleatorio";
+  const value = normalizeStudentGenderValue(pick(student, ["genero", "gender"], ""));
+  if (value === "masculino" || value === "feminino") return value;
   return "aleatorio";
 }
 
+function normalizeStudentGenderValue(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) return "";
+  if (["masculino", "male", "homem", "m", "masc"].includes(normalized)) return "masculino";
+  if (["feminino", "female", "mulher", "f", "fem"].includes(normalized)) return "feminino";
+  if (["nao_binario", "nao-binario", "não binário", "não-binário", "non_binary", "non-binary", "nb"].includes(normalized)) return "nao_binario";
+  if (["prefiro_nao_informar", "prefiro-nao-informar", "prefiro não informar", "nao_informar", "não informar"].includes(normalized)) return "prefiro_nao_informar";
+  if (["outro", "other"].includes(normalized)) return "outro";
+  return "";
+}
+
 function formatStudentGender(value) {
-  const normalized = normalizeText(value || "");
+  const normalized = normalizeStudentGenderValue(value);
   const labels = {
     masculino: "Masculino",
     feminino: "Feminino",
-    nao_binario: "Nao binario",
-    prefiro_nao_informar: "Prefiro nao informar",
+    nao_binario: "Não binário",
+    prefiro_nao_informar: "Prefiro não informar",
     outro: "Outro"
   };
   return labels[normalized] || "Não informado";
@@ -1405,7 +1413,7 @@ async function createStudent(form) {
       email,
       ...buildStudentContactPayload(formData.get("whatsapp") || formData.get("phone")),
       birth_date: formData.get("birth_date") || null,
-      genero: formData.get("genero") || null,
+      genero: normalizeStudentGenderValue(formData.get("genero")) || null,
       height_cm: numberOrNull(formData.get("height_cm")),
       objective: formData.get("objective") || null,
       difficulties: formData.get("difficulties") || null,
@@ -3128,7 +3136,9 @@ function fillStudentProfileForm(student) {
   if (el.editStudentForm.elements.phone) el.editStudentForm.elements.phone.value = pick(student, ["phone", "telefone", "contact", "whatsapp"], "");
   if (el.editStudentForm.elements.whatsapp) el.editStudentForm.elements.whatsapp.value = pick(student, ["whatsapp", "contact", "phone", "telefone"], "");
   el.editStudentForm.elements.birth_date.value = formatInputDate(pick(student, ["birth_date", "date_of_birth"], ""));
-  if (el.editStudentForm.elements.genero) el.editStudentForm.elements.genero.value = pick(student, ["genero", "gender"], "");
+  if (el.editStudentForm.elements.genero) {
+    el.editStudentForm.elements.genero.value = normalizeStudentGenderValue(pick(student, ["genero", "gender"], ""));
+  }
   el.editStudentForm.elements.height_cm.value = normalizeNumberInput(pick(student, ["height_cm", "height"], ""));
   el.editStudentForm.elements.objective.value = pick(student, ["objective"], "");
   el.editStudentForm.elements.difficulties.value = pick(student, ["difficulties"], "");
@@ -3169,7 +3179,7 @@ async function renderTrainerProfile() {
         <span>E-mail: ${escapeHtml(pick(student, ["email"], "Não informado"))}</span>
         <span>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Não informado"))}</span>
         <span>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Não informado"))}</span>
-        <span>Genero: ${escapeHtml(formatStudentGender(pick(student, ["genero", "gender"], "")))}</span>
+        <span>Gênero: ${escapeHtml(formatStudentGender(pick(student, ["genero", "gender"], "")))}</span>
         <span>Altura: ${escapeHtml(formatNumber(pick(student, ["height_cm", "height"], "-")))} cm</span>
         <small>Objetivo: ${escapeHtml(pick(student, ["objective"], "Não informado"))}</small>
         <small>Dificuldades: ${escapeHtml(pick(student, ["difficulties"], "Não informado"))}</small>
@@ -3585,7 +3595,7 @@ async function updateStudentProfile(form) {
     email: String(formData.get("email") || "").trim().toLowerCase() || null,
     ...buildStudentContactPayload(formData.get("whatsapp") || formData.get("phone")),
     birth_date: formData.get("birth_date") || null,
-    genero: formData.get("genero") || null,
+    genero: normalizeStudentGenderValue(formData.get("genero")) || null,
     height_cm: numberOrNull(formData.get("height_cm")),
     objective: formData.get("objective") || null,
     difficulties: formData.get("difficulties") || null,
