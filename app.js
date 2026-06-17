@@ -136,6 +136,7 @@ const el = {
   totalExercises: document.querySelector("#total-exercises"),
   totalWorkouts: document.querySelector("#total-workouts"),
   totalLogs: document.querySelector("#total-logs"),
+  studentScreen: document.querySelector("#screen-student-area"),
   studentAreaSelect: document.querySelector("#student-area-select"),
   studentCurrentWorkout: document.querySelector("#student-current-workout"),
   studentHistory: document.querySelector("#student-history"),
@@ -546,26 +547,54 @@ function renderStudentOption(student) {
   return `<option value="${escapeHtml(student.id)}">${escapeHtml(name)}</option>`;
 }
 
+function clearStudentAreaContainers() {
+  [
+    el.studentCurrentWorkout,
+    el.studentHistory,
+    el.studentEvolution,
+    el.studentAssessments,
+    el.studentMeasurements
+  ].forEach((container) => {
+    if (container) container.innerHTML = "";
+  });
+}
+
+function clearStudentAdvancedContainers() {
+  [
+    el.studentHistory,
+    el.studentEvolution,
+    el.studentAssessments,
+    el.studentMeasurements
+  ].forEach((container) => {
+    if (container) container.innerHTML = "";
+  });
+}
+
 function renderStudentArea() {
   updateStudentModeUi();
+  clearStudentAreaContainers();
+
   if (!state.studentAreaId) {
     el.studentCurrentWorkout.innerHTML = emptyMessage("Selecione um aluno para visualizar o treino atual.");
-    el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o histórico.");
-    el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolução.");
-    el.studentAssessments.innerHTML = emptyMessage("Selecione um aluno para visualizar suas avaliacoes.");
-    el.studentMeasurements.innerHTML = emptyMessage("Selecione um aluno para visualizar suas medidas.");
+    if (state.studentMode === "advanced") {
+      el.studentHistory.innerHTML = emptyMessage("Selecione um aluno para visualizar o histórico.");
+      el.studentEvolution.innerHTML = emptyMessage("Selecione um aluno para visualizar a evolução.");
+      el.studentAssessments.innerHTML = emptyMessage("Selecione um aluno para visualizar suas avaliações.");
+      el.studentMeasurements.innerHTML = emptyMessage("Selecione um aluno para visualizar suas medidas.");
+    }
     el.completeWorkoutButton.disabled = true;
+    el.completeWorkoutButton.classList.add("hidden");
     return;
   }
 
   const currentWorkout = getCurrentWorkout(state.studentAreaId);
   const logs = state.workoutLogs.filter((log) => String(log.student_id) === String(state.studentAreaId));
+  el.completeWorkoutButton.classList.toggle("hidden", !currentWorkout);
 
   if (state.studentMode === "easy") {
     el.studentCurrentWorkout.innerHTML = currentWorkout
       ? renderEasyStudentWorkout(currentWorkout, logs)
       : emptyMessage("Nenhum treino atual encontrado para este aluno.");
-    el.studentHistory.innerHTML = "";
   } else {
     el.studentCurrentWorkout.innerHTML = currentWorkout
       ? renderWorkoutWithExercises(currentWorkout)
@@ -576,7 +605,7 @@ function renderStudentArea() {
   }
 
   updateCompleteWorkoutButtonState(currentWorkout);
-  renderStudentDetails();
+  if (state.studentMode === "advanced") renderStudentDetails();
 }
 
 function hasCurrentWorkoutExecutionProgress(workout) {
@@ -610,6 +639,8 @@ function updateCompleteWorkoutButtonState(workout = getCurrentWorkout(state.stud
 
 function updateStudentModeUi() {
   document.body.dataset.studentMode = state.studentMode;
+  el.studentScreen?.classList.toggle("student-mode-easy", state.studentMode === "easy");
+  el.studentScreen?.classList.toggle("student-mode-advanced", state.studentMode === "advanced");
   el.studentModeToggle?.querySelectorAll("[data-student-mode]").forEach((button) => {
     button.classList.toggle("active", button.dataset.studentMode === state.studentMode);
   });
@@ -976,12 +1007,20 @@ function renderSnapshotExerciseItem(exercise, index) {
  */
 async function renderStudentDetails() {
   if (!state.studentAreaId) return;
+  if (state.studentMode !== "advanced") {
+    clearStudentAdvancedContainers();
+    return;
+  }
+
+  const renderedStudentId = state.studentAreaId;
 
   try {
     const [assessments, measurements] = await Promise.all([
       fetchTable("assessments", { eq: { column: "student_id", value: state.studentAreaId }, orderBy: "created_at" }),
       fetchTable("body_measurements", { eq: { column: "student_id", value: state.studentAreaId }, orderBy: "created_at" })
     ]);
+
+    if (state.studentMode !== "advanced" || String(renderedStudentId) !== String(state.studentAreaId)) return;
 
     const latestAssessment = assessments[0] || {};
     const latestMeasurement = measurements[0] || {};
@@ -2013,7 +2052,7 @@ function setFormLoading(form, loading) {
  */
 async function refreshSelectedStudentProfile() {
   await renderTrainerProfile();
-  if (String(state.studentAreaId) === String(state.selectedStudentId)) {
+  if (state.studentMode === "advanced" && String(state.studentAreaId) === String(state.selectedStudentId)) {
     await renderStudentDetails();
   }
 }
@@ -5747,9 +5786,13 @@ async function applyAuthenticatedSession(session) {
     }
   } catch (error) {
     console.warn("[Alion Treinos] Nao foi possivel reconciliar perfil/aluno no pos-login.", error);
-    showToast("Login feito, mas alguns vínculos precisam de revisão.", "error");
     if (!state.authProfile) {
       state.authProfile = await fetchAuthProfile(session.user);
+    }
+    const recoveredRole = normalizeRole(state.authProfile?.role);
+    const missingEssentialStudentLink = recoveredRole === "student" && !state.authProfile?.student_id;
+    if (!recoveredRole || missingEssentialStudentLink) {
+      showToast("Seu acesso foi carregado, mas alguns dados do cadastro ainda precisam ser completados.");
     }
   }
 

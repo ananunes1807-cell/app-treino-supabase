@@ -646,6 +646,18 @@ label {
   pointer-events: none;
 }
 
+body[data-student-mode="easy"] .student-advanced-section {
+  display: none !important;
+}
+
+body[data-role="student"][data-student-mode="easy"] #screen-student-area {
+  padding-bottom: 112px;
+}
+
+body[data-role="student"][data-student-mode="easy"] #student-current-workout {
+  padding-bottom: 18px;
+}
+
 .field-label {
   display: grid;
   gap: 4px;
