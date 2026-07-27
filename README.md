@@ -99,13 +99,10 @@ O Supabase vai procurar a pasta `supabase/` na raiz do repositorio e ler as migr
 
 ### TI/Admin ou Controle do Sistema
 
-Area protegida por senha simples temporaria:
-
-```text
-ac741
-```
-
-Essa senha e apenas provisoria para o MVP. Futuramente deve ser substituida por autenticacao real com Supabase Auth.
+A area administrativa usa Supabase Auth e fica oculta para visitantes, alunos,
+personals e gestores de academia. O menu Sistema aparece somente depois que o
+usuario principal entra com o e-mail autorizado e um perfil `admin_ti` valido.
+Nao existe senha administrativa fixa no codigo.
 
 Essa area contem:
 
@@ -130,7 +127,8 @@ const DEFAULT_SUPABASE_URL = "https://seu-projeto.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sua-chave-anon-publica";
 ```
 
-Tambem e possivel alterar a configuracao pela area TI/Admin. A tela de configuracao nao aparece no menu publico e so fica disponivel depois de digitar a senha temporaria.
+Tambem e possivel consultar a configuracao mascarada pela area TI/Admin. A tela
+nao aparece no menu publico e so fica disponivel depois do login administrativo autorizado.
 
 Importante: a chave anon/public pode ficar no frontend, mas as permissoes reais devem ser protegidas por Row Level Security (RLS) e policies no Supabase.
 
@@ -163,28 +161,12 @@ Se alunos como Ana Carolina ou Carlos existem no painel do Supabase, mas nao apa
 
 - Se o app esta usando o mesmo projeto Supabase onde os dados foram cadastrados.
 - Se a tabela `students` esta no schema `public`.
-- Se a anon/public key tem permissao de `SELECT` na tabela `students`.
-- Se existe policy de `INSERT` para permitir cadastrar alunos pela versao MVP sem login.
+- Se o usuario esta autenticado e possui vinculo correto com o aluno.
+- Se as migrations de seguranca mais recentes foram aplicadas.
 
-No Supabase, quando RLS esta ativo e nao existe policy de leitura para `anon`, a chamada pode retornar lista vazia mesmo com dados na tabela.
-
-Exemplo temporario para MVP, ajuste conforme sua regra de seguranca:
-
-```sql
-create policy "Permitir leitura publica temporaria de students"
-on public.students
-for select
-to anon
-using (true);
-
-create policy "Permitir cadastro publico temporario de students"
-on public.students
-for insert
-to anon
-with check (true);
-```
-
-Essas policies sao apenas para MVP sem login. Quando o projeto usar Supabase Auth, substitua por policies baseadas no usuario autenticado.
+O acesso anonimo a `students`, avaliacoes, medidas, treinos, convites e dados
+financeiros deve permanecer bloqueado. Nao crie policies publicas temporarias
+nessas tabelas para resolver problemas de cadastro.
 
 ## Script de correcao RLS e exercise_library
 

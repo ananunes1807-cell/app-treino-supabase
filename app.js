@@ -27,32 +27,16 @@ const REQUIRED_TABLES = [
 const EXPECTED_RLS_POLICIES = [
   ["app_profiles", "SELECT authenticated", "app_profiles_read_own_or_admin"],
   ["app_profiles", "ALL admin", "app_profiles_admin_write"],
-  ["students", "SELECT anon", "mvp_anon_select_students"],
-  ["students", "INSERT anon", "mvp_anon_insert_students"],
-  ["students", "UPDATE anon", "mvp_anon_update_students"],
-  ["students", "DELETE anon", "mvp_anon_all_students ou mvp_anon_delete_students"],
-  ["assessments", "SELECT anon", "mvp_anon_select_assessments"],
-  ["assessments", "INSERT anon", "mvp_anon_insert_assessments"],
-  ["assessments", "UPDATE anon", "mvp_anon_update_assessments"],
-  ["assessments", "DELETE anon", "mvp_anon_delete_assessments"],
-  ["body_measurements", "SELECT anon", "mvp_anon_select_body_measurements"],
-  ["body_measurements", "INSERT anon", "mvp_anon_insert_body_measurements"],
-  ["body_measurements", "UPDATE anon", "mvp_anon_update_body_measurements"],
-  ["body_measurements", "DELETE anon", "mvp_anon_delete_body_measurements"],
-  ["exercise_library", "SELECT anon", "mvp_anon_select_exercise_library"],
-  ["exercise_library", "INSERT anon", "mvp_anon_insert_exercise_library"],
-  ["exercise_library", "DELETE anon", "mvp_anon_all_exercise_library"],
-  ["workouts", "SELECT anon", "mvp_anon_select_workouts"],
-  ["workouts", "INSERT anon", "mvp_anon_insert_workouts"],
-  ["workouts", "UPDATE anon", "mvp_anon_update_workouts"],
-  ["workouts", "DELETE anon", "mvp_anon_delete_workouts"],
-  ["workout_exercises", "SELECT anon", "mvp_anon_select_workout_exercises"],
-  ["workout_exercises", "INSERT anon", "mvp_anon_insert_workout_exercises"],
-  ["workout_exercises", "UPDATE anon", "mvp_anon_update_workout_exercises"],
-  ["workout_exercises", "DELETE anon", "mvp_anon_delete_workout_exercises"],
-  ["workout_logs", "SELECT anon", "mvp_anon_select_workout_logs"],
-  ["workout_logs", "INSERT anon", "mvp_anon_insert_workout_logs"],
-  ["workout_logs", "DELETE anon", "mvp_anon_all_workout_logs"],
+  ["students", "RLS authenticated", "students_real_select / students_academy_select_pilot"],
+  ["assessments", "RLS authenticated", "assessments_real_access"],
+  ["body_measurements", "RLS authenticated", "body_measurements_real_access"],
+  ["exercise_library", "SELECT anon", "exercise_library_public_read"],
+  ["exercise_library", "WRITE authenticated", "exercise_library_secure_admin_personal_write"],
+  ["workouts", "RLS authenticated", "workouts_real_access"],
+  ["workout_exercises", "RLS authenticated", "workout_exercises_real_access"],
+  ["workout_logs", "RLS authenticated", "workout_logs_real_access"],
+  ["student_invites", "RLS authenticated", "student_invites_persistent_read"],
+  ["trainer_students", "RLS authenticated", "trainer_students_select_real"],
   ["academies", "RLS authenticated", "academies_read_by_role"],
   ["academy_personal_links", "RLS authenticated", "academy_links_read_related"],
   ["academy_attendance", "RLS authenticated", "academy_attendance_access"],
@@ -409,6 +393,20 @@ async function fetchTable(tableName, options = {}) {
  * Carrega dados reais do Supabase usados pelas areas Aluno, Treinador e Admin.
  */
 async function loadSupabaseData(options = {}) {
+  if (!state.authUser?.id) {
+    state.students = [];
+    state.studentInvites = [];
+    state.workouts = [];
+    state.workoutExercises = [];
+    state.workoutLogs = [];
+    state.academies = [];
+    state.academyLinks = [];
+    state.academyAttendance = [];
+    state.academyFinancials = [];
+    setConnectionStatus("Faça login para carregar seus dados", false);
+    return;
+  }
+
   setConnectionStatus("Conectando...", false);
 
   const [
@@ -1934,7 +1932,7 @@ function toDatabaseRole(role) {
 
 function getDefaultRoleForEmail(email, requestedRole = "aluno") {
   const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (normalizedEmail === "ananunes1807@gmail.com") return "admin_ti";
+  if (normalizedEmail === window.AlionSecurity.ADMIN_EMAIL) return "admin_ti";
   return toDatabaseRole(requestedRole);
 }
 
@@ -1943,7 +1941,7 @@ function getCurrentRole() {
 }
 
 function isAuthenticatedAdminTi() {
-  return Boolean(state.authUser?.id) && normalizeRole(state.authProfile?.role) === "admin";
+  return window.AlionSecurity.isPrimaryAdmin(state.authUser, state.authProfile?.role);
 }
 
 function isAdmin() {
@@ -4993,6 +4991,7 @@ function changeScreen(screenName) {
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("active", screen.id === `screen-${screenName}`);
   });
+  window.AlionAccessibility?.updateActiveScreen(document.querySelector(`#screen-${screenName}`));
 
   document.querySelectorAll(".menu-button").forEach((button) => {
     button.classList.toggle("active", button.dataset.screen === screenName);
@@ -5922,8 +5921,8 @@ async function handleAuthRegister(form) {
     return;
   }
 
-  if (normalizeRole(role) === "admin" && email !== "ananunes1807@gmail.com") {
-    showToast("O perfil Admin TI principal e reservado para ananunes1807@gmail.com.", "error");
+  if (normalizeRole(role) === "admin" && email !== window.AlionSecurity.ADMIN_EMAIL) {
+    showToast("O perfil Admin TI principal é reservado.", "error");
     return;
   }
 
@@ -6176,7 +6175,7 @@ async function initAuthSession() {
     changeScreen("first-access");
   }
 
-  await loadSupabaseData({ silent: true });
+  setConnectionStatus("Faça login para carregar seus dados", false);
 }
 
 function bindAuthRecoveryEvents() {
@@ -6850,11 +6849,3 @@ async function init() {
 }
 
 init();
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("./service-worker.js")
-      .catch((error) => console.error("[Alion Treinos] Erro ao registrar service worker:", error));
-  });
-}
