@@ -1,9 +1,14 @@
 {
   "name": "Alion Treinos",
   "short_name": "Alion",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
+  "lang": "pt-BR",
+  "categories": ["fitness", "health", "lifestyle"],
+  "description": "Acompanhamento de treinos com orientação, progresso e funcionamento offline.",
   "background_color": "#07030d",
   "theme_color": "#2a0b45",
   "icons": [

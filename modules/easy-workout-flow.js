@@ -29,5 +29,36 @@
     });
   }
 
-  return { areAllExercisesCompleted, completeSeries };
+  function getCurrentExerciseIndex(exerciseIds, executions, requestedIndex = 0) {
+    if (!exerciseIds.length) return -1;
+    const bounded = Math.min(exerciseIds.length - 1, Math.max(0, Number(requestedIndex) || 0));
+    const requested = executions[String(exerciseIds[bounded])];
+    if (!requested?.completed || requested?.skipped) return bounded;
+    const nextPending = exerciseIds.findIndex((id) => {
+      const execution = executions[String(id)];
+      return !execution?.completed || execution?.skipped;
+    });
+    return nextPending >= 0 ? nextPending : bounded;
+  }
+
+  function normalizeFeedback(value) {
+    const allowed = ["facil", "adequado", "dificil", "dor"];
+    const normalized = String(value || "").trim().toLowerCase();
+    return allowed.includes(normalized) ? normalized : "";
+  }
+
+  function normalizePainIntensity(value) {
+    if (value === "" || value == null) return null;
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    return Math.min(10, Math.max(1, Math.round(number)));
+  }
+
+  return {
+    areAllExercisesCompleted,
+    completeSeries,
+    getCurrentExerciseIndex,
+    normalizeFeedback,
+    normalizePainIntensity
+  };
 });
