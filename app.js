@@ -87,6 +87,10 @@ const state = {
   selectedWorkoutId: "",
   studentMode: localStorage.getItem("alion-student-mode") || "easy",
   restTimers: {},
+  restTimerIntervals: {},
+  easyWorkoutCompletionInProgress: false,
+  easySeriesActionsInProgress: new Set(),
+  pendingLogSyncInProgress: false,
   workoutAudioContext: null,
   workoutAudioUnlocked: false,
   themePreference: getStoredThemePreference(),
@@ -585,14 +589,21 @@ function renderStudentArea() {
     return;
   }
 
+  const logs = getAllWorkoutLogs().filter((log) => String(log.student_id) === String(state.studentAreaId));
+  const todayLog = window.AlionWorkoutRotation.findTodayLog(logs, state.studentAreaId);
   const currentWorkout = getCurrentWorkout(state.studentAreaId);
-  const logs = state.workoutLogs.filter((log) => String(log.student_id) === String(state.studentAreaId));
   el.completeWorkoutButton.classList.toggle("hidden", !currentWorkout);
 
   if (state.studentMode === "easy") {
-    el.studentCurrentWorkout.innerHTML = currentWorkout
-      ? renderEasyStudentWorkout(currentWorkout, logs)
-      : emptyMessage("Nenhum treino atual encontrado para este aluno.");
+    if (todayLog) {
+      el.studentCurrentWorkout.innerHTML = renderEasyWorkoutCelebration(todayLog, currentWorkout);
+      el.completeWorkoutButton.classList.add("hidden");
+      el.completeWorkoutButton.disabled = true;
+    } else {
+      el.studentCurrentWorkout.innerHTML = currentWorkout
+        ? renderEasyStudentWorkout(currentWorkout, logs)
+        : emptyMessage("Nenhum treino atual encontrado para este aluno.");
+    }
   } else {
     el.studentCurrentWorkout.innerHTML = currentWorkout
       ? renderWorkoutWithExercises(currentWorkout)
@@ -645,27 +656,49 @@ function updateStudentModeUi() {
 }
 
 /**
- * Busca o primeiro treino ativo do aluno.
+ * Seleciona o treino ativo seguinte ao último treino concluído pelo aluno.
  */
 function getCurrentWorkout(studentId) {
-  return state.workouts.find((workout) => {
-    const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
-    return String(workout.student_id) === String(studentId) && status === "ativo";
-  });
+  return window.AlionWorkoutRotation.selectCurrentWorkout(
+    state.workouts,
+    getAllWorkoutLogs(),
+    studentId
+  );
 }
 
 function getNextWorkout(studentId, currentWorkoutId) {
-  return state.workouts.find((workout) => {
-    const status = normalizeWorkoutStatus(pick(workout, ["status"], "ativo"));
-    return String(workout.student_id) === String(studentId)
-      && status === "ativo"
-      && String(workout.id) !== String(currentWorkoutId);
-  });
+  const active = window.AlionWorkoutRotation.getActiveWorkouts(state.workouts, studentId);
+  if (!active.length) return null;
+  const currentIndex = active.findIndex((workout) => String(workout.id) === String(currentWorkoutId));
+  if (currentIndex < 0) return active[0];
+  return active[(currentIndex + 1) % active.length];
+}
+
+function getPendingWorkoutLogs() {
+  return readLocalJson(PENDING_WORKOUT_LOGS_KEY, []);
+}
+
+function getAllWorkoutLogs() {
+  return [...state.workoutLogs, ...getPendingWorkoutLogs()];
+}
+
+function renderEasyWorkoutCelebration(todayLog, nextWorkout) {
+  const completedWorkout = state.workouts.find((workout) => String(workout.id) === String(todayLog.workout_id));
+  return `
+    <article class="easy-celebration-card" role="status" aria-live="polite">
+      <span class="easy-celebration-icon" aria-hidden="true">✓</span>
+      <h2>Parabéns!</h2>
+      <strong>Treino concluído por hoje.</strong>
+      <p>Seu progresso foi salvo.</p>
+      <small>Treino realizado: ${escapeHtml(pick(completedWorkout, ["title", "name", "nome"], "Treino"))}</small>
+      <span>Próximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Aguardando novo treino"))}.</span>
+    </article>
+  `;
 }
 
 function renderEasyStudentWorkout(workout, logs) {
   const student = state.students.find((item) => String(item.id) === String(state.studentAreaId));
-  const exercises = state.workoutExercises.filter((item) => String(item.workout_id) === String(workout.id));
+  const exercises = getWorkoutExercisesInStableOrder(workout.id);
   const nextWorkout = getNextWorkout(state.studentAreaId, workout.id);
   const lastLog = logs[0];
   const personalNotes = pick(workout, ["notes", "instructions", "description"], "");
@@ -719,7 +752,7 @@ function renderEasyExerciseCard(item) {
   const restLabel = restLeft ? "Descanso em andamento" : `Descanso: ${restSeconds}s`;
 
   return `
-    <article class="easy-exercise-card${doneClass}">
+    <article class="easy-exercise-card${doneClass}" data-easy-exercise-card-id="${escapeHtml(item.id)}">
       <div class="easy-exercise-main">
         <div class="easy-exercise-info">
           <strong>${escapeHtml(exerciseName)}</strong>
@@ -2179,29 +2212,48 @@ async function insertWorkoutLog(payload) {
 }
 
 function enqueuePendingWorkoutLog(payload) {
-  const pending = readLocalJson(PENDING_WORKOUT_LOGS_KEY, []);
+  const pending = getPendingWorkoutLogs();
+  const payloadDay = window.AlionWorkoutRotation.localDateKey(payload.completed_at);
+  const duplicate = pending.some((item) => (
+    String(item.student_id) === String(payload.student_id)
+    && String(item.workout_id) === String(payload.workout_id)
+    && window.AlionWorkoutRotation.localDateKey(item.completed_at) === payloadDay
+  ));
+  if (duplicate) return;
   pending.push({ ...payload, pending_id: crypto.randomUUID?.() || String(Date.now()) });
   writeLocalJson(PENDING_WORKOUT_LOGS_KEY, pending);
 }
 
 async function syncPendingWorkoutLogs() {
-  const pending = readLocalJson(PENDING_WORKOUT_LOGS_KEY, []);
+  if (state.pendingLogSyncInProgress) return;
+  const pending = getPendingWorkoutLogs();
   if (!pending.length) return;
+  state.pendingLogSyncInProgress = true;
 
   const failed = [];
-  for (const item of pending) {
-    const { pending_id: _pendingId, ...payload } = item;
-    try {
-      await insertWorkoutLog(payload);
-    } catch (error) {
-      console.error("[Alion Treinos] Erro ao sincronizar log pendente:", error);
-      failed.push(item);
-    }
-  }
+  try {
+    for (const item of pending) {
+      const { pending_id: _pendingId, ...payload } = item;
+      const alreadySynced = state.workoutLogs.some((log) => (
+        String(log.student_id) === String(payload.student_id)
+        && String(log.workout_id) === String(payload.workout_id)
+        && window.AlionWorkoutRotation.localDateKey(pick(log, ["completed_at", "created_at"], ""))
+          === window.AlionWorkoutRotation.localDateKey(payload.completed_at)
+      ));
+      if (alreadySynced) continue;
 
-  writeLocalJson(PENDING_WORKOUT_LOGS_KEY, failed);
-  if (failed.length < pending.length) {
-    showToast("Treinos pendentes sincronizados.");
+      try {
+        await insertWorkoutLog(payload);
+      } catch (error) {
+        console.error("[Alion Treinos] Erro ao sincronizar log pendente:", error);
+        failed.push(item);
+      }
+    }
+
+    writeLocalJson(PENDING_WORKOUT_LOGS_KEY, failed);
+    if (failed.length < pending.length) showToast("Treinos pendentes sincronizados.");
+  } finally {
+    state.pendingLogSyncInProgress = false;
   }
 }
 
@@ -2238,22 +2290,108 @@ function buildWorkoutExecutionSnapshot(workoutId, exercisesSource = state.workou
 }
 
 /**
- * Marca o treino atual do aluno como concluido em workout_logs.
+ * Verifica a conclusão diária considerando servidor e fila offline.
+ */
+function getTodayWorkoutLog(studentId = state.studentAreaId) {
+  return window.AlionWorkoutRotation.findTodayLog(getAllWorkoutLogs(), studentId);
+}
+
+function stopExerciseRestTimer(exerciseId) {
+  const key = String(exerciseId);
+  if (state.restTimerIntervals[key]) {
+    window.clearInterval(state.restTimerIntervals[key]);
+    delete state.restTimerIntervals[key];
+  }
+  state.restTimers[key] = 0;
+}
+
+function stopWorkoutRestTimers(workoutId) {
+  state.workoutExercises
+    .filter((exercise) => String(exercise.workout_id) === String(workoutId))
+    .forEach((exercise) => stopExerciseRestTimer(exercise.id));
+}
+
+function applyCompletedWorkoutLocally(workout, payload, savedOffline = false) {
+  stopWorkoutRestTimers(workout.id);
+  localStorage.removeItem(getExecutionDraftKey(workout.id));
+  state.studentExerciseExecution = {};
+  state.studentExerciseIndex = 0;
+  state.pendingConfirmExerciseId = "";
+
+  const existsInMemory = state.workoutLogs.some((log) => (
+    String(log.student_id) === String(payload.student_id)
+    && String(log.workout_id) === String(payload.workout_id)
+    && window.AlionWorkoutRotation.localDateKey(pick(log, ["completed_at", "created_at"], ""))
+      === window.AlionWorkoutRotation.localDateKey(payload.completed_at)
+  ));
+  if (!savedOffline && !existsInMemory) state.workoutLogs.unshift({ ...payload, id: `local-${Date.now()}` });
+}
+
+async function persistWorkoutCompletion(workout, { automatic = false } = {}) {
+  if (state.easyWorkoutCompletionInProgress) return false;
+
+  const todayLog = getTodayWorkoutLog();
+  if (todayLog) {
+    renderStudentArea();
+    showToast("Treino de hoje já concluído.");
+    return false;
+  }
+
+  state.easyWorkoutCompletionInProgress = true;
+  const payload = {
+    workout_id: workout.id,
+    student_id: state.studentAreaId,
+    completed_at: new Date().toISOString(),
+    exercises_snapshot: buildWorkoutExecutionSnapshot(workout.id)
+  };
+
+  let savedOffline = false;
+  try {
+    try {
+      await insertWorkoutLog(payload);
+    } catch (error) {
+      const isNetworkError = !navigator.onLine || String(error.message).toLowerCase().includes("failed to fetch");
+      if (!isNetworkError) throw error;
+      enqueuePendingWorkoutLog(payload);
+      savedOffline = true;
+    }
+
+    applyCompletedWorkoutLocally(workout, payload, savedOffline);
+    speakWorkoutMessage("Parabéns! Treino concluído por hoje.", { force: true });
+    vibrateDevice([180, 80, 180, 80, 280]);
+    showToast(
+      savedOffline ? "Treino concluído e salvo para sincronizar." : "🎉 Treino concluído! Bom trabalho.",
+      "success",
+      { celebrate: true }
+    );
+    renderStudentArea();
+
+    if (!savedOffline) await loadSupabaseData({ silent: automatic });
+    return true;
+  } finally {
+    state.easyWorkoutCompletionInProgress = false;
+  }
+}
+
+/**
+ * Mantém a finalização manual usada principalmente pelo Modo Avançado.
  */
 async function completeCurrentWorkout() {
   const workout = getCurrentWorkout(state.studentAreaId);
-
   if (!workout) {
     showToast("Nenhum treino atual para concluir.", "error");
     return;
   }
-
+  if (getTodayWorkoutLog()) {
+    renderStudentArea();
+    showToast("Treino de hoje já concluído.");
+    return;
+  }
   if (!hasCurrentWorkoutExecutionProgress(workout)) {
     showToast("Registre pelo menos um exercício antes de finalizar o treino.", "error");
     updateCompleteWorkoutButtonState(workout);
     return;
   }
-
   const summary = getWorkoutExecutionSummary(workout.id);
   const confirmMessage = [
     "Finalizar o treino completo?",
@@ -2267,38 +2405,8 @@ async function completeCurrentWorkout() {
   if (!window.confirm(confirmMessage)) return;
 
   try {
-    const workoutExercises = await fetchTable("workout_exercises", {
-      eq: { column: "workout_id", value: workout.id },
-      orderBy: "created_at"
-    });
-    const exercisesSnapshot = buildWorkoutExecutionSnapshot(workout.id, workoutExercises);
-    console.log("[Alion Treinos] workout_logs exercises_snapshot:", exercisesSnapshot);
-
-    await insertWorkoutLog({
-      workout_id: workout.id,
-      student_id: state.studentAreaId,
-      completed_at: new Date().toISOString(),
-      exercises_snapshot: exercisesSnapshot
-    });
-    localStorage.removeItem(getExecutionDraftKey(workout.id));
-    state.studentExerciseExecution = {};
-    showToast("🎉 Treino concluído! Bom trabalho.", "success", { celebrate: true });
-    await loadSupabaseData();
+    await persistWorkoutCompletion(workout);
   } catch (error) {
-    const isNetworkError = !navigator.onLine || String(error.message).toLowerCase().includes("failed to fetch");
-    if (isNetworkError) {
-      const fallbackExercises = buildWorkoutExecutionSnapshot(workout.id);
-
-      enqueuePendingWorkoutLog({
-        workout_id: workout.id,
-        student_id: state.studentAreaId,
-        completed_at: new Date().toISOString(),
-        exercises_snapshot: fallbackExercises
-      });
-      showToast("Sem conexao. Treino salvo como pendente de sincronizacao.", "error");
-      return;
-    }
-
     showToast(error.message, "error");
   }
 }
@@ -6234,7 +6342,7 @@ function handleStudentWorkoutExecutionChange(event) {
 /**
  * Aplica atalhos de execucao mobile do aluno.
  */
-function handleStudentWorkoutQuickAction(event) {
+async function handleStudentWorkoutQuickAction(event) {
   const videoButton = event.target.closest("[data-exercise-video-url]");
   if (videoButton) {
     openExerciseVideo(videoButton.dataset.exerciseVideoUrl);
@@ -6278,10 +6386,8 @@ function handleStudentWorkoutQuickAction(event) {
   }
 
   if (action === "confirm-yes") {
-    completeExerciseSeries(button.dataset.workoutExerciseId);
     state.pendingConfirmExerciseId = "";
-    saveCurrentExecutionDraft();
-    renderStudentArea();
+    await completeExerciseSeries(button.dataset.workoutExerciseId);
     return;
   }
 
@@ -6314,41 +6420,102 @@ function startExerciseRestTimer(exerciseId) {
   unlockWorkoutAudio();
   const exercise = state.workoutExercises.find((item) => String(item.id) === String(exerciseId));
   const seconds = numberOrNull(pick(exercise, ["rest_seconds"], "")) || 30;
-  state.restTimers[exerciseId] = seconds;
+  const key = String(exerciseId);
+  stopExerciseRestTimer(key);
+  state.restTimers[key] = seconds;
   renderStudentArea();
 
   const interval = window.setInterval(() => {
-    state.restTimers[exerciseId] = Math.max(0, Number(state.restTimers[exerciseId] || 0) - 1);
+    state.restTimers[key] = Math.max(0, Number(state.restTimers[key] || 0) - 1);
     renderStudentArea();
-    if (state.restTimers[exerciseId] <= 0) {
+    if (state.restTimers[key] <= 0) {
       window.clearInterval(interval);
+      delete state.restTimerIntervals[key];
       notifyRestFinished();
       showToast("Descanso finalizado.");
     }
   }, 1000);
+  state.restTimerIntervals[key] = interval;
 }
 
-function completeExerciseSeries(exerciseId) {
+function getWorkoutExercisesInStableOrder(workoutId) {
+  return state.workoutExercises
+    .filter((item) => String(item.workout_id) === String(workoutId))
+    .sort((left, right) => {
+      const fields = ["order_index", "position", "sequence"];
+      for (const field of fields) {
+        const leftValue = Number(left[field]);
+        const rightValue = Number(right[field]);
+        if (Number.isFinite(leftValue) && Number.isFinite(rightValue) && leftValue !== rightValue) {
+          return leftValue - rightValue;
+        }
+      }
+      const createdOrder = String(left.created_at || "").localeCompare(String(right.created_at || ""));
+      return createdOrder || String(left.id).localeCompare(String(right.id));
+    });
+}
+
+function advanceToNextEasyExercise(exercises, completedExerciseId) {
+  const currentIndex = exercises.findIndex((item) => String(item.id) === String(completedExerciseId));
+  const nextExercise = exercises[currentIndex + 1];
+  if (!nextExercise) return;
+  state.studentExerciseIndex = currentIndex + 1;
+
+  window.setTimeout(() => {
+    const nextCard = Array.from(document.querySelectorAll("[data-easy-exercise-card-id]"))
+      .find((card) => String(card.dataset.easyExerciseCardId) === String(nextExercise.id));
+    nextCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+    nextCard?.querySelector("button, input")?.focus({ preventScroll: true });
+  }, 650);
+}
+
+async function completeExerciseSeries(exerciseId) {
+  const actionKey = String(exerciseId);
+  if (state.easySeriesActionsInProgress.has(actionKey) || state.easyWorkoutCompletionInProgress) return;
+  state.easySeriesActionsInProgress.add(actionKey);
+
   const exercise = state.workoutExercises.find((item) => String(item.id) === String(exerciseId));
-  const execution = getStudentExerciseExecution(exerciseId);
-  const plannedSets = getPlannedSets(exercise || {});
-  const completedSets = Math.min(plannedSets, Math.max(0, Number(execution.completed_sets || 0)) + 1);
-
-  execution.completed_sets = completedSets;
-  execution.actual_sets = String(completedSets);
-  execution.skipped = false;
-
-  if (completedSets >= plannedSets) {
-    execution.completed = true;
-    state.restTimers[exerciseId] = 0;
-    notifyExerciseFinished();
-    showToast("Exercício finalizado.");
+  const workout = getCurrentWorkout(state.studentAreaId);
+  if (!exercise || !workout || String(exercise.workout_id) !== String(workout.id)) {
+    state.easySeriesActionsInProgress.delete(actionKey);
     return;
   }
 
-  execution.completed = false;
-  showToast(`Série ${completedSets} de ${plannedSets} concluída. Descanso iniciado.`);
-  startExerciseRestTimer(exerciseId);
+  try {
+    const execution = getStudentExerciseExecution(exerciseId);
+    const result = window.AlionEasyWorkoutFlow.completeSeries(execution, getPlannedSets(exercise));
+    saveCurrentExecutionDraft();
+
+    if (result.shouldStartRest) {
+      showToast(`Série ${result.completedSets} de ${result.total} concluída. Descanso iniciado.`);
+      startExerciseRestTimer(exerciseId);
+      return;
+    }
+
+    stopExerciseRestTimer(exerciseId);
+    notifyExerciseFinished();
+    showToast("Parabéns, exercício concluído.", "success");
+    renderStudentArea();
+
+    const exercises = getWorkoutExercisesInStableOrder(workout.id);
+    const exerciseIds = exercises.map((item) => String(item.id));
+    const allCompleted = window.AlionEasyWorkoutFlow.areAllExercisesCompleted(
+      exerciseIds,
+      state.studentExerciseExecution
+    );
+
+    if (allCompleted) {
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+      await persistWorkoutCompletion(workout, { automatic: true });
+      return;
+    }
+
+    advanceToNextEasyExercise(exercises, exerciseId);
+  } catch (error) {
+    showToast(error.message || "Não foi possível concluir a série.", "error");
+  } finally {
+    state.easySeriesActionsInProgress.delete(actionKey);
+  }
 }
 
 function getWorkoutAudioContext() {
@@ -6411,9 +6578,9 @@ function vibrateDevice(pattern = 180) {
   if ("vibrate" in navigator) navigator.vibrate(pattern);
 }
 
-function speakWorkoutMessage(message) {
+function speakWorkoutMessage(message, { force = false } = {}) {
   const enabled = localStorage.getItem("alion-voice-enabled") === "true";
-  if (!enabled || !("speechSynthesis" in window)) return;
+  if ((!enabled && !force) || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
 }
@@ -6427,7 +6594,7 @@ function notifyRestFinished() {
 function notifyExerciseFinished() {
   playShortBeep();
   vibrateDevice(200);
-  speakWorkoutMessage("Exercício finalizado. Vá para o próximo.");
+  speakWorkoutMessage("Parabéns, exercício concluído.", { force: true });
 }
 
 function openExerciseVideo(videoUrl) {
