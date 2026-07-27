@@ -1,10 +1,13 @@
-const CACHE_NAME = "alion-pwa-v43";
+const CACHE_NAME = "alion-pwa-v44";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260615-ux-journey-v39",
-  "./app.js?v=20260617-student-mobile-v43",
-  "./supabase.js",
+  "./style.css?v=20260727-responsive-v44",
+  "./modules/security.js?v=20260727-security-v44",
+  "./modules/accessibility.js?v=20260727-a11y-v44",
+  "./app.js?v=20260727-security-v44",
+  "./supabase.js?v=20260727-security-v44",
+  "./modules/pwa.js?v=20260727-pwa-v44",
   "./manifest.webmanifest",
   "./favicon.ico",
   "./icons/icon-192.png",
@@ -36,9 +39,25 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
   const isExerciseVideo = requestUrl.pathname.includes("/assets/exercicios/videos/") || requestUrl.pathname.endsWith(".mp4");
+  const isNavigation = event.request.mode === "navigate";
 
   if (isExerciseVideo) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  if (isNavigation) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse?.ok) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match("./index.html"))
+    );
     return;
   }
 

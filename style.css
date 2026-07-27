@@ -223,6 +223,14 @@ body[data-role=""] .app {
   color: var(--accent);
 }
 
+body:not([data-role="admin"]) .admin-entry {
+  display: none !important;
+}
+
+body[data-role="admin"] .admin-entry {
+  display: flex;
+}
+
 body[data-role="student"] .trainer-nav,
 body[data-role="student"] .academy-nav,
 body[data-role="student"] .admin-entry,
@@ -2141,6 +2149,77 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   .mini-grid,
   .checkbox-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 759px) {
+  html,
+  body,
+  .app,
+  .content,
+  .screen,
+  .cards,
+  .grid,
+  .trainer-grid,
+  .two-columns,
+  .three-columns,
+  .diagnostic-grid,
+  .card,
+  .form-box {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .content {
+    width: 100%;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .trainer-grid,
+  .two-columns,
+  .three-columns,
+  .diagnostic-grid,
+  .form-grid,
+  .form-grid.three-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trainer-grid > *,
+  .cards > *,
+  .grid > *,
+  .form-grid > *,
+  .section-title > *,
+  .list-item > * {
+    min-width: 0;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    max-width: 100%;
+  }
+
+  .section-title,
+  .record-title {
+    align-items: stretch;
+  }
+
+  .section-title > .secondary-button,
+  .section-title > .primary-button {
+    width: 100%;
+  }
+
+  .admin-panel,
+  #screen-academy-area,
+  #screen-admin-area,
+  #screen-trainer-area {
+    overflow-x: clip;
   }
 }
 
