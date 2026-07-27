@@ -1,11 +1,13 @@
-const CACHE_NAME = "alion-pwa-v44";
+const CACHE_NAME = "alion-pwa-v45";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260727-responsive-v44",
+  "./style.css?v=20260727-easy-v45",
   "./modules/security.js?v=20260727-security-v44",
   "./modules/accessibility.js?v=20260727-a11y-v44",
-  "./app.js?v=20260727-security-v44",
+  "./modules/workout-rotation.js?v=20260727-easy-v45",
+  "./modules/easy-workout-flow.js?v=20260727-easy-v45",
+  "./app.js?v=20260727-easy-v45",
   "./supabase.js?v=20260727-security-v44",
   "./modules/pwa.js?v=20260727-pwa-v44",
   "./manifest.webmanifest",
