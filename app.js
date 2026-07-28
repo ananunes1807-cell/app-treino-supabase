@@ -95,6 +95,7 @@ const state = {
   workoutAudioUnlocked: false,
   themePreference: getStoredThemePreference(),
   pendingConfirmExerciseId: "",
+  awaitingFeedbackExerciseId: "",
   trainerActiveTab: "profile",
   trainerWorkoutFilter: "active",
   trainerAssessmentsCache: [],
@@ -461,6 +462,7 @@ async function loadSupabaseData(options = {}) {
   loadCurrentExecutionDraft();
 
   const hasBlockingError = Boolean(state.tableErrors.students || state.tableErrors.exercise_library);
+  if (!hasBlockingError) state.lastError = "";
   setConnectionStatus(hasBlockingError ? "Conexao parcial" : "Supabase conectado", !hasBlockingError);
   if (!hasBlockingError) {
     syncPendingWorkoutLogs();
@@ -682,6 +684,14 @@ function getAllWorkoutLogs() {
   return [...state.workoutLogs, ...getPendingWorkoutLogs()];
 }
 
+function getStudentSyncStatus() {
+  if (!navigator.onLine) return { label: "Aguardando internet", className: "waiting" };
+  if (state.pendingLogSyncInProgress) return { label: "Sincronizando", className: "syncing" };
+  if (getPendingWorkoutLogs().length) return { label: "Salvo no aparelho", className: "local" };
+  if (state.lastError) return { label: "Não foi possível sincronizar", className: "error" };
+  return { label: "Sincronizado", className: "synced" };
+}
+
 function renderEasyWorkoutCelebration(todayLog, nextWorkout) {
   const completedWorkout = state.workouts.find((workout) => String(workout.id) === String(todayLog.workout_id));
   return `
@@ -704,9 +714,24 @@ function renderEasyStudentWorkout(workout, logs) {
   const personalNotes = pick(workout, ["notes", "instructions", "description"], "");
   const summary = getWorkoutExecutionSummary(workout.id);
   const progressPercent = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
+  const exerciseIds = exercises.map((item) => String(item.id));
+  const requestedIndex = state.awaitingFeedbackExerciseId
+    ? exercises.findIndex((item) => String(item.id) === String(state.awaitingFeedbackExerciseId))
+    : state.studentExerciseIndex;
+  const currentIndex = state.awaitingFeedbackExerciseId && requestedIndex >= 0
+    ? requestedIndex
+    : window.AlionEasyWorkoutFlow.getCurrentExerciseIndex(
+      exerciseIds,
+      state.studentExerciseExecution,
+      Math.max(0, requestedIndex)
+    );
+  const currentExercise = currentIndex >= 0 ? exercises[currentIndex] : null;
+  const syncStatus = getStudentSyncStatus();
+  state.studentExerciseIndex = Math.max(0, currentIndex);
 
   return `
     <article class="easy-summary-card">
+      <span class="student-sync-status ${syncStatus.className}" role="status">● ${escapeHtml(syncStatus.label)}</span>
       <small>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</small>
       <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino de hoje"))}</strong>
       <span>Próximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Não informado"))}</span>
@@ -724,13 +749,13 @@ function renderEasyStudentWorkout(workout, logs) {
         </div>
       ` : ""}
     </article>
-    <div class="easy-exercise-list">
-      ${exercises.length ? exercises.map(renderEasyExerciseCard).join("") : emptyMessage("Este treino ainda não possui exercícios.")}
+    <div class="easy-exercise-list" aria-live="polite">
+      ${currentExercise ? renderEasyExerciseCard(currentExercise, currentIndex, exercises.length) : emptyMessage("Este treino ainda não possui exercícios.")}
     </div>
   `;
 }
 
-function renderEasyExerciseCard(item) {
+function renderEasyExerciseCard(item, exerciseIndex = 0, exerciseTotal = 1) {
   const exercise = getLibraryExerciseForWorkoutItem(item);
   const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercício"));
   const student = getStudentForExerciseMedia();
@@ -750,9 +775,14 @@ function renderEasyExerciseCard(item) {
   const currentDisplay = execution.completed ? `${plannedSets} de ${plannedSets}` : `${currentSet} de ${plannedSets}`;
   const nextDisplay = completedSets >= plannedSets ? "Concluído" : `${Math.min(plannedSets, currentSet + 1)} de ${plannedSets}`;
   const restLabel = restLeft ? "Descanso em andamento" : `Descanso: ${restSeconds}s`;
+  const instructionParts = window.AlionExerciseMedia?.instructionParts(exercise) || [];
+  const shortInstruction = pick(exercise, ["instructions", "description", "instrucoes"], pick(item, ["instructions"], ""));
+  const isAwaitingFeedback = String(state.awaitingFeedbackExerciseId) === String(item.id);
+  const feedback = window.AlionEasyWorkoutFlow.normalizeFeedback(execution.feedback);
 
   return `
     <article class="easy-exercise-card${doneClass}" data-easy-exercise-card-id="${escapeHtml(item.id)}">
+      <p class="easy-exercise-counter">Exercício ${exerciseIndex + 1} de ${exerciseTotal}</p>
       <div class="easy-exercise-main">
         <div class="easy-exercise-info">
           <strong>${escapeHtml(exerciseName)}</strong>
@@ -762,8 +792,19 @@ function renderEasyExerciseCard(item) {
             <span><b class="easy-plan-icon">▣</b> Carga prevista: ${escapeHtml(plannedWeight)}</span>
           </div>
         </div>
-        ${image}
+        <button class="easy-image-button" type="button" data-expand-exercise-image="${escapeHtml(getExerciseMediaUrl(imageUrl, "image") || window.AlionExerciseMedia.PLACEHOLDER)}" data-exercise-image-alt="${escapeHtml(exerciseName)}" aria-label="Ampliar imagem de ${escapeHtml(exerciseName)}">${image}</button>
       </div>
+      ${shortInstruction ? `<p class="easy-short-instruction">${escapeHtml(shortInstruction)}</p>` : ""}
+      <div class="easy-support-actions">
+        <button class="secondary-button" type="button" data-workout-exercise-quick="speak" data-workout-exercise-id="${escapeHtml(item.id)}">🔊 Ouvir instrução</button>
+        <button class="ghost-button" type="button" data-workout-exercise-quick="stop-speech" data-workout-exercise-id="${escapeHtml(item.id)}">Parar leitura</button>
+      </div>
+      ${instructionParts.length ? `
+        <details class="easy-how-to">
+          <summary>Como fazer</summary>
+          ${instructionParts.map(([label, value]) => `<section><strong>${escapeHtml(label)}</strong><p>${escapeHtml(value)}</p></section>`).join("")}
+        </details>
+      ` : ""}
       <span class="easy-rest-status">${escapeHtml(restLabel)}</span>
       <label>Carga usada hoje
         <input class="easy-big-input" data-workout-exercise-field="actual_weight" data-workout-exercise-id="${escapeHtml(item.id)}" type="text" value="${escapeHtml(execution.actual_weight)}" placeholder="Ex: 10 kg" />
@@ -799,6 +840,25 @@ function renderEasyExerciseCard(item) {
             <button class="secondary-button" type="button" data-workout-exercise-quick="confirm-back" data-workout-exercise-id="${escapeHtml(item.id)}">Voltar</button>
           </div>
         </div>
+      ` : ""}
+      ${isAwaitingFeedback ? `
+        <section class="exercise-feedback" aria-labelledby="feedback-title-${escapeHtml(item.id)}">
+          <strong id="feedback-title-${escapeHtml(item.id)}">Como foi este exercício?</strong>
+          <div class="feedback-options">
+            ${[["facil", "Fácil"], ["adequado", "Adequado"], ["dificil", "Difícil"], ["dor", "Senti dor"]].map(([value, label]) => `
+              <button class="quick-button${feedback === value ? " active" : ""}" type="button" data-workout-exercise-quick="feedback" data-feedback-value="${value}" data-workout-exercise-id="${escapeHtml(item.id)}">${label}</button>
+            `).join("")}
+          </div>
+          ${feedback === "dor" ? `
+            <div class="pain-feedback-fields">
+              <label>Local da dor<input data-workout-exercise-field="pain_location" data-workout-exercise-id="${escapeHtml(item.id)}" value="${escapeHtml(execution.pain_location || "")}" /></label>
+              <label>Intensidade de 1 a 10<input type="number" min="1" max="10" data-workout-exercise-field="pain_level" data-workout-exercise-id="${escapeHtml(item.id)}" value="${escapeHtml(execution.pain_level || "")}" /></label>
+              <label>Observação<input data-workout-exercise-field="notes" data-workout-exercise-id="${escapeHtml(item.id)}" value="${escapeHtml(execution.notes || "")}" /></label>
+            </div>
+            <p class="pain-safety-note">Interrompa o exercício e converse com seu personal ou profissional de saúde. Este registro não substitui avaliação profissional.</p>
+          ` : ""}
+          <button class="primary-button" type="button" data-workout-exercise-quick="save-feedback" data-workout-exercise-id="${escapeHtml(item.id)}" ${feedback ? "" : "disabled"}>Salvar feedback e continuar</button>
+        </section>
       ` : ""}
     </article>
   `;
@@ -907,6 +967,8 @@ function getStudentExerciseExecution(exerciseId) {
       actual_reps: "",
       actual_sets: "",
       pain_level: "",
+      pain_location: "",
+      feedback: "",
       difficulty: "",
       notes: ""
     };
@@ -924,6 +986,8 @@ function serializeExerciseExecution(exerciseId) {
     actual_reps: execution.actual_reps || null,
     actual_sets: execution.actual_sets || (execution.completed_sets ? String(execution.completed_sets) : null),
     pain_level: execution.pain_level === "" ? null : numberOrNull(execution.pain_level),
+    pain_location: execution.pain_location || null,
+    feedback: window.AlionEasyWorkoutFlow.normalizeFeedback(execution.feedback) || null,
     difficulty: execution.difficulty || null,
     notes: execution.notes || null
   };
@@ -1131,16 +1195,8 @@ function renderTrainerStudentButton(student) {
 
 function renderEasyExerciseThumb(imageUrl, exerciseName) {
   const url = getExerciseMediaUrl(imageUrl, "image");
-  if (!url) {
-    return `
-      <div class="easy-exercise-thumb placeholder" aria-label="Imagem não cadastrada">
-        <span>🏋</span>
-      </div>
-    `;
-  }
-
   return `
-    <img class="easy-exercise-thumb" src="${escapeHtml(url)}" alt="${escapeHtml(exerciseName)}" loading="lazy" />
+    <img class="easy-exercise-thumb" src="${escapeHtml(url || window.AlionExerciseMedia.PLACEHOLDER)}" alt="${escapeHtml(url ? exerciseName : `Imagem ainda não adicionada para ${exerciseName}`)}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${window.AlionExerciseMedia.PLACEHOLDER}';" />
   `;
 }
 
@@ -1163,10 +1219,7 @@ function isLocalExerciseAssetUrl(value, type = "image") {
 }
 
 function getExerciseMediaUrl(value, type = "image") {
-  const url = String(value || "").trim();
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
-  return isLocalExerciseAssetUrl(url, type) ? url.replace(/^\.?\//, "") : "";
+  return window.AlionExerciseMedia?.safeUrl(value, type) || "";
 }
 
 function normalizeStudentGender(student) {
@@ -2229,6 +2282,7 @@ async function syncPendingWorkoutLogs() {
   const pending = getPendingWorkoutLogs();
   if (!pending.length) return;
   state.pendingLogSyncInProgress = true;
+  renderStudentArea();
 
   const failed = [];
   try {
@@ -2254,6 +2308,7 @@ async function syncPendingWorkoutLogs() {
     if (failed.length < pending.length) showToast("Treinos pendentes sincronizados.");
   } finally {
     state.pendingLogSyncInProgress = false;
+    renderStudentArea();
   }
 }
 
@@ -2317,6 +2372,7 @@ function applyCompletedWorkoutLocally(workout, payload, savedOffline = false) {
   state.studentExerciseExecution = {};
   state.studentExerciseIndex = 0;
   state.pendingConfirmExerciseId = "";
+  state.awaitingFeedbackExerciseId = "";
 
   const existsInMemory = state.workoutLogs.some((log) => (
     String(log.student_id) === String(payload.student_id)
@@ -3654,7 +3710,11 @@ function buildExerciseLibraryPayload(form) {
     video_url_masculino: normalizeOptionalUrl(formData.get("video_url_masculino"), "URL do video masculino"),
     video_url_feminino: normalizeOptionalUrl(formData.get("video_url_feminino"), "URL do video feminino"),
     instructions: String(formData.get("instructions") || "").trim() || null,
-    common_mistakes: String(formData.get("common_mistakes") || "").trim() || null
+    observations: String(formData.get("observations") || "").trim() || null,
+    posture: String(formData.get("posture") || "").trim() || null,
+    breathing: String(formData.get("breathing") || "").trim() || null,
+    common_mistakes: String(formData.get("common_mistakes") || "").trim() || null,
+    care_notes: String(formData.get("care_notes") || "").trim() || null
   };
 }
 
@@ -3697,7 +3757,12 @@ function editExerciseLibraryItem(id, form = el.exerciseLibraryForm) {
   if (form.elements.video_url_masculino) form.elements.video_url_masculino.value = pick(exercise, ["video_url_masculino"], "");
   if (form.elements.video_url_feminino) form.elements.video_url_feminino.value = pick(exercise, ["video_url_feminino"], "");
   form.elements.instructions.value = pick(exercise, ["instructions", "description", "instrucoes"], "");
+  if (form.elements.observations) form.elements.observations.value = pick(exercise, ["observations"], "");
+  if (form.elements.posture) form.elements.posture.value = pick(exercise, ["posture"], "");
+  if (form.elements.breathing) form.elements.breathing.value = pick(exercise, ["breathing"], "");
   form.elements.common_mistakes.value = pick(exercise, ["common_mistakes"], "");
+  if (form.elements.care_notes) form.elements.care_notes.value = pick(exercise, ["care_notes"], "");
+  updateExerciseImagePreview(form);
   form.querySelector("button[type='submit']").textContent = "Atualizar exercício";
 }
 
@@ -3706,6 +3771,18 @@ function clearExerciseLibraryForm(form = el.exerciseLibraryForm) {
   form.reset();
   form.dataset.editId = "";
   form.querySelector("button[type='submit']").textContent = "Salvar exercício";
+  updateExerciseImagePreview(form);
+}
+
+function updateExerciseImagePreview(form) {
+  const preview = form?.querySelector("[data-exercise-image-preview]");
+  if (!preview) return;
+  const url = getExerciseMediaUrl(form.elements.image_url?.value, "image");
+  preview.innerHTML = `
+    <span>Prévia da imagem</span>
+    <img src="${escapeHtml(url || window.AlionExerciseMedia.PLACEHOLDER)}" alt="Prévia da imagem do exercício" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${window.AlionExerciseMedia.PLACEHOLDER}';" />
+    ${url ? `<button class="ghost-button" type="button" data-remove-exercise-image>Remover imagem</button>` : ""}
+  `;
 }
 
 function updateAssessmentCalculatedFields(form) {
@@ -6343,6 +6420,12 @@ function handleStudentWorkoutExecutionChange(event) {
  * Aplica atalhos de execucao mobile do aluno.
  */
 async function handleStudentWorkoutQuickAction(event) {
+  const imageButton = event.target.closest("[data-expand-exercise-image]");
+  if (imageButton) {
+    openExerciseImage(imageButton.dataset.expandExerciseImage, imageButton.dataset.exerciseImageAlt);
+    return;
+  }
+
   const videoButton = event.target.closest("[data-exercise-video-url]");
   if (videoButton) {
     openExerciseVideo(videoButton.dataset.exerciseVideoUrl);
@@ -6363,6 +6446,47 @@ async function handleStudentWorkoutQuickAction(event) {
   const execution = getStudentExerciseExecution(button.dataset.workoutExerciseId);
   const action = button.dataset.workoutExerciseQuick;
   unlockWorkoutAudio();
+
+  if (action === "speak") {
+    speakExerciseInstruction(button.dataset.workoutExerciseId);
+    return;
+  }
+
+  if (action === "stop-speech") {
+    window.speechSynthesis?.cancel();
+    return;
+  }
+
+  if (action === "feedback") {
+    execution.feedback = window.AlionEasyWorkoutFlow.normalizeFeedback(button.dataset.feedbackValue);
+    if (execution.feedback === "dor") {
+      execution.pain_level = execution.pain_level || "5";
+      execution.notes = execution.notes || "Senti dor durante o exercício";
+    }
+    saveCurrentExecutionDraft();
+    renderStudentArea();
+    return;
+  }
+
+  if (action === "save-feedback") {
+    if (!window.AlionEasyWorkoutFlow.normalizeFeedback(execution.feedback)) {
+      showToast("Escolha uma opção de feedback.", "error");
+      return;
+    }
+    execution.pain_level = window.AlionEasyWorkoutFlow.normalizePainIntensity(execution.pain_level) ?? "";
+    const workout = getCurrentWorkout(state.studentAreaId);
+    const exercises = workout ? getWorkoutExercisesInStableOrder(workout.id) : [];
+    const exerciseIds = exercises.map((item) => String(item.id));
+    state.awaitingFeedbackExerciseId = "";
+    saveCurrentExecutionDraft();
+    if (window.AlionEasyWorkoutFlow.areAllExercisesCompleted(exerciseIds, state.studentExerciseExecution)) {
+      await persistWorkoutCompletion(workout, { automatic: true });
+      return;
+    }
+    advanceToNextEasyExercise(exercises, button.dataset.workoutExerciseId);
+    renderStudentArea();
+    return;
+  }
 
   if (action === "rest") {
     startExerciseRestTimer(button.dataset.workoutExerciseId);
@@ -6495,6 +6619,7 @@ async function completeExerciseSeries(exerciseId) {
     stopExerciseRestTimer(exerciseId);
     notifyExerciseFinished();
     showToast("Parabéns, exercício concluído.", "success");
+    state.awaitingFeedbackExerciseId = String(exerciseId);
     renderStudentArea();
 
     const exercises = getWorkoutExercisesInStableOrder(workout.id);
@@ -6504,13 +6629,7 @@ async function completeExerciseSeries(exerciseId) {
       state.studentExerciseExecution
     );
 
-    if (allCompleted) {
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
-      await persistWorkoutCompletion(workout, { automatic: true });
-      return;
-    }
-
-    advanceToNextEasyExercise(exercises, exerciseId);
+    if (!allCompleted) return;
   } catch (error) {
     showToast(error.message || "Não foi possível concluir a série.", "error");
   } finally {
@@ -6583,6 +6702,46 @@ function speakWorkoutMessage(message, { force = false } = {}) {
   if ((!enabled && !force) || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
+}
+
+function speakExerciseInstruction(exerciseId) {
+  if (!("speechSynthesis" in window)) {
+    showToast("A leitura em voz alta não está disponível neste navegador.", "error");
+    return;
+  }
+  const item = state.workoutExercises.find((record) => String(record.id) === String(exerciseId));
+  if (!item) return;
+  const exercise = getLibraryExerciseForWorkoutItem(item);
+  const name = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercício"));
+  const parts = [
+    name,
+    `${getPlannedSets(item)} séries de ${pick(item, ["reps"], "repetições não informadas")} repetições`,
+    pick(item, ["weight"], "") ? `Carga prevista: ${pick(item, ["weight"], "")}` : "",
+    pick(exercise, ["instructions", "description", "instrucoes"], pick(item, ["instructions"], "")),
+    `Descanso de ${pick(item, ["rest_seconds"], "0")} segundos`
+  ].filter(Boolean);
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(parts.join(". "));
+  utterance.lang = "pt-BR";
+  window.speechSynthesis.speak(utterance);
+}
+
+function openExerciseImage(imageUrl, altText = "Imagem do exercício") {
+  const modal = document.querySelector("#exercise-image-modal");
+  const image = document.querySelector("#exercise-image-modal-content");
+  if (!modal || !image) return;
+  image.src = getExerciseMediaUrl(imageUrl, "image") || window.AlionExerciseMedia.PLACEHOLDER;
+  image.alt = altText;
+  image.onerror = () => {
+    image.onerror = null;
+    image.src = window.AlionExerciseMedia.PLACEHOLDER;
+  };
+  modal.classList.remove("hidden");
+  modal.querySelector("[data-close-exercise-image]")?.focus();
+}
+
+function closeExerciseImage() {
+  document.querySelector("#exercise-image-modal")?.classList.add("hidden");
 }
 
 function notifyRestFinished() {
@@ -6743,6 +6902,10 @@ function bindEvents() {
   el.studentCurrentWorkout.addEventListener("change", handleStudentWorkoutExecutionChange);
   el.studentCurrentWorkout.addEventListener("input", handleStudentWorkoutExecutionChange);
   el.studentCurrentWorkout.addEventListener("click", handleStudentWorkoutQuickAction);
+  document.querySelector("[data-close-exercise-image]")?.addEventListener("click", closeExerciseImage);
+  document.querySelector("#exercise-image-modal")?.addEventListener("click", (event) => {
+    if (event.target.id === "exercise-image-modal") closeExerciseImage();
+  });
 
   el.studentSearch.addEventListener("input", (event) => {
     state.studentSearch = event.target.value;
@@ -6828,6 +6991,13 @@ function bindEvents() {
       event.preventDefault();
       saveExerciseLibraryItem(event.currentTarget);
     });
+    form.elements.image_url?.addEventListener("input", () => updateExerciseImagePreview(form));
+    form.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-remove-exercise-image]")) return;
+      form.elements.image_url.value = "";
+      updateExerciseImagePreview(form);
+    });
+    updateExerciseImagePreview(form);
   });
 
   document.querySelectorAll("[data-cancel-library-exercise-edit]").forEach((button) => {

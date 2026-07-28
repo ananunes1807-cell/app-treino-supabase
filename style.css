@@ -1321,6 +1321,22 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   color: var(--muted);
 }
 
+.student-sync-status {
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.student-sync-status.synced { color: #166534; }
+.student-sync-status.waiting,
+.student-sync-status.local,
+.student-sync-status.syncing { color: #92400e; }
+.student-sync-status.error { color: #991b1b; }
+
 .workout-progress {
   display: grid;
   gap: 6px;
@@ -1357,6 +1373,15 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
 .easy-exercise-card.done {
   border-color: rgba(58, 158, 74, 0.6);
   background: var(--primary-soft);
+}
+
+.easy-exercise-counter {
+  margin: 0;
+  color: var(--primary-dark);
+  font-size: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .easy-exercise-main {
@@ -1403,12 +1428,125 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
 }
 
 .easy-exercise-thumb {
-  width: clamp(92px, 26vw, 150px);
-  height: clamp(92px, 26vw, 150px);
+  width: min(100%, 420px);
+  aspect-ratio: 4 / 3;
+  height: auto;
   border: 0;
   border-radius: 16px;
   background: var(--surface-soft);
   object-fit: contain;
+}
+
+.easy-image-button {
+  display: grid;
+  width: min(100%, 420px);
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+}
+
+.easy-image-button:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 4px;
+}
+
+.easy-short-instruction {
+  margin: 0;
+  font-size: clamp(16px, 4vw, 20px);
+  line-height: 1.55;
+}
+
+.easy-support-actions,
+.feedback-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.easy-support-actions button,
+.feedback-options button,
+.exercise-feedback > .primary-button {
+  min-height: 48px;
+}
+
+.easy-how-to,
+.exercise-feedback {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-soft);
+  padding: 16px;
+}
+
+.easy-how-to summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 900;
+}
+
+.easy-how-to section {
+  margin-top: 14px;
+}
+
+.easy-how-to p {
+  margin: 5px 0 0;
+  line-height: 1.55;
+}
+
+.exercise-feedback,
+.pain-feedback-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.pain-safety-note {
+  border-left: 4px solid #b45309;
+  background: #fff7ed;
+  color: #7c2d12;
+  margin: 0;
+  padding: 12px;
+  line-height: 1.5;
+}
+
+.exercise-image-preview {
+  display: grid;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.exercise-image-preview img {
+  width: min(100%, 320px);
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-soft);
+  object-fit: contain;
+}
+
+.exercise-image-modal-card {
+  width: min(92vw, 900px);
+}
+
+#exercise-image-modal-content {
+  display: block;
+  width: 100%;
+  max-height: 78vh;
+  border-radius: 16px;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .easy-exercise-thumb.placeholder {
@@ -2131,13 +2269,13 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   }
 
   .easy-exercise-main {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 1fr;
     gap: 10px;
   }
 
   .easy-exercise-thumb {
-    width: 118px;
-    height: 118px;
+    width: 100%;
+    height: auto;
   }
 
   .easy-plan-list {

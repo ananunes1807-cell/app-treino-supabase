@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const rotation = require("../modules/workout-rotation.js");
 const easyFlow = require("../modules/easy-workout-flow.js");
+const media = require("../modules/exercise-media.js");
 
 const studentId = "student-1";
 const workouts = [
@@ -83,6 +84,23 @@ assert.match(appSource, /data-student-exercise-nav="next"/);
 assert.match(appSource, /el\.completeWorkoutButton\.addEventListener\("click", completeCurrentWorkout\)/);
 assert.match(appSource, /async function persistWorkoutCompletion[\s\S]+const todayLog = getTodayWorkoutLog\(\)/);
 assert.match(appSource, /function enqueuePendingWorkoutLog[\s\S]+const duplicate = pending\.some/);
+assert.equal(easyFlow.getCurrentExerciseIndex(["a", "b"], {
+  a: { completed: true, skipped: false },
+  b: { completed: false, skipped: false }
+}, 0), 1);
+assert.equal(easyFlow.normalizeFeedback("DOR"), "dor");
+assert.equal(easyFlow.normalizeFeedback("qualquer"), "");
+assert.equal(easyFlow.normalizePainIntensity(18), 10);
+assert.equal(easyFlow.normalizePainIntensity(0), 1);
+assert.equal(media.safeUrl("javascript:alert(1)"), "");
+assert.equal(media.safeUrl("http://inseguro.example/imagem.png"), "");
+assert.equal(media.safeUrl("https://cdn.example/exercicio.webp"), "https://cdn.example/exercicio.webp");
+assert.equal(media.safeUrl("assets/exercicios/imagens/agachamento.svg"), "assets/exercicios/imagens/agachamento.svg");
+assert.equal(media.instructionParts({
+  instructions: "Descer com controle",
+  posture: "",
+  breathing: "Soltar o ar ao subir"
+}).length, 2);
 assert.doesNotMatch(
   appSource.match(/async function persistWorkoutCompletion[\s\S]+?\n}\n\n\/\*\*/)?.[0] || "",
   /window\.confirm/

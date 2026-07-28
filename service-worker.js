@@ -1,20 +1,22 @@
-const CACHE_NAME = "alion-pwa-v45";
+const CACHE_NAME = "alion-pwa-v46";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260727-easy-v45",
+  "./style.css?v=20260727-experience-v46",
   "./modules/security.js?v=20260727-security-v44",
   "./modules/accessibility.js?v=20260727-a11y-v44",
   "./modules/workout-rotation.js?v=20260727-easy-v45",
-  "./modules/easy-workout-flow.js?v=20260727-easy-v45",
-  "./app.js?v=20260727-easy-v45",
+  "./modules/easy-workout-flow.js?v=20260727-experience-v46",
+  "./modules/exercise-media.js?v=20260727-experience-v46",
+  "./app.js?v=20260727-experience-v46",
   "./supabase.js?v=20260727-security-v44",
   "./modules/pwa.js?v=20260727-pwa-v44",
   "./manifest.webmanifest",
   "./favicon.ico",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/maskable-icon-512.png"
+  "./icons/maskable-icon-512.png",
+  "./assets/exercicios/placeholder-exercicio.svg"
 ];
 
 self.addEventListener("install", (event) => {
@@ -41,10 +43,27 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
   const isExerciseVideo = requestUrl.pathname.includes("/assets/exercicios/videos/") || requestUrl.pathname.endsWith(".mp4");
+  const isExerciseImage = event.request.destination === "image";
   const isNavigation = event.request.mode === "navigate";
 
   if (isExerciseVideo) {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  if (isExerciseImage) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => (
+        fetch(event.request)
+          .then((networkResponse) => {
+            if (!networkResponse?.ok) throw new Error("Imagem indisponível");
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            return networkResponse;
+          })
+          .catch(() => cachedResponse || caches.match("./assets/exercicios/placeholder-exercicio.svg"))
+      ))
+    );
     return;
   }
 
