@@ -58,4 +58,3 @@ using (
 
 comment on table public.exercise_substitutes is
   'Alternativas cadastradas pelo personal. O aluno apenas visualiza alternativas atribuídas ao próprio cadastro.';
-

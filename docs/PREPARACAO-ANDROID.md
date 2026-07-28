@@ -58,4 +58,3 @@ A versão atual não exige permissões nativas. Se recursos forem adicionados:
   poderá migrar para armazenamento mais robusto.
 - Cache antigo do GitHub Pages pode manter arquivos anteriores; cada publicação
   deve alterar a versão do service worker e dos assets.
-
