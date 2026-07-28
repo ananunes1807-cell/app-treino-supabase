@@ -2035,6 +2035,34 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   font-size: 28px;
 }
 
+.compact-empty {
+  padding: 12px;
+  text-align: left;
+}
+
+.compact-empty::before {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .independent-columns {
+    display: block;
+    columns: 2;
+    column-gap: 14px;
+  }
+
+  .three-columns.independent-columns {
+    columns: 3;
+  }
+
+  .independent-columns > .card {
+    display: inline-block;
+    width: 100%;
+    margin: 0 0 14px;
+    break-inside: avoid;
+  }
+}
+
 .ghost-button {
   min-height: 48px;
   border: 1px solid transparent;

@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260727-experience-v46" />
+    <link rel="stylesheet" href="style.css?v=20260728-round-fixes" />
   </head>
   <body>
     <div class="app">
@@ -252,13 +252,13 @@
             </article>
             <article class="card stat-card">
               <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
-              <span>Treinos</span>
+              <span>Treinos cadastrados</span>
               <strong class="kpi-value" id="total-workouts">0</strong>
               <small class="kpi-meta">criados</small>
             </article>
             <article class="card stat-card">
               <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
-              <span>Conclu&iacute;dos</span>
+              <span>Sess&otilde;es conclu&iacute;das</span>
               <strong class="kpi-value" id="total-logs">0</strong>
               <small class="kpi-meta">finalizados</small>
             </article>
@@ -637,7 +637,7 @@
             </article>
             <article class="card stat-card">
               <span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span>
-              <span>Inativos</span>
+              <span>Sem frequência há 7+ dias</span>
               <strong id="total-inactive-students">0</strong>
               <small class="kpi-meta">alunos inativos há 7+ dias</small>
             </article>
@@ -653,7 +653,7 @@
             </article>
           </div>
 
-          <div class="grid two-columns">
+          <div class="grid two-columns independent-columns">
             <article class="card">
               <div class="section-title">
                 <div>
@@ -853,7 +853,7 @@
               <div class="diagnostic-grid" id="admin-diagnostics"></div>
             </article>
 
-            <div class="grid three-columns">
+            <div class="grid three-columns independent-columns">
               <article class="card">
                 <h2>Tabelas existentes</h2>
                 <div class="list" id="admin-tables-list"></div>
@@ -933,7 +933,7 @@
                 <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
                 <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-students">Excluir usuários de teste</button>
                 <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-workouts">Excluir treinos de teste</button>
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="duplicates">Limpar registros duplicados</button>
+                <button class="secondary-button" type="button" data-admin-maintenance="duplicates">Analisar possíveis duplicados</button>
                 <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
               </div>
               <div class="list spaced" id="admin-maintenance-log"></div>
@@ -972,8 +972,9 @@
     <script src="modules/workout-rotation.js?v=20260727-easy-v45"></script>
     <script src="modules/easy-workout-flow.js?v=20260727-experience-v46"></script>
     <script src="modules/exercise-media.js?v=20260727-experience-v46"></script>
+    <script src="modules/trainer-data-rules.js?v=20260728-trainer-fixes"></script>
     <script src="supabase.js?v=20260727-security-v44"></script>
-    <script src="app.js?v=20260727-experience-v46"></script>
+    <script src="app.js?v=20260728-trainer-fixes"></script>
     <script src="modules/pwa.js?v=20260727-pwa-v44"></script>
   </body>
 </html>
