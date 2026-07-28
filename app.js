@@ -76,10 +76,12 @@ const state = {
   students: [],
   exercises: [],
   studentInvites: [],
+  trainerStudents: [],
   academies: [],
   academyLinks: [],
   academyAttendance: [],
   academyFinancials: [],
+  appProfiles: [],
   workouts: [],
   workoutExercises: [],
   workoutLogs: [],
@@ -96,6 +98,7 @@ const state = {
   themePreference: getStoredThemePreference(),
   pendingConfirmExerciseId: "",
   awaitingFeedbackExerciseId: "",
+  revealedInviteIds: new Set(),
   trainerActiveTab: "profile",
   trainerWorkoutFilter: "active",
   trainerAssessmentsCache: [],
@@ -114,6 +117,8 @@ const state = {
   lastError: "",
   tableErrors: {}
 };
+
+let activeAuthReconciliation = null;
 
 const el = {
   pageTitle: document.querySelector("#page-title"),
@@ -401,6 +406,7 @@ async function loadSupabaseData(options = {}) {
   if (!state.authUser?.id) {
     state.students = [];
     state.studentInvites = [];
+    state.trainerStudents = [];
     state.workouts = [];
     state.workoutExercises = [];
     state.workoutLogs = [];
@@ -408,39 +414,50 @@ async function loadSupabaseData(options = {}) {
     state.academyLinks = [];
     state.academyAttendance = [];
     state.academyFinancials = [];
+    state.appProfiles = [];
     setConnectionStatus("Faça login para carregar seus dados", false);
     return;
   }
 
   setConnectionStatus("Conectando...", false);
 
+  const role = getCurrentRole();
+  const canLoadInvites = ["trainer", "owner", "admin"].includes(role);
+  const canLoadAcademy = ["trainer", "owner", "admin"].includes(role);
+  const canLoadAcademyOperations = ["owner", "admin"].includes(role);
+  const canLoadRelatedProfiles = ["owner", "admin"].includes(role);
   const [
     students,
     exercises,
     studentInvites,
+    trainerStudents,
     workouts,
     workoutExercises,
     workoutLogs,
     academies,
     academyLinks,
     academyAttendance,
-    academyFinancials
+    academyFinancials,
+    appProfiles
   ] = await Promise.all([
     safeFetchTable("students", { orderBy: "created_at" }),
     safeFetchTable("exercise_library", { orderBy: "name", ascending: true }),
-    safeFetchTable("student_invites", { orderBy: "created_at" }),
+    canLoadInvites ? safeFetchTable("student_invites", { orderBy: "created_at" }) : Promise.resolve([]),
+    canLoadInvites ? safeFetchTable("trainer_students", { orderBy: "created_at" }) : Promise.resolve([]),
     safeFetchTable("workouts", { orderBy: "created_at" }),
     safeFetchTable("workout_exercises"),
     safeFetchTable("workout_logs", { orderBy: "created_at" }),
-    safeFetchTable("academies", { orderBy: "created_at" }),
-    safeFetchTable("academy_personal_links", { orderBy: "created_at" }),
-    safeFetchTable("academy_attendance", { orderBy: "created_at" }),
-    safeFetchTable("academy_financials", { orderBy: "created_at" })
+    canLoadAcademy ? safeFetchTable("academies", { orderBy: "created_at" }) : Promise.resolve([]),
+    canLoadAcademy ? safeFetchTable("academy_personal_links", { orderBy: "created_at" }) : Promise.resolve([]),
+    canLoadAcademyOperations ? safeFetchTable("academy_attendance", { orderBy: "created_at" }) : Promise.resolve([]),
+    canLoadAcademyOperations ? safeFetchTable("academy_financials", { orderBy: "created_at" }) : Promise.resolve([]),
+    canLoadRelatedProfiles ? safeFetchTable("app_profiles", { orderBy: "created_at" }) : Promise.resolve([])
   ]);
 
   state.students = students;
   state.exercises = exercises;
   state.studentInvites = studentInvites;
+  state.trainerStudents = trainerStudents;
   state.workouts = workouts;
   state.workoutExercises = workoutExercises;
   state.workoutLogs = workoutLogs;
@@ -448,6 +465,7 @@ async function loadSupabaseData(options = {}) {
   state.academyLinks = academyLinks;
   state.academyAttendance = academyAttendance;
   state.academyFinancials = academyFinancials;
+  state.appProfiles = appProfiles;
 
   const accessibleStudents = getAccessibleStudents();
   if (isStudent() && state.authProfile?.student_id) state.studentAreaId = state.authProfile.student_id;
@@ -494,27 +512,41 @@ function setConnectionStatus(message, online) {
  * Renderiza todas as areas dependentes do estado atual.
  */
 function renderAll() {
-  renderMetrics();
-  renderStudentAreaSelect();
-  renderStudentArea();
-  renderTrainerStudents();
-  renderTrainerProfile();
-  renderExerciseSelect();
-  renderExerciseLibrary();
-  renderAdminArea();
-  renderAcademyArea();
-  renderTrainerAcademyStatus();
-  renderInvites();
+  const role = getCurrentRole();
+  if (["trainer", "admin"].includes(role)) {
+    renderMetrics();
+    renderTrainerStudents();
+    renderExerciseSelect();
+    renderExerciseLibrary();
+    renderTrainerProfile();
+    renderTrainerAcademyStatus();
+    renderInvites();
+  }
+  if (role === "student") {
+    renderStudentAreaSelect();
+    renderStudentArea();
+  }
+  if (role === "admin") renderAdminArea();
+  if (["owner", "admin"].includes(role)) {
+    renderAcademyArea();
+    renderInvites();
+  }
 }
 
 /**
  * Renderiza os indicadores da area Treinador.
  */
 function renderMetrics() {
-  setKpiValue(el.totalStudents, state.students.length);
-  setKpiValue(el.totalExercises, state.exercises.length);
-  setKpiValue(el.totalWorkouts, state.workouts.length);
-  setKpiValue(el.totalLogs, state.workoutLogs.length);
+  const metrics = window.AlionTrainerDataRules.calculateTrainerMetrics({
+    students: getAccessibleStudents(),
+    exercises: getUniqueExercises(),
+    workouts: state.workouts,
+    logs: state.workoutLogs
+  });
+  setKpiValue(el.totalStudents, metrics.students);
+  setKpiValue(el.totalExercises, metrics.exercises);
+  setKpiValue(el.totalWorkouts, metrics.workouts);
+  setKpiValue(el.totalLogs, metrics.completed);
   if (el.totalAcademies) el.totalAcademies.textContent = state.academies.length;
 }
 
@@ -1705,6 +1737,12 @@ function renderInviteCard(invite) {
   const link = buildInviteLink(token);
   const status = normalizeText(pick(invite, ["status"], ""));
   const expiresAt = pick(invite, ["expires_at"], "");
+  const inviteId = String(invite.id);
+  const isRevealed = state.revealedInviteIds.has(inviteId);
+  const displayedLink = isRevealed
+    ? link
+    : (window.AlionTrainerDataRules?.maskInviteLink(link) || "Link protegido");
+  const canRevoke = status === "pendente";
 
   return `
     <article class="simple-item stacked invite-card">
@@ -1713,12 +1751,13 @@ function renderInviteCard(invite) {
       <small>Validade: ${escapeHtml(expiresAt ? formatDateTime(expiresAt) : "Sem data")}</small>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-invite-action="copy" data-id="${escapeHtml(invite.id)}">Copiar link</button>
+        <button class="tiny-button" type="button" data-invite-action="toggle" data-id="${escapeHtml(invite.id)}">${isRevealed ? "Ocultar link" : "Mostrar link"}</button>
+        ${canRevoke ? `<button class="tiny-button danger" type="button" data-invite-action="cancel" data-id="${escapeHtml(invite.id)}">Revogar convite</button>` : ""}
       </div>
       <details class="invite-details">
         <summary>Ver detalhes</summary>
         <small>Criado em: ${escapeHtml(formatDateTime(pick(invite, ["created_at"], "")))}</small>
-        <small>Token: ${escapeHtml(token || "-")}</small>
-        <small>Link: ${escapeHtml(link)}</small>
+        <small>Link: ${escapeHtml(displayedLink)}</small>
       </details>
     </article>
   `;
@@ -1765,6 +1804,14 @@ async function handleInviteAction(action, inviteId) {
   const student = getInviteStudent(invite) || {};
   const link = buildInviteLink(pick(invite, ["token"], ""));
 
+  if (action === "toggle") {
+    const normalizedId = String(inviteId);
+    if (state.revealedInviteIds.has(normalizedId)) state.revealedInviteIds.delete(normalizedId);
+    else state.revealedInviteIds.add(normalizedId);
+    renderInvites();
+    return;
+  }
+
   try {
     if (action === "copy" || action === "resend") {
       await copyTextToClipboard(link);
@@ -1790,6 +1837,7 @@ async function handleInviteAction(action, inviteId) {
         canceled_by: state.authUser?.id || null,
         updated_at: new Date().toISOString()
       }, "Erro ao cancelar convite");
+      state.revealedInviteIds.delete(String(inviteId));
       showToast("Convite cancelado.");
       await loadSupabaseData({ silent: true });
       return;
@@ -2222,7 +2270,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises", "academies", "academy_personal_links", "academy_attendance", "academy_financials"].includes(tableName)) {
-        console.log(`[Alion Treinos] INSERT final em ${tableName}:`, currentPayload);
+        console.info(`[Alion Treinos] Salvando registro em ${tableName}.`);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
     } catch (error) {
@@ -2648,8 +2696,8 @@ function renderAdminArea() {
     ${renderDiagnostic("Status", el.connectionStatus.textContent)}
     ${renderDiagnostic("Alunos carregados", state.students.length)}
     ${renderDiagnostic("Exercícios carregados", state.exercises.length)}
-    ${renderDiagnostic("Treinos carregados", state.workouts.length)}
-    ${renderDiagnostic("Logs carregados", state.workoutLogs.length)}
+    ${renderDiagnostic("Treinos carregados nesta sessão", state.workouts.length)}
+    ${renderDiagnostic("Sessões concluídas carregadas", state.workoutLogs.length)}
     ${renderDiagnostic("Academias carregadas", state.academies.length)}
     ${renderDiagnostic("Presencas carregadas", state.academyAttendance.length)}
     ${renderDiagnostic("Financeiros carregados", state.academyFinancials.length)}
@@ -2666,7 +2714,12 @@ function renderAdminArea() {
  */
 function getTableStatus(tableName) {
   const map = {
-    app_profiles: state.authProfile ? "perfil autenticado carregado" : 0,
+    app_profiles: state.appProfiles.length
+      ? `${state.appProfiles.length} registros visíveis nesta sessão`
+      : (state.authProfile ? "Somente o perfil autenticado foi carregado" : "Não consultado"),
+    profiles: "Não consultado diretamente nesta sessão",
+    student_invites: state.studentInvites.length,
+    trainer_students: state.trainerStudents.length,
     students: state.students.length,
     exercise_library: state.exercises.length,
     workouts: state.workouts.length,
@@ -2682,8 +2735,10 @@ function getTableStatus(tableName) {
     return state.tableErrors[tableName] || "Consultada por aluno no perfil";
   }
 
-  const value = map[tableName] ?? 0;
-  return state.tableErrors[tableName] || (typeof value === "number" ? `${value} registros carregados` : value);
+  if (!(tableName in map)) return state.tableErrors[tableName] || "Não consultado nesta sessão";
+  const value = map[tableName];
+  return state.tableErrors[tableName]
+    || (typeof value === "number" ? `${value} registros visíveis nesta sessão` : value);
 }
 
 /**
@@ -2739,10 +2794,12 @@ function renderAdminExerciseItem(exercise) {
  * Renderiza erros atuais retornados pelo Supabase.
  */
 function renderAdminExerciseLibraryItem(exercise) {
+  const rawGroup = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+  const group = window.AlionTrainerDataRules?.normalizeMuscleGroup(rawGroup) || rawGroup || "Grupo não informado";
   return `
     <article class="simple-item stacked">
       <strong>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</strong>
-      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
+      <span>${escapeHtml(group)}</span>
       <div class="record-actions">
         <button class="tiny-button" type="button" data-admin-exercise-action="edit" data-id="${escapeHtml(exercise.id)}">Editar</button>
       </div>
@@ -2756,7 +2813,8 @@ function getFilteredAdminExercises() {
 
   return getUniqueExercises().filter((exercise) => {
     const name = pick(exercise, ["name", "title", "nome"], "").toLowerCase();
-    const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "").toLowerCase();
+    const rawGroup = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+    const group = (window.AlionTrainerDataRules?.normalizeMuscleGroup(rawGroup) || rawGroup).toLowerCase();
     const equipment = pick(exercise, ["equipment", "equipamento"], "").toLowerCase();
     const matchesSearch = !search || name.includes(search) || group.includes(search) || equipment.includes(search);
     const matchesGroup = !groupFilter || group === groupFilter;
@@ -2767,8 +2825,9 @@ function getFilteredAdminExercises() {
 function renderAdminExerciseGroupFilter() {
   if (!el.adminExerciseGroupFilter) return;
   const current = el.adminExerciseGroupFilter.value;
-  const groups = Array.from(new Set([...REQUIRED_EXERCISE_GROUPS, ...getUniqueExercises()
-    .map((exercise) => pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], ""))
+  const normalizeGroup = (value) => window.AlionTrainerDataRules?.normalizeMuscleGroup(value) || value;
+  const groups = Array.from(new Set([...REQUIRED_EXERCISE_GROUPS.map(normalizeGroup), ...getUniqueExercises()
+    .map((exercise) => normalizeGroup(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "")))
     .filter(Boolean)]))
     .sort((a, b) => a.localeCompare(b, "pt-BR"));
 
@@ -2791,7 +2850,7 @@ function renderAdminErrors() {
         <span>${escapeHtml(message)}</span>
       </article>
     `).join("")
-    : emptyMessage("Nenhum erro Supabase registrado nesta sessao.");
+    : `<p class="empty compact-empty">Nenhum erro do Supabase registrado.</p>`;
 }
 
 /**
@@ -2817,6 +2876,53 @@ function renderAdminMaintenanceLog(message) {
       <span>${escapeHtml(message)}</span>
     </article>
   `;
+}
+
+function getPossibleDuplicateExerciseGroups() {
+  const groups = new Map();
+  state.exercises.forEach((exercise) => {
+    const name = pick(exercise, ["name", "title", "nome"], "");
+    const normalizedName = window.AlionTrainerDataRules?.normalizeExerciseName(name) || normalizeText(name);
+    if (!normalizedName) return;
+    if (!groups.has(normalizedName)) groups.set(normalizedName, []);
+    groups.get(normalizedName).push(exercise);
+  });
+  return Array.from(groups.entries()).filter(([, exercises]) => exercises.length > 1);
+}
+
+function renderDuplicateExerciseReport() {
+  const duplicateGroups = getPossibleDuplicateExerciseGroups();
+  if (!duplicateGroups.length) {
+    renderAdminMaintenanceLog("Nenhuma possível duplicidade encontrada pelos nomes normalizados.");
+    return;
+  }
+
+  el.adminMaintenanceLog.innerHTML = duplicateGroups.map(([normalizedName, exercises]) => `
+    <article class="simple-item stacked">
+      <strong>Possível duplicidade: ${escapeHtml(normalizedName)}</strong>
+      ${exercises.map((exercise) => {
+        const references = state.workoutExercises.filter((item) => (
+          String(pick(item, ["exercise_id", "library_exercise_id"], "")) === String(exercise.id)
+        )).length;
+        const mediaCount = [
+          pick(exercise, ["image_url"], ""),
+          pick(exercise, ["image_url_masculino"], ""),
+          pick(exercise, ["image_url_feminino"], ""),
+          pick(exercise, ["video_url"], ""),
+          pick(exercise, ["video_url_masculino"], ""),
+          pick(exercise, ["video_url_feminino"], "")
+        ].filter(Boolean).length;
+        return `
+          <span><b>${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício"))}</b></span>
+          <small>ID: ${escapeHtml(exercise.id)}</small>
+          <small>Grupo: ${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Não informado"))}</small>
+          <small>Descrição: ${escapeHtml(pick(exercise, ["instructions", "description", "observations"], "Não informada"))}</small>
+          <small>Usado em treinos: ${references} | Mídias: ${mediaCount} | Criado em: ${escapeHtml(formatDateTime(pick(exercise, ["created_at"], "")))}</small>
+        `;
+      }).join("")}
+      <small>Nenhum registro foi excluído ou mesclado automaticamente.</small>
+    </article>
+  `).join("");
 }
 
 function getSelectedAdminStudentId() {
@@ -3045,6 +3151,12 @@ function isTestRecord(record, fields) {
 async function handleAdminMaintenance(action) {
   if (!await requireAdminTi()) return;
 
+  if (action === "duplicates") {
+    renderDuplicateExerciseReport();
+    showToast("Relatório de possíveis duplicidades gerado sem alterar dados.");
+    return;
+  }
+
   const operationLabels = {
     "selected-sessions": "LIMPAR SESSOES",
     "selected-measurements": "LIMPAR MEDIDAS",
@@ -3053,7 +3165,6 @@ async function handleAdminMaintenance(action) {
     "test-data": "LIMPAR TESTES",
     "test-students": "EXCLUIR TESTES",
     "test-workouts": "EXCLUIR TREINOS TESTE",
-    duplicates: "LIMPAR DUPLICADOS",
     orphans: "LIMPAR ORFAOS"
   };
   const expectedText = operationLabels[action] || "CONFIRMAR";
@@ -3083,11 +3194,6 @@ async function handleAdminMaintenance(action) {
     if (action === "test-workouts") {
       const removed = await removeTestWorkouts();
       result = `Treinos de teste removidos: ${removed}.`;
-    }
-
-    if (action === "duplicates") {
-      const removed = await removeDuplicateExercises();
-      result = `Exercícios duplicados removidos: ${removed}.`;
     }
 
     if (action === "orphans") {
@@ -3268,7 +3374,9 @@ function normalizeText(value) {
  * Cria chave local para evitar repetição por nome + grupo muscular.
  */
 function getExerciseKey(exercise) {
-  return `${normalizeText(pick(exercise, ["name", "title", "nome"]))}::${normalizeText(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"]))}`;
+  const rawGroup = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"]);
+  const group = window.AlionTrainerDataRules?.normalizeMuscleGroup(rawGroup) || normalizeText(rawGroup);
+  return `${normalizeText(pick(exercise, ["name", "title", "nome"]))}::${normalizeText(group)}`;
 }
 
 /**
@@ -3631,9 +3739,10 @@ function renderExerciseLibrary() {
   renderExerciseGroupFilter();
   const exercises = getUniqueExercises().filter((exercise) => {
     const name = pick(exercise, ["name", "title", "nome"], "").toLowerCase();
-    const group = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "").toLowerCase();
-    const matchesSearch = !search || name.includes(search) || group.includes(search);
-    const matchesGroup = !state.exerciseGroupFilter || group === state.exerciseGroupFilter.toLowerCase();
+    const rawGroup = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+    const group = window.AlionTrainerDataRules?.normalizeMuscleGroup(rawGroup) || rawGroup;
+    const matchesSearch = !search || name.includes(search) || group.toLowerCase().includes(search);
+    const matchesGroup = !state.exerciseGroupFilter || group === state.exerciseGroupFilter;
     return matchesSearch && matchesGroup;
   });
 
@@ -3660,8 +3769,9 @@ function getUniqueExercises() {
 function renderExerciseGroupFilter() {
   if (!el.exerciseGroupFilter) return;
   const current = el.exerciseGroupFilter.value;
-  const groups = Array.from(new Set([...REQUIRED_EXERCISE_GROUPS, ...getUniqueExercises()
-    .map((exercise) => pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], ""))
+  const normalizeGroup = (value) => window.AlionTrainerDataRules?.normalizeMuscleGroup(value) || value;
+  const groups = Array.from(new Set([...REQUIRED_EXERCISE_GROUPS.map(normalizeGroup), ...getUniqueExercises()
+    .map((exercise) => normalizeGroup(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "")))
     .filter(Boolean)]))
     .sort((a, b) => a.localeCompare(b, "pt-BR"));
 
@@ -3679,11 +3789,13 @@ function renderExerciseLibraryItem(exercise) {
   const videoUrl = getExerciseMediaByGender(exercise, student, "video");
   const commonMistakes = pick(exercise, ["common_mistakes"], "");
   const exerciseName = pick(exercise, ["name", "title", "nome"], "Exercício");
+  const rawGroup = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+  const group = window.AlionTrainerDataRules?.normalizeMuscleGroup(rawGroup) || rawGroup || "Grupo não informado";
 
   return `
     <article class="simple-item stacked library-item">
       <strong>${escapeHtml(exerciseName)}</strong>
-      <span>${escapeHtml(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "Grupo nao informado"))}</span>
+      <span>${escapeHtml(group)}</span>
       <span>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Equipamento nao informado"))} | ${escapeHtml(pick(exercise, ["difficulty", "difficulty_level", "nivel"], "Nivel nao informado"))}</span>
       ${renderExerciseImage(imageUrl, exerciseName, true)}
       ${renderExerciseVideoButton(videoUrl)}
@@ -3726,6 +3838,18 @@ async function saveExerciseLibraryItem(form) {
     }
 
     const editId = form.dataset.editId || "";
+    const normalizedName = window.AlionTrainerDataRules?.normalizeExerciseName(payload.name) || normalizeText(payload.name);
+    const normalizedGroup = window.AlionTrainerDataRules?.normalizeMuscleGroup(payload.muscle_group) || normalizeText(payload.muscle_group);
+    const normalizedEquipment = normalizeText(payload.equipment);
+    const existingDuplicate = state.exercises.find((exercise) => (
+      String(exercise.id) !== String(editId)
+      && (window.AlionTrainerDataRules?.normalizeExerciseName(pick(exercise, ["name", "title", "nome"], "")) || normalizeText(pick(exercise, ["name", "title", "nome"], ""))) === normalizedName
+      && (window.AlionTrainerDataRules?.normalizeMuscleGroup(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "")) || normalizeText(pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], ""))) === normalizedGroup
+      && normalizeText(pick(exercise, ["equipment", "equipamento"], "")) === normalizedEquipment
+    ));
+    if (existingDuplicate) {
+      throw new Error(`Já existe um exercício equivalente: ${pick(existingDuplicate, ["name", "title", "nome"], "exercício existente")}. Edite o registro existente para preservar os vínculos.`);
+    }
     if (editId) {
       await updateWithSchemaFallback("exercise_library", editId, payload, "Erro ao editar exercício da biblioteca");
       showToast("Exercício da biblioteca atualizado.");
@@ -4742,8 +4866,19 @@ function getStudentInactivityInfo(student) {
   return {
     days,
     level,
-    badge: `${days} dias sem aparecer`
+    badge: `Sem comparecer há ${days} dias`
   };
+}
+
+function getAcademyLinkTrainerProfile(link) {
+  const trainerIds = [
+    pick(link, ["trainer_id"], ""),
+    pick(link, ["trainer_user_id"], "")
+  ].filter(Boolean).map(String);
+
+  return state.appProfiles.find((profile) => trainerIds.some((id) => (
+    [profile.id, profile.user_id, profile.auth_user_id].filter(Boolean).map(String).includes(id)
+  ))) || null;
 }
 
 function getAcademyAttendanceForDate(dateValue = toDateInputValue()) {
@@ -4838,12 +4973,17 @@ function renderAcademyArea() {
 
   if (el.academyLinkList) {
     el.academyLinkList.innerHTML = state.academyLinks.length
-      ? state.academyLinks.map((link) => `
+      ? state.academyLinks.map((link) => {
+        const trainerProfile = getAcademyLinkTrainerProfile(link);
+        const trainerName = pick(trainerProfile, ["full_name", "nome", "name"], "Personal não identificado");
+        const trainerEmail = pick(trainerProfile, ["email"], pick(link, ["responsible_email"], "Não informado"));
+        return `
         <article class="simple-item stacked">
-          <strong>${escapeHtml(pick(link, ["responsible_email", "academy_code"], "Solicitação"))}</strong>
+          <strong>${escapeHtml(trainerName)}</strong>
+          <small>E-mail: ${escapeHtml(trainerEmail)}</small>
           <span>Status: ${escapeHtml(formatInviteStatus(pick(link, ["status"], "pendente")))}</span>
+          <small>Solicitação: ${escapeHtml(formatDateTime(pick(link, ["created_at"], "")))}</small>
           <small>Código: ${escapeHtml(pick(link, ["academy_code"], "Não informado"))}</small>
-          <small>Personal: ${escapeHtml(pick(link, ["trainer_user_id", "trainer_id"], "Não informado"))}</small>
           ${(isAdmin() || isOwner()) ? `
             <div class="record-actions">
               <button class="tiny-button" type="button" data-academy-link-action="approve" data-id="${escapeHtml(link.id)}">Aprovar</button>
@@ -4851,7 +4991,8 @@ function renderAcademyArea() {
             </div>
           ` : ""}
         </article>
-      `).join("")
+      `;
+      }).join("")
       : emptyMessage(state.tableErrors.academy_personal_links || "Nenhuma solicitação encontrada.");
   }
 
@@ -4869,8 +5010,9 @@ function renderAcademyArea() {
             <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
             <span>${escapeHtml(pick(student, ["objective"], "Sem objetivo informado"))}</span>
             <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp", "contact", "phone", "telefone"], "Não informado"))}</small>
-            <small>Status: ${escapeHtml(formatWorkoutStatus(pick(student, ["status"], "ativo")))}</small>
-            ${inactivity.badge ? `<span class="inactive-badge ${escapeHtml(inactivity.level)}">${escapeHtml(inactivity.badge)}</span>` : ""}
+            <small>Situação cadastral: ${escapeHtml(formatWorkoutStatus(pick(student, ["status"], "ativo")))}</small>
+            <small>Frequência: ${inactivity.badge ? escapeHtml(inactivity.badge) : "Regular nos últimos 7 dias"}</small>
+            ${inactivity.badge ? `<span class="inactive-badge ${escapeHtml(inactivity.level)}">Alerta de frequência</span>` : ""}
           </article>
         `;
       }).join("")
@@ -4939,6 +5081,16 @@ async function saveTrainerAcademyLink(form) {
   }
 
   try {
+    const duplicateRequest = state.academyLinks.find((link) => (
+      normalizeText(pick(link, ["status"], "")) === payload.status
+      && String(pick(link, ["trainer_id"], "")) === String(payload.trainer_id)
+      && normalizeText(pick(link, ["academy_code"], "")) === normalizeText(payload.academy_code)
+      && Boolean(pick(link, ["independent_personal"], false)) === payload.independent_personal
+    ));
+    if (duplicateRequest) {
+      showToast("Esta solicitação já está registrada. O vínculo existente foi mantido.", "error");
+      return;
+    }
     await insertWithSchemaFallback("academy_personal_links", payload, "Erro ao salvar vinculo com academia");
     showToast(isIndependent ? "Modo personal independente ativado." : "Solicitacao de vinculo enviada.");
     form.reset();
@@ -5342,10 +5494,34 @@ async function syncCanonicalProfile(user, profilePayload) {
   };
 
   try {
-    const { error } = await supabaseClient.from("profiles").upsert(payload).select();
+    const { data: current, error: readError } = await supabaseClient
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (readError) throw readError;
+
+    if (current) {
+      const changed = Object.entries(payload).some(([key, value]) => (
+        value != null && String(current[key] ?? "") !== String(value)
+      ));
+      if (!changed) return current;
+      const { data, error } = await supabaseClient
+        .from("profiles")
+        .update(payload)
+        .eq("id", user.id)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+
+    const { data, error } = await supabaseClient.from("profiles").insert(payload).select().maybeSingle();
     if (error) throw error;
+    return data;
   } catch (error) {
     console.warn("[Alion Treinos] profiles canonico ainda nao disponivel.", error);
+    return null;
   }
 }
 
@@ -5354,7 +5530,8 @@ async function fetchInviteByToken(token) {
 
   const rpcResult = await supabaseClient.rpc("get_student_invite_by_token", { invite_token: token });
   if (!rpcResult.error) {
-    return Array.isArray(rpcResult.data) ? (rpcResult.data[0] || null) : rpcResult.data;
+    const invite = Array.isArray(rpcResult.data) ? (rpcResult.data[0] || null) : rpcResult.data;
+    return window.AlionTrainerDataRules?.isInviteUsable(invite) ? invite : null;
   }
 
   const { data, error } = await supabaseClient
@@ -5365,7 +5542,7 @@ async function fetchInviteByToken(token) {
     .maybeSingle();
 
   if (error) throw rpcResult.error || error;
-  return data || null;
+  return window.AlionTrainerDataRules?.isInviteUsable(data) ? data : null;
 }
 
 async function fetchAppProfileByUserId(userId) {
@@ -5497,13 +5674,36 @@ async function ensureTrainerStudentLink(student, user, invite = null) {
     return;
   }
 
-  await insertWithSchemaFallback("trainer_students", {
+  const payload = {
     trainer_id: trainerId,
     student_id: student.id,
     student_user_id: user?.id || null,
     status: "ativo",
     invite_id: pick(invite, ["id"], null)
-  }, "Erro ao criar vinculo aluno-personal");
+  };
+  const { error: upsertError } = await supabaseClient
+    .from("trainer_students")
+    .upsert(payload, { onConflict: "trainer_id,student_id" });
+  if (upsertError) throw upsertError;
+}
+
+async function acceptInviteTrainerStudentLink(invite, user) {
+  const token = pick(invite, ["token"], "");
+  if (token) {
+    const { data, error } = await supabaseClient.rpc("accept_student_invite_link", {
+      invite_token: token
+    });
+    if (!error) return data;
+    const missingFunction = normalizeText(error.message).includes("accept_student_invite_link")
+      || normalizeText(error.code) === "pgrst202";
+    if (!missingFunction) throw error;
+  }
+
+  await ensureTrainerStudentLink({
+    id: invite.student_id,
+    trainer_id: invite.trainer_id
+  }, user, invite);
+  return null;
 }
 
 async function ensureUserProfileAndStudentLink(user, options = {}) {
@@ -5643,11 +5843,6 @@ async function loadInviteFromUrl() {
   }
 }
 
-function isDuplicateDatabaseError(error) {
-  const text = normalizeText(error?.message || "");
-  return text.includes("duplicate") || text.includes("unique");
-}
-
 async function completeInviteForUser(user, invite = state.pendingInvite) {
   if (!user?.id || !invite?.id) return null;
 
@@ -5698,17 +5893,7 @@ async function completeInviteForUser(user, invite = state.pendingInvite) {
     }, "Erro ao vincular aluno ao usuario");
   }
 
-  try {
-    await insertWithSchemaFallback("trainer_students", {
-      trainer_id: invite.trainer_id,
-      student_id: invite.student_id,
-      student_user_id: user.id,
-      status: "ativo",
-      invite_id: invite.id
-    }, "Erro ao vincular aluno ao personal");
-  } catch (error) {
-    if (!isDuplicateDatabaseError(error)) throw error;
-  }
+  await acceptInviteTrainerStudentLink(invite, user);
 
   await updateWithSchemaFallback("student_invites", invite.id, {
     status: "aceito",
@@ -5941,7 +6126,7 @@ function renderPasswordFlowText() {
     : "Sua senha temporaria precisa ser substituida antes de usar o app.";
 }
 
-async function applyAuthenticatedSession(session) {
+async function applyAuthenticatedSessionInternal(session) {
   if (!session?.user) return;
 
   state.authUser = session.user;
@@ -6028,6 +6213,25 @@ async function applyAuthenticatedSession(session) {
   if (role === "trainer") changeScreen("trainer-area");
   if (role === "admin") changeScreen("admin-area");
   if (role === "owner") changeScreen("academy-area");
+}
+
+async function applyAuthenticatedSession(session) {
+  if (!session?.user) return;
+
+  const userId = String(session.user.id);
+  if (activeAuthReconciliation?.userId === userId) {
+    return activeAuthReconciliation.promise;
+  }
+
+  const promise = applyAuthenticatedSessionInternal(session);
+  activeAuthReconciliation = { userId, promise };
+  try {
+    return await promise;
+  } finally {
+    if (activeAuthReconciliation?.promise === promise) {
+      activeAuthReconciliation = null;
+    }
+  }
 }
 
 function getGoogleRedirectUrl() {
