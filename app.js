@@ -183,6 +183,7 @@ const el = {
   adminPersonalsList: document.querySelector("#admin-personals-list"),
   adminStudentsList: document.querySelector("#admin-students-list"),
   adminExercisesList: document.querySelector("#admin-exercises-list"),
+  adminDownloadExerciseLibraryPdf: document.querySelector("#admin-download-exercise-library-pdf"),
   adminDiagnostics: document.querySelector("#admin-diagnostics"),
   adminErrorsList: document.querySelector("#admin-errors-list"),
   adminRlsPolicies: document.querySelector("#admin-rls-policies"),
@@ -2836,6 +2837,97 @@ function renderAdminExerciseLibraryItem(exercise) {
       </div>
     </article>
   `;
+}
+
+function printAdminExerciseLibraryPdf() {
+  if (!isAdmin()) {
+    showToast("Apenas o Admin técnico pode baixar a biblioteca em PDF.", "error");
+    return;
+  }
+  if (!state.exercises.length) {
+    showToast("A biblioteca de exercícios está vazia. Recarregue os dados e tente novamente.", "error");
+    return;
+  }
+
+  const exercises = [...state.exercises].sort((first, second) => (
+    String(pick(first, ["name", "title", "nome"], "")).localeCompare(
+      String(pick(second, ["name", "title", "nome"], "")),
+      "pt-BR"
+    )
+  ));
+  const statusSymbol = (value) => String(value || "").trim() ? "✓" : "☐";
+  const rows = exercises.map((exercise, index) => {
+    const rawGroup = pick(exercise, ["muscle_group", "primary_muscle", "grupo_muscular"], "");
+    const group = window.AlionTrainerDataRules?.normalizeMuscleGroup(rawGroup) || rawGroup || "Não informado";
+    return `
+      <tr>
+        <td class="number">${index + 1}</td>
+        <td class="name">${escapeHtml(pick(exercise, ["name", "title", "nome"], "Exercício sem nome"))}</td>
+        <td>${escapeHtml(group)}</td>
+        <td>${escapeHtml(pick(exercise, ["equipment", "equipamento"], "Não informado"))}</td>
+        <td class="status">${statusSymbol(exercise.image_url_masculino)}</td>
+        <td class="status">${statusSymbol(exercise.image_url_feminino)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    showToast("Permita pop-ups para abrir a biblioteca e salvar o PDF.", "error");
+    return;
+  }
+  printWindow.opener = null;
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8" />
+        <title>Biblioteca de exercícios - Alion Treinos</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body { margin: 0; color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+          header { margin-bottom: 7mm; padding-bottom: 4mm; border-bottom: 2px solid #111; }
+          h1 { margin: 0; font-size: 18pt; letter-spacing: .08em; }
+          h2 { margin: 1.5mm 0 0; font-size: 12pt; }
+          .meta { display: flex; justify-content: space-between; gap: 8mm; margin-top: 3mm; font-size: 8.5pt; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          thead { display: table-header-group; }
+          tr { break-inside: avoid; page-break-inside: avoid; }
+          th, td { border: 1px solid #555; padding: 2mm 1.5mm; vertical-align: middle; overflow-wrap: anywhere; }
+          th { background: #eee; color: #000; text-align: left; font-size: 8pt; text-transform: uppercase; }
+          .number { width: 7%; text-align: center; }
+          .name { width: 28%; font-weight: 700; }
+          th:nth-child(3), td:nth-child(3) { width: 18%; }
+          th:nth-child(4), td:nth-child(4) { width: 19%; }
+          th:nth-child(5), th:nth-child(6), .status { width: 14%; text-align: center; }
+          .status { font-size: 14pt; font-weight: 700; }
+          footer { margin-top: 5mm; padding-top: 2mm; border-top: 1px solid #555; text-align: center; font-size: 8pt; }
+          @media print { body { print-color-adjust: economy; -webkit-print-color-adjust: economy; } }
+        </style>
+      </head>
+      <body>
+        <header>
+          <h1>ALION TREINOS</h1>
+          <h2>Biblioteca de exercícios - controle de imagens</h2>
+          <div class="meta">
+            <strong>Total de exercícios: ${exercises.length}</strong>
+            <span>Gerado em: ${escapeHtml(formatDateTime(new Date().toISOString()))}</span>
+          </div>
+        </header>
+        <table>
+          <thead>
+            <tr><th class="number">#</th><th class="name">Exercício</th><th>Grupo muscular</th><th>Equipamento</th><th>Masculino</th><th>Feminino</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <footer>✓ imagem cadastrada &nbsp; | &nbsp; ☐ imagem pendente</footer>
+      </body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.setTimeout(() => printWindow.print(), 250);
+  showToast("Biblioteca pronta. Escolha “Salvar como PDF” na tela de impressão.");
 }
 
 function getFilteredAdminExercises() {
@@ -6447,6 +6539,7 @@ function bindEvents() {
     await loadSupabaseData();
   });
   document.querySelector("#seed-exercise-library").addEventListener("click", seedExerciseLibrary);
+  el.adminDownloadExerciseLibraryPdf?.addEventListener("click", printAdminExerciseLibraryPdf);
   el.adminMaintenanceLog.closest(".card").addEventListener("click", (event) => {
     const button = event.target.closest("[data-admin-maintenance]");
     if (!button) return;

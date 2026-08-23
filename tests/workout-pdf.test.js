@@ -127,4 +127,16 @@ assert.match(serviceWorker, /modules\/workout-pdf\.js\?v=/);
 assert.equal(index.includes("screen-academy-area"), false);
 assert.equal(app.includes("renderAcademyArea"), false);
 
+// Biblioteca do Admin: usa somente os exercícios já carregados e abre impressão A4 retrato.
+assert.match(index, /id="admin-download-exercise-library-pdf"[\s\S]*Baixar biblioteca em PDF/);
+assert.match(app, /adminDownloadExerciseLibraryPdf\?\.addEventListener\("click", printAdminExerciseLibraryPdf\)/);
+const libraryPdfFunction = app.match(/function printAdminExerciseLibraryPdf\(\) \{[\s\S]+?\n\}\n\nfunction getFilteredAdminExercises/)?.[0] || "";
+assert.match(libraryPdfFunction, /state\.exercises/);
+assert.match(libraryPdfFunction, /exercise\.image_url_masculino/);
+assert.match(libraryPdfFunction, /exercise\.image_url_feminino/);
+assert.match(libraryPdfFunction, /size: A4 portrait/);
+assert.match(libraryPdfFunction, /window\.open\("", "_blank"\)/);
+assert.match(libraryPdfFunction, /printWindow\.print\(\)/);
+assert.doesNotMatch(libraryPdfFunction, /fetchTable|safeFetchTable|supabaseClient|state\.students|state\.workouts/);
+
 console.log("✓ geração, imagens, paginação e permissões da ficha em PDF passaram.");
