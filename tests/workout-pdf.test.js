@@ -85,7 +85,8 @@ assert.deepEqual(pages.map((page) => page.exercises.length), [6, 1, 2]);
 assert.equal(pages[2].pageNumber, 3);
 assert.deepEqual(pages.map((page) => page.exerciseOffset), [0, 6, 0]);
 
-const documentHtml = pdf.renderDocument(plan, { baseUrl: "https://example.com/app/" });
+const individualPlan = { ...plan, workouts: [plan.workouts[0]] };
+const documentHtml = pdf.renderDocument(individualPlan, { baseUrl: "https://example.com/app/" });
 assert.match(documentHtml, /@page \{ size: A4 landscape/);
 assert.match(documentHtml, /\.fold-layout \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^}]*gap: 8mm/);
 assert.match(documentHtml, /\.fold-layout::before \{[^}]*left: 50%/);
@@ -95,15 +96,49 @@ assert.match(documentHtml, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)
 assert.match(documentHtml, /object-fit: contain/);
 assert.match(documentHtml, /guide-grid guide-count-6/);
 assert.match(documentHtml, /guide-grid guide-count-1/);
-assert.match(documentHtml, /guide-grid guide-count-2/);
-assert.equal((documentHtml.match(/class="pdf-page"/g) || []).length, 3);
+assert.equal((documentHtml.match(/class="pdf-page"/g) || []).length, 2);
 assert.match(documentHtml, /7\. Exercício 7/);
 assert.match(documentHtml, /Ana Teste/);
 assert.match(documentHtml, /Personal Responsável/);
 assert.match(documentHtml, /Treino A/);
-assert.match(documentHtml, /Treino B/);
 assert.match(documentHtml, /Movimento controlado - Manter postura estável/);
 assert.doesNotMatch(documentHtml, /nao-vazar@example\.com|11999999999|dado sensível fora da ficha/);
+
+// O plano completo reúne cinco treinos em uma única folha e não duplica o guia visual.
+const fullPlan = {
+  ...plan,
+  workouts: Array.from({ length: 5 }, (_, workoutIndex) => ({
+    id: `full-${workoutIndex + 1}`,
+    name: `Treino ${String.fromCharCode(65 + workoutIndex)}`,
+    objective: "Condicionamento",
+    notes: workoutIndex === 0 ? "Executar com controle" : "",
+    exercises: Array.from({ length: 6 }, (_, exerciseIndex) => ({
+      id: `full-assignment-${workoutIndex}-${exerciseIndex}`,
+      name: exerciseIndex === 0 ? "Agachamento compartilhado" : `Exercício ${workoutIndex + 1}-${exerciseIndex + 1}`,
+      sets: "3",
+      reps: "10",
+      load: "20 kg",
+      rest: "60",
+      notes: exerciseIndex === 1 ? "Movimento controlado" : "",
+      instructions: exerciseIndex === 1 ? "Manter postura estável" : "",
+      imageUrl: `assets/exercicios/imagens/full-${workoutIndex}-${exerciseIndex}.svg`
+    }))
+  }))
+};
+const fullPlanHtml = pdf.renderDocument(fullPlan);
+assert.equal((fullPlanHtml.match(/class="pdf-page full-plan"/g) || []).length, 1);
+assert.equal((fullPlanHtml.match(/class="full-workout-block"/g) || []).length, 5);
+assert.equal((fullPlanHtml.match(/<tr>\s*<td class="exercise-name"/g) || []).length, 30);
+assert.match(fullPlanHtml, /<dt>Página<\/dt><dd>1\/1<\/dd>/);
+assert.match(fullPlanHtml, /Plano completo - 5 treinos/);
+assert.match(fullPlanHtml, /Exercício e orientação[\s\S]*Séries[\s\S]*Repetições[\s\S]*Carga[\s\S]*Descanso/);
+assert.match(fullPlanHtml, /\.full-plan-guide \{ grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(fullPlanHtml, /\.full-workout-block \{[^}]*break-inside: avoid;[^}]*page-break-inside: avoid/);
+assert.equal((fullPlanHtml.match(/class="guide-item"/g) || []).length, 26);
+assert.equal((fullPlanHtml.match(/<figcaption>Agachamento compartilhado<\/figcaption>/g) || []).length, 1);
+for (let workoutIndex = 0; workoutIndex < 5; workoutIndex += 1) {
+  assert.match(fullPlanHtml, new RegExp(`Treino ${String.fromCharCode(65 + workoutIndex)}`));
+}
 
 const planWithoutAnyImage = pdf.buildPlan({
   student,

@@ -211,6 +211,63 @@
     `;
   }
 
+  function getUniqueExercises(plan) {
+    const unique = new Map();
+    (plan?.workouts || []).forEach((workout) => {
+      (workout.exercises || []).forEach((exercise) => {
+        const key = normalizeText(exercise.name);
+        if (!unique.has(key)) unique.set(key, exercise);
+      });
+    });
+    return [...unique.values()];
+  }
+
+  function renderFullWorkout(workout, workoutIndex) {
+    return `
+      <section class="full-workout-block">
+        <div class="full-workout-title"><h3>${workoutIndex + 1}. ${escapeHtml(workout.name)}</h3><span>${workout.exercises.length} exercício(s)</span></div>
+        ${workout.notes ? `<p class="full-workout-note">${escapeHtml(workout.notes)}</p>` : ""}
+        <table class="full-workout-table">
+          <thead><tr><th>Exercício e orientação</th><th>Séries</th><th>Repetições</th><th>Carga</th><th>Descanso</th></tr></thead>
+          <tbody>${workout.exercises.length ? workout.exercises.map((exercise, index) => renderExerciseRow(exercise, index)).join("") : '<tr><td colspan="5">Nenhum exercício cadastrado neste treino.</td></tr>'}</tbody>
+        </table>
+      </section>
+    `;
+  }
+
+  function renderFullPlanPage(plan) {
+    const uniqueExercises = getUniqueExercises(plan);
+    const totalExercises = plan.workouts.reduce((total, workout) => total + workout.exercises.length, 0);
+    return `
+      <section class="pdf-page full-plan">
+        <main class="fold-layout full-plan-layout">
+          <section class="training-side full-plan-training" data-fit-side>
+            <div class="full-plan-content">
+              <header class="page-header full-plan-header">
+                <div class="brand-block"><span class="brand-mark">AT</span><div><h1>ALION TREINOS</h1><p>Plano completo de treino</p></div></div>
+                <dl>
+                  <div class="full-field"><dt>Aluno</dt><dd>${escapeHtml(plan.studentName)}</dd></div>
+                  <div><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
+                  <div><dt>Página</dt><dd>1/1</dd></div>
+                  <div class="full-field"><dt>Objetivo</dt><dd>${escapeHtml(plan.objective || "Não informado")}</dd></div>
+                  <div class="full-field"><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
+                </dl>
+              </header>
+              <div class="area-title full-plan-title"><h2>Plano completo - ${plan.workouts.length} treinos</h2><span>${totalExercises} exercício(s)</span></div>
+              <div class="full-workouts">${plan.workouts.map(renderFullWorkout).join("")}</div>
+            </div>
+          </section>
+          <aside class="visual-side full-plan-visual" data-fit-side>
+            <div class="full-plan-content">
+              <div class="area-title"><h2>Guia visual</h2><span>${uniqueExercises.length} exercício(s) sem repetição</span></div>
+              <div class="guide-grid full-plan-guide">${uniqueExercises.length ? uniqueExercises.map(renderGuideItem).join("") : '<p class="empty-guide">Sem imagens para este plano.</p>'}</div>
+            </div>
+          </aside>
+        </main>
+      </section>
+    `;
+  }
+
   function renderPage(plan, page) {
     const subtitle = page.workoutPages > 1 ? ` - parte ${page.workoutPage}/${page.workoutPages}` : "";
     const guideCount = Math.min(page.exercises.length, DEFAULT_EXERCISES_PER_PAGE);
@@ -247,7 +304,8 @@
   }
 
   function renderDocument(plan, options = {}) {
-    const pages = paginatePlan(plan, options.exercisesPerPage);
+    const isFullPlan = plan.workouts.length > 1;
+    const pages = isFullPlan ? [] : paginatePlan(plan, options.exercisesPerPage);
     const title = `${plan.studentName} - ${plan.workouts.length === 1 ? plan.workouts[0].name : "Plano completo"} - Alion Treinos`;
     return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${escapeHtml(options.baseUrl || "./")}"><title>${escapeHtml(title)}</title>
@@ -299,8 +357,58 @@ th:nth-child(5), td:nth-child(5) { width: 14%; }
 .visual-placeholder strong { font-size: 6.5pt; }
 .empty-guide { font-size: 8pt; text-align: center; }
 footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text-align: center; font-size: 6.3pt; color: #4d4652; }
+.full-plan { padding: 3mm; }
+.full-plan-layout { min-height: 188mm; gap: 8mm; }
+.full-plan-training, .full-plan-visual { height: 188mm; overflow: hidden; padding: 1.5mm; }
+.full-plan-content { width: calc(100% / var(--full-plan-zoom, 1)); zoom: var(--full-plan-zoom, 1); }
+.full-plan-header { padding: 1.3mm; margin-bottom: 1.2mm; }
+.full-plan-header .brand-block { padding-bottom: .7mm; margin-bottom: .7mm; gap: 1.5mm; }
+.full-plan-header .brand-mark { width: 7mm; height: 7mm; font-size: 6pt; }
+.full-plan-header h1 { font-size: 8.5pt; }
+.full-plan-header p { font-size: 5pt; margin: 0; }
+.full-plan-header dl { grid-template-columns: minmax(0, 1fr) 19mm; gap: .35mm 1.5mm; }
+.full-plan-header dt { font-size: 4.4pt; }
+.full-plan-header dd { font-size: 5.4pt; margin: 0; }
+.full-plan-title { margin-bottom: .7mm; padding-bottom: .5mm; }
+.full-plan-title h2 { font-size: 7pt; }
+.full-plan-title span { font-size: 5pt; }
+.full-workout-block { margin: 0 0 .8mm; break-inside: avoid; page-break-inside: avoid; }
+.full-workout-title { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; border: 1px solid #5f5864; border-bottom: 0; padding: .45mm .7mm; background: #eee; }
+.full-workout-title h3 { margin: 0; font-size: 5.7pt; text-transform: uppercase; }
+.full-workout-title span { font-size: 4.5pt; }
+.full-workout-note { margin: 0; border: 1px solid #77717b; border-bottom: 0; padding: .35mm .7mm; font-size: 4.5pt; line-height: 1.1; }
+.full-workout-table { font-size: 4.5pt; }
+.full-workout-table th, .full-workout-table td { padding: .35mm .45mm; line-height: 1.05; }
+.full-workout-table th { font-size: 4pt; }
+.full-workout-table .exercise-name b { font-size: 4.8pt; }
+.full-workout-table .exercise-name small { margin-top: .15mm; font-size: 4.1pt; line-height: 1.05; }
+.full-plan-visual .area-title { margin-bottom: 1mm; padding-bottom: .6mm; }
+.full-plan-visual .area-title h2 { font-size: 7pt; }
+.full-plan-visual .area-title span { font-size: 5pt; }
+.full-plan-guide { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .8mm; }
+.full-plan-guide .guide-item { padding: .45mm; }
+.full-plan-guide .guide-image { height: 16mm; }
+.full-plan-guide .guide-item figcaption { min-height: 3.7mm; margin-top: .35mm; padding: .35mm .2mm 0; font-size: 4.2pt; line-height: 1.05; }
+.full-plan-guide .visual-placeholder { padding: .4mm; gap: .2mm; font-size: 3.5pt; }
+.full-plan-guide .visual-placeholder strong { font-size: 3.8pt; }
 @media print { html, body { background: #fff; } .pdf-page { width: auto; min-height: 196mm; margin: 0; padding: 0; border: 0; } .fold-layout { min-height: 196mm; } }
-</style></head><body>${pages.map((page) => renderPage(plan, page)).join("")}</body></html>`;
+</style></head><body>${isFullPlan ? renderFullPlanPage(plan) : pages.map((page) => renderPage(plan, page)).join("")}</body></html>`;
+  }
+
+  function fitFullPlanPages(documentRef) {
+    [...documentRef.querySelectorAll(".full-plan")].forEach((page) => {
+      page.style.setProperty("--full-plan-zoom", "1");
+      const sides = [...page.querySelectorAll("[data-fit-side]")];
+      const overflowRatio = sides.reduce((largest, side) => {
+        const content = side.querySelector(".full-plan-content");
+        if (!content || !side.clientHeight) return largest;
+        return Math.max(largest, content.scrollHeight / side.clientHeight);
+      }, 1);
+      if (overflowRatio > 1) {
+        const zoom = Math.max(0.68, Math.min(1, 0.985 / overflowRatio));
+        page.style.setProperty("--full-plan-zoom", zoom.toFixed(3));
+      }
+    });
   }
 
   function replaceBrokenImage(image) {
@@ -349,6 +457,14 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
     }));
     printWindow.document.close();
     await waitForImages(printWindow.document, options.imageTimeoutMs);
+    fitFullPlanPages(printWindow.document);
+    await new Promise((resolve) => {
+      if (typeof printWindow.requestAnimationFrame === "function") {
+        printWindow.requestAnimationFrame(() => resolve());
+        return;
+      }
+      setTimeout(resolve, 0);
+    });
     printWindow.focus();
     printWindow.print();
     return printWindow;
@@ -359,6 +475,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
     buildPlan,
     canExportStudent,
     getActiveStudentWorkouts,
+    fitFullPlanPages,
     paginatePlan,
     printPlan,
     renderDocument,
