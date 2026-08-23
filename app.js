@@ -74,6 +74,8 @@ const state = {
   workoutLogs: [],
   selectedStudentId: "",
   selectedWorkoutId: "",
+  studentPdfWorkoutId: "all",
+  trainerPdfWorkoutId: "all",
   studentMode: localStorage.getItem("alion-student-mode") || "easy",
   restTimers: {},
   restTimerIntervals: {},
@@ -120,6 +122,9 @@ const el = {
   totalLogs: document.querySelector("#total-logs"),
   studentScreen: document.querySelector("#screen-student-area"),
   studentAreaSelect: document.querySelector("#student-area-select"),
+  studentPdfControls: document.querySelector("#student-pdf-controls"),
+  studentPdfWorkoutSelect: document.querySelector("#student-pdf-workout-select"),
+  studentDownloadWorkoutPdf: document.querySelector("#student-download-workout-pdf"),
   studentCurrentWorkout: document.querySelector("#student-current-workout"),
   studentHistory: document.querySelector("#student-history"),
   studentEvolution: document.querySelector("#student-evolution"),
@@ -134,6 +139,9 @@ const el = {
   trainerAssessmentComparison: document.querySelector("#trainer-assessment-comparison"),
   trainerMeasurements: document.querySelector("#trainer-measurements"),
   trainerWorkoutSelect: document.querySelector("#trainer-workout-select"),
+  trainerPdfControls: document.querySelector("#trainer-pdf-controls"),
+  trainerPdfWorkoutSelect: document.querySelector("#trainer-pdf-workout-select"),
+  trainerDownloadWorkoutPdf: document.querySelector("#trainer-download-workout-pdf"),
   trainerExerciseSelect: document.querySelector("#trainer-exercise-select"),
   trainerExerciseLibrary: document.querySelector("#trainer-exercise-library"),
   trainerTabs: document.querySelector("#trainer-tabs"),
@@ -542,6 +550,7 @@ function clearStudentAdvancedContainers() {
 function renderStudentArea() {
   updateStudentModeUi();
   clearStudentAreaContainers();
+  renderStudentPdfControls();
 
   if (!state.studentAreaId) {
     el.studentCurrentWorkout.innerHTML = emptyMessage("Selecione um aluno para visualizar o treino atual.");
@@ -1378,6 +1387,106 @@ function getFilteredTrainerWorkouts(workouts) {
   }
 
   return workouts.filter((workout) => normalizeWorkoutStatus(pick(workout, ["status"], "ativo")) !== "excluido");
+}
+
+function getPdfEligibleWorkouts(studentId) {
+  if (!window.AlionWorkoutPdf) return [];
+  return window.AlionWorkoutPdf.getActiveStudentWorkouts(state.workouts, studentId);
+}
+
+function canExportWorkoutPdfForStudent(studentId) {
+  if (!window.AlionWorkoutPdf || !studentId) return false;
+  const role = getCurrentRole();
+  return window.AlionWorkoutPdf.canExportStudent({
+    role,
+    trustedAdmin: state.trustedAdmin,
+    selectedStudentId: studentId,
+    ownStudentId: state.authProfile?.student_id || (role === "student" ? state.studentAreaId : ""),
+    accessibleStudentIds: getAccessibleStudents().map((student) => student.id)
+  });
+}
+
+function renderWorkoutPdfSelect(select, workouts, selectedValue) {
+  if (!select) return "all";
+  const options = [
+    `<option value="all">Plano completo (${workouts.length} treino${workouts.length === 1 ? "" : "s"})</option>`,
+    ...workouts.map((workout) => (
+      `<option value="${escapeHtml(workout.id)}">${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</option>`
+    ))
+  ];
+  select.innerHTML = options.join("");
+  const validValue = selectedValue === "all" || workouts.some((workout) => String(workout.id) === String(selectedValue))
+    ? String(selectedValue || "all")
+    : "all";
+  select.value = validValue;
+  select.disabled = workouts.length === 0;
+  return validValue;
+}
+
+function renderStudentPdfControls() {
+  if (!el.studentPdfControls) return;
+  const allowed = canExportWorkoutPdfForStudent(state.studentAreaId);
+  const workouts = allowed ? getPdfEligibleWorkouts(state.studentAreaId) : [];
+  el.studentPdfControls.classList.toggle("hidden", !allowed && Boolean(state.studentAreaId));
+  state.studentPdfWorkoutId = renderWorkoutPdfSelect(el.studentPdfWorkoutSelect, workouts, state.studentPdfWorkoutId);
+  if (el.studentDownloadWorkoutPdf) el.studentDownloadWorkoutPdf.disabled = !allowed || workouts.length === 0;
+}
+
+function renderTrainerPdfControls() {
+  if (!el.trainerPdfControls) return;
+  const allowed = canExportWorkoutPdfForStudent(state.selectedStudentId);
+  const workouts = allowed ? getPdfEligibleWorkouts(state.selectedStudentId) : [];
+  el.trainerPdfControls.classList.toggle("hidden", !allowed && Boolean(state.selectedStudentId));
+  state.trainerPdfWorkoutId = renderWorkoutPdfSelect(el.trainerPdfWorkoutSelect, workouts, state.trainerPdfWorkoutId);
+  if (el.trainerDownloadWorkoutPdf) el.trainerDownloadWorkoutPdf.disabled = !allowed || workouts.length === 0;
+}
+
+function resolveWorkoutPdfPersonalName(student, workouts) {
+  const ownerId = [
+    ...workouts.map((workout) => pick(workout, ["personal_id", "trainer_id", "owner_id"], "")),
+    pick(student, ["personal_id", "trainer_id", "owner_id"], "")
+  ].find(Boolean);
+  const ownerProfile = state.appProfiles.find((profile) => (
+    [profile.id, profile.user_id, profile.trainer_id].filter(Boolean).map(String).includes(String(ownerId || ""))
+  ));
+  const explicitName = workouts.map((workout) => (
+    pick(workout, ["personal_name", "trainer_name", "professor_responsavel"], "")
+  )).find(Boolean) || pick(student, ["personal_name", "trainer_name", "professor_responsavel"], "");
+  const authenticatedTrainerName = getCurrentRole() === "trainer"
+    ? pick(state.authProfile, ["name", "full_name", "nome"], "")
+    : "";
+  return pick(ownerProfile, ["name", "full_name", "nome"], explicitName || authenticatedTrainerName || "Personal responsável");
+}
+
+async function generateWorkoutPdf(studentId, selection = "all") {
+  try {
+    if (!window.AlionWorkoutPdf || !window.AlionExerciseMedia) {
+      throw new Error("O gerador de PDF não foi carregado. Atualize a página e tente novamente.");
+    }
+    if (!canExportWorkoutPdfForStudent(studentId)) {
+      throw new Error("Você não tem permissão para gerar a ficha deste aluno.");
+    }
+    const student = state.students.find((item) => String(item.id) === String(studentId));
+    if (!student) throw new Error("Aluno não encontrado nesta sessão.");
+    const eligibleWorkouts = getPdfEligibleWorkouts(studentId);
+    const selectedWorkouts = window.AlionWorkoutPdf.resolveWorkoutSelection(eligibleWorkouts, selection);
+    if (!selectedWorkouts.length) throw new Error("Nenhum treino ativo disponível para gerar a ficha.");
+
+    const plan = window.AlionWorkoutPdf.buildPlan({
+      student,
+      personalName: resolveWorkoutPdfPersonalName(student, selectedWorkouts),
+      workouts: selectedWorkouts,
+      workoutExercises: state.workoutExercises,
+      exerciseLibrary: state.exercises,
+      selectExerciseImage: window.AlionExerciseMedia.selectExerciseImage
+    });
+    showToast("Preparando a ficha de treino...");
+    await window.AlionWorkoutPdf.printPlan(plan, { baseUrl: document.baseURI });
+    showToast("Ficha pronta. Escolha “Salvar como PDF” na tela de impressão.");
+  } catch (error) {
+    console.error("[Alion Treinos] Erro ao gerar ficha em PDF:", error);
+    showToast(error.message || "Não foi possível gerar a ficha em PDF.", "error");
+  }
 }
 
 function renderTrainerWorkoutFilter() {
@@ -2689,6 +2798,7 @@ function renderAdminStudentItem(student) {
       <div class="record-actions">
         <button class="tiny-button" type="button" data-admin-student-action="select" data-student-id="${escapeHtml(student.id)}">Ver registros</button>
         <button class="tiny-button" type="button" data-admin-student-action="edit" data-student-id="${escapeHtml(student.id)}">Editar</button>
+        <button class="tiny-button" type="button" data-admin-student-action="pdf" data-student-id="${escapeHtml(student.id)}">Testar PDF</button>
         <button class="tiny-button" type="button" data-admin-student-action="clear-logs" data-student-id="${escapeHtml(student.id)}">Excluir sessoes</button>
         <button class="tiny-button" type="button" data-admin-student-action="clear-workouts" data-student-id="${escapeHtml(student.id)}">Excluir treinos</button>
         <button class="tiny-button" type="button" data-admin-student-action="reset" data-student-id="${escapeHtml(student.id)}">Resetar perfil</button>
@@ -2992,6 +3102,7 @@ async function handleAdminStudentAction(action, studentId) {
     if (action === "edit") {
       if (String(state.selectedStudentId) !== String(studentId)) cancelTrainerEditModes();
       state.selectedStudentId = studentId;
+      state.trainerPdfWorkoutId = "all";
       renderTrainerStudents();
       await renderTrainerProfile();
       changeScreen("trainer-area");
@@ -3357,6 +3468,7 @@ function fillStudentProfileForm(student) {
  */
 async function renderTrainerProfile() {
   const student = getSelectedStudent();
+  renderTrainerPdfControls();
 
   if (!student) {
     el.trainerProfileTitle.textContent = "Selecione um aluno na lista.";
@@ -6150,8 +6262,16 @@ function bindEvents() {
 
   el.studentAreaSelect.addEventListener("change", (event) => {
     state.studentAreaId = event.target.value;
+    state.studentPdfWorkoutId = "all";
     loadCurrentExecutionDraft();
     renderStudentArea();
+  });
+
+  el.studentPdfWorkoutSelect?.addEventListener("change", (event) => {
+    state.studentPdfWorkoutId = event.target.value;
+  });
+  el.studentDownloadWorkoutPdf?.addEventListener("click", () => {
+    generateWorkoutPdf(state.studentAreaId, state.studentPdfWorkoutId);
   });
 
   el.studentModeToggle?.addEventListener("click", (event) => {
@@ -6261,8 +6381,16 @@ function bindEvents() {
     if (!button) return;
     if (String(state.selectedStudentId) !== String(button.dataset.studentId)) cancelTrainerEditModes();
     state.selectedStudentId = button.dataset.studentId;
+    state.trainerPdfWorkoutId = "all";
     renderTrainerStudents();
     renderTrainerProfile();
+  });
+
+  el.trainerPdfWorkoutSelect?.addEventListener("change", (event) => {
+    state.trainerPdfWorkoutId = event.target.value;
+  });
+  el.trainerDownloadWorkoutPdf?.addEventListener("click", () => {
+    generateWorkoutPdf(state.selectedStudentId, state.trainerPdfWorkoutId);
   });
 
   document.querySelector("#reload-trainer-data").addEventListener("click", loadSupabaseData);
@@ -6327,6 +6455,10 @@ function bindEvents() {
   el.adminStudentsList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-admin-student-action]");
     if (!button) return;
+    if (button.dataset.adminStudentAction === "pdf") {
+      generateWorkoutPdf(button.dataset.studentId, "all");
+      return;
+    }
     handleAdminStudentAction(button.dataset.adminStudentAction, button.dataset.studentId);
   });
   el.adminExercisesList.addEventListener("click", (event) => {

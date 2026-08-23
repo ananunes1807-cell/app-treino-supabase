@@ -649,6 +649,47 @@ label {
   pointer-events: none;
 }
 
+.workout-pdf-controls {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+}
+
+.workout-pdf-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.workout-pdf-controls small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.workout-pdf-button {
+  min-height: 48px;
+}
+
+.workout-pdf-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+#trainer-pdf-controls {
+  margin-top: 16px;
+}
+
+body[data-role="student"][data-student-mode="easy"] #student-pdf-controls .workout-pdf-button {
+  width: 100%;
+  min-height: 58px;
+  font-size: 17px;
+}
+
 body[data-student-mode="easy"] .student-advanced-section {
   display: none !important;
 }

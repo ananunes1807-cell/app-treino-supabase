@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260823-core-security-v49" />
+    <link rel="stylesheet" href="style.css?v=20260823-workout-pdf-v50" />
   </head>
   <body>
     <div class="app">
@@ -188,6 +188,16 @@
                 <select id="student-area-select">
                   <option value="">Selecione um aluno</option>
                 </select>
+              </div>
+              <div class="workout-pdf-controls" id="student-pdf-controls">
+                <label>
+                  Ficha para impressão
+                  <select id="student-pdf-workout-select" aria-label="Treino para gerar em PDF"></select>
+                </label>
+                <button class="primary-button workout-pdf-button" type="button" id="student-download-workout-pdf">
+                  Baixar meu treino em PDF
+                </button>
+                <small>Na tela de impressão, escolha “Salvar como PDF”.</small>
               </div>
               <div class="list" id="student-current-workout"></div>
               <button class="primary-button full-width" type="button" id="complete-workout-button">
@@ -414,6 +424,18 @@
                     <input id="exercise-notes-input" type="text" placeholder="Instrucoes" />
                   </div>
                   <button class="secondary-button" type="button" id="add-exercise-to-workout">Adicionar exerc&iacute;cio</button>
+                </div>
+
+                <div class="form-box workout-pdf-controls" id="trainer-pdf-controls">
+                  <h3>Ficha de treino em PDF</h3>
+                  <label>
+                    Treino
+                    <select id="trainer-pdf-workout-select" aria-label="Treino do aluno para gerar em PDF"></select>
+                  </label>
+                  <button class="primary-button workout-pdf-button" type="button" id="trainer-download-workout-pdf">
+                    Baixar treino em PDF
+                  </button>
+                  <small>Na tela de impressão, escolha “Salvar como PDF”.</small>
                 </div>
 
                 <h3>Treinos do aluno</h3>
@@ -747,10 +769,11 @@
     <script src="modules/accessibility.js?v=20260727-a11y-v44"></script>
     <script src="modules/workout-rotation.js?v=20260727-easy-v45"></script>
     <script src="modules/easy-workout-flow.js?v=20260727-experience-v46"></script>
-    <script src="modules/exercise-media.js?v=20260727-experience-v46"></script>
+    <script src="modules/exercise-media.js?v=20260823-workout-pdf-v50"></script>
+    <script src="modules/workout-pdf.js?v=20260823-workout-pdf-v50"></script>
     <script src="modules/trainer-data-rules.js?v=20260728-trainer-fixes"></script>
     <script src="supabase.js?v=20260727-security-v44"></script>
-    <script src="app.js?v=20260823-core-security-v49"></script>
+    <script src="app.js?v=20260823-workout-pdf-v50"></script>
     <script src="modules/pwa.js?v=20260823-core-security-v49"></script>
   </body>
 </html>

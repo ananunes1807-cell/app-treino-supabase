@@ -35,5 +35,39 @@
     ].filter(([, value]) => String(value || "").trim());
   }
 
-  return { PLACEHOLDER, instructionParts, isAllowedUrl, safeUrl };
+  function normalizeGender(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLocaleLowerCase("pt-BR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\s-]+/g, "_");
+    if (["masculino", "male", "homem", "m", "masc"].includes(normalized)) return "masculino";
+    if (["feminino", "female", "mulher", "f", "fem"].includes(normalized)) return "feminino";
+    return "";
+  }
+
+  function selectExerciseImage(exercise, gender, options = {}) {
+    const normalizedGender = normalizeGender(gender);
+    const allowOppositeFallback = options.allowOppositeFallback !== false;
+    let fields;
+
+    if (normalizedGender === "masculino") {
+      fields = ["image_url_masculino", "image_url"];
+      if (allowOppositeFallback) fields.push("image_url_feminino");
+    } else if (normalizedGender === "feminino") {
+      fields = ["image_url_feminino", "image_url"];
+      if (allowOppositeFallback) fields.push("image_url_masculino");
+    } else {
+      fields = ["image_url", "image_url_masculino", "image_url_feminino"];
+    }
+
+    for (const field of fields) {
+      const url = safeUrl(exercise?.[field], "image");
+      if (url) return url;
+    }
+    return PLACEHOLDER;
+  }
+
+  return { PLACEHOLDER, instructionParts, isAllowedUrl, normalizeGender, safeUrl, selectExerciseImage };
 });
