@@ -163,6 +163,7 @@
           workout,
           workoutPage: index + 1,
           workoutPages: chunks,
+          exerciseOffset: index * limit,
           exercises: exercises.slice(index * limit, (index + 1) * limit)
         });
       }
@@ -188,11 +189,11 @@
     return `<img src="${escapeHtml(exercise.imageUrl)}" alt="Demonstração de ${escapeHtml(exercise.name)}" data-exercise-name="${escapeHtml(exercise.name)}" loading="eager" decoding="async" />`;
   }
 
-  function renderExerciseRow(exercise, index) {
-    const details = [exercise.notes, exercise.instructions].filter(Boolean).join(" · ");
+  function renderExerciseRow(exercise, index, exerciseOffset = 0) {
+    const details = [exercise.notes, exercise.instructions].filter(Boolean).join(" - ");
     return `
       <tr>
-        <td class="exercise-name"><b>${index + 1}. ${escapeHtml(exercise.name)}</b>${details ? `<small>${escapeHtml(details)}</small>` : ""}</td>
+        <td class="exercise-name"><b>${exerciseOffset + index + 1}. ${escapeHtml(exercise.name)}</b>${details ? `<small>${escapeHtml(details)}</small>` : ""}</td>
         <td>${escapeHtml(exercise.sets)}</td>
         <td>${escapeHtml(exercise.reps)}</td>
         <td>${escapeHtml(exercise.load)}</td>
@@ -211,35 +212,36 @@
   }
 
   function renderPage(plan, page) {
-    const subtitle = page.workoutPages > 1 ? ` · parte ${page.workoutPage}/${page.workoutPages}` : "";
+    const subtitle = page.workoutPages > 1 ? ` - parte ${page.workoutPage}/${page.workoutPages}` : "";
+    const guideCount = Math.min(page.exercises.length, DEFAULT_EXERCISES_PER_PAGE);
     return `
       <section class="pdf-page">
-        <header class="page-header">
-          <div><span class="brand-mark">AT</span><div><h1>ALION TREINOS</h1><p>Ficha profissional de treino</p></div></div>
-          <dl>
-            <div><dt>Aluno</dt><dd>${escapeHtml(plan.studentName)}</dd></div>
-            <div><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
-            <div><dt>Treino</dt><dd>${escapeHtml(page.workout.name)}${escapeHtml(subtitle)}</dd></div>
-            <div><dt>Objetivo</dt><dd>${escapeHtml(page.workout.objective || plan.objective || "Não informado")}</dd></div>
-            <div><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
-            <div><dt>Página</dt><dd>${page.pageNumber}/${page.totalPages}</dd></div>
-          </dl>
-        </header>
-        <main class="page-columns">
-          <section class="training-area">
+        <main class="fold-layout">
+          <section class="training-side">
+            <header class="page-header">
+              <div class="brand-block"><span class="brand-mark">AT</span><div><h1>ALION TREINOS</h1><p>Ficha profissional de treino</p></div></div>
+              <dl>
+                <div class="full-field"><dt>Aluno</dt><dd>${escapeHtml(plan.studentName)}</dd></div>
+                <div><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
+                <div><dt>Página</dt><dd>${page.pageNumber}/${page.totalPages}</dd></div>
+                <div class="full-field"><dt>Treino</dt><dd>${escapeHtml(page.workout.name)}${escapeHtml(subtitle)}</dd></div>
+                <div class="full-field"><dt>Objetivo</dt><dd>${escapeHtml(page.workout.objective || plan.objective || "Não informado")}</dd></div>
+                <div class="full-field"><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
+              </dl>
+            </header>
             <div class="area-title"><h2>Treino / informações</h2><span>${page.exercises.length} exercício(s)</span></div>
             ${page.workout.notes ? `<p class="workout-note"><b>Observação do treino:</b> ${escapeHtml(page.workout.notes)}</p>` : ""}
             <table>
               <thead><tr><th>Exercício e orientação</th><th>Séries</th><th>Repetições</th><th>Carga</th><th>Descanso</th></tr></thead>
-              <tbody>${page.exercises.length ? page.exercises.map(renderExerciseRow).join("") : '<tr><td colspan="5">Nenhum exercício cadastrado neste treino.</td></tr>'}</tbody>
+              <tbody>${page.exercises.length ? page.exercises.map((exercise, index) => renderExerciseRow(exercise, index, page.exerciseOffset)).join("") : '<tr><td colspan="5">Nenhum exercício cadastrado neste treino.</td></tr>'}</tbody>
             </table>
+            <footer>Alion Treinos - ficha destinada exclusivamente à orientação do treino</footer>
           </section>
-          <aside class="visual-area">
+          <aside class="visual-side">
             <div class="area-title"><h2>Guia visual</h2><span>Referência dos exercícios</span></div>
-            <div class="guide-grid">${page.exercises.length ? page.exercises.map(renderGuideItem).join("") : '<p class="empty-guide">Sem imagens para esta página.</p>'}</div>
+            <div class="guide-grid guide-count-${guideCount}">${page.exercises.length ? page.exercises.map(renderGuideItem).join("") : '<p class="empty-guide">Sem imagens para esta página.</p>'}</div>
           </aside>
         </main>
-        <footer>Alion Treinos · ficha destinada exclusivamente à orientação do treino</footer>
       </section>
     `;
   }
@@ -250,7 +252,54 @@
     return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${escapeHtml(options.baseUrl || "./")}"><title>${escapeHtml(title)}</title>
 <style>
-@page{size:A4 landscape;margin:7mm}*{box-sizing:border-box}html,body{margin:0;background:#e8e8ec;color:#17131c;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:economy;print-color-adjust:economy}.pdf-page{width:283mm;min-height:196mm;margin:7mm auto;padding:7mm;background:#fff;border:1px solid #8f8995;display:flex;flex-direction:column;break-after:page;page-break-after:always}.pdf-page:last-child{break-after:auto;page-break-after:auto}.page-header{border:2px solid #26202b;padding:4mm;display:grid;grid-template-columns:1fr 2.2fr;gap:6mm}.page-header>div{display:flex;align-items:center;gap:3mm}.brand-mark{width:13mm;height:13mm;border:2px solid #26202b;border-radius:50%;display:grid;place-items:center;font-weight:900}.page-header h1{font-size:16pt;letter-spacing:.08em;margin:0}.page-header p{font-size:8pt;margin:1mm 0 0}.page-header dl{margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:2mm 4mm}.page-header dl div{min-width:0}.page-header dt{font-size:7pt;text-transform:uppercase;font-weight:700;color:#4d4652}.page-header dd{font-size:9pt;font-weight:700;margin:.5mm 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.page-columns{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:4mm;flex:1;margin-top:4mm}.training-area,.visual-area{border:1px solid #6c6570;padding:3mm;min-width:0}.area-title{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #26202b;margin-bottom:2mm;padding-bottom:1.5mm}.area-title h2{font-size:11pt;margin:0;text-transform:uppercase}.area-title span{font-size:7.5pt}.workout-note{border:1px solid #8f8995;margin:0 0 2mm;padding:2mm;font-size:8pt}table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.8pt}th,td{border:1px solid #77717b;padding:1.7mm;vertical-align:top;text-align:center}th{font-size:7pt;text-transform:uppercase;background:#eee}th:first-child,td:first-child{width:47%;text-align:left}.exercise-name b{display:block;font-size:8pt}.exercise-name small{display:block;margin-top:1mm;line-height:1.3;color:#3f3943}.guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2mm}.guide-item{border:1px solid #8f8995;margin:0;padding:1.5mm;min-width:0;break-inside:avoid}.guide-image{height:39mm;display:grid;place-items:center;background:#fff}.guide-image img{width:100%;height:100%;object-fit:contain}.guide-item figcaption{border-top:1px solid #8f8995;margin-top:1mm;padding-top:1mm;font-size:7.5pt;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.visual-placeholder{width:100%;height:100%;border:1px dashed #77717b;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2mm;gap:1mm;font-size:7pt}.visual-placeholder strong{font-size:7.5pt}.empty-guide{font-size:9pt;text-align:center}footer{margin-top:3mm;border-top:1px solid #77717b;padding-top:1.5mm;text-align:center;font-size:7pt;color:#4d4652}@media print{html,body{background:#fff}.pdf-page{width:auto;min-height:0;margin:0;padding:0;border:0}}
+@page { size: A4 landscape; margin: 7mm; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #e8e8ec; color: #17131c; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: economy; print-color-adjust: economy; }
+.pdf-page { width: 283mm; min-height: 196mm; margin: 7mm auto; padding: 6mm; background: #fff; border: 1px solid #8f8995; break-after: page; page-break-after: always; }
+.pdf-page:last-child { break-after: auto; page-break-after: auto; }
+.fold-layout { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8mm; min-height: 182mm; }
+.fold-layout::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 1px dashed #aaa5ad; transform: translateX(-.5px); }
+.training-side, .visual-side { min-width: 0; border: 1px solid #6c6570; padding: 3mm; }
+.training-side { display: flex; flex-direction: column; }
+.page-header { border: 1.5px solid #26202b; padding: 2.5mm; margin-bottom: 3mm; }
+.brand-block { display: flex; align-items: center; gap: 2.5mm; padding-bottom: 2mm; margin-bottom: 2mm; border-bottom: 1px solid #8f8995; }
+.brand-mark { width: 11mm; height: 11mm; border: 1.5px solid #26202b; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; font-size: 9pt; font-weight: 900; }
+.page-header h1 { font-size: 13pt; letter-spacing: .07em; margin: 0; }
+.page-header p { font-size: 7pt; margin: .5mm 0 0; }
+.page-header dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) 28mm; gap: 1.3mm 3mm; }
+.page-header dl div { min-width: 0; }
+.page-header dl .full-field { grid-column: 1 / -1; }
+.page-header dt { font-size: 6.3pt; text-transform: uppercase; font-weight: 700; color: #4d4652; }
+.page-header dd { font-size: 7.8pt; line-height: 1.2; font-weight: 700; margin: .25mm 0 0; overflow-wrap: anywhere; }
+.area-title { display: flex; justify-content: space-between; align-items: baseline; gap: 3mm; border-bottom: 1.5px solid #26202b; margin-bottom: 2mm; padding-bottom: 1.2mm; }
+.area-title h2 { font-size: 9.5pt; margin: 0; text-transform: uppercase; }
+.area-title span { font-size: 6.8pt; text-align: right; }
+.workout-note { border: 1px solid #8f8995; margin: 0 0 2mm; padding: 1.5mm; font-size: 7pt; line-height: 1.25; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 6.8pt; }
+th, td { border: 1px solid #77717b; padding: 1.25mm 1mm; vertical-align: top; text-align: center; overflow-wrap: anywhere; }
+th { font-size: 6.1pt; text-transform: uppercase; background: #eee; }
+th:first-child, td:first-child { width: 51%; text-align: left; }
+th:nth-child(2), td:nth-child(2) { width: 9%; }
+th:nth-child(3), td:nth-child(3) { width: 14%; }
+th:nth-child(4), td:nth-child(4) { width: 12%; }
+th:nth-child(5), td:nth-child(5) { width: 14%; }
+.exercise-name b { display: block; font-size: 7.2pt; }
+.exercise-name small { display: block; margin-top: .7mm; line-height: 1.25; color: #3f3943; }
+.visual-side { display: flex; flex-direction: column; }
+.guide-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.2mm; align-content: start; }
+.guide-grid.guide-count-0 { grid-template-columns: 1fr; place-items: center; }
+.guide-grid.guide-count-1 { grid-template-columns: minmax(0, 48mm); justify-content: center; }
+.guide-grid.guide-count-2 { grid-template-columns: repeat(2, minmax(0, 42mm)); justify-content: center; }
+.guide-grid.guide-count-3, .guide-grid.guide-count-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.guide-item { border: 1px solid #8f8995; margin: 0; padding: 1.2mm; min-width: 0; break-inside: avoid; }
+.guide-image { height: 27mm; display: grid; place-items: center; background: #fff; }
+.guide-image img { width: 100%; height: 100%; object-fit: contain; }
+.guide-item figcaption { min-height: 7mm; border-top: 1px solid #8f8995; margin-top: 1mm; padding: 1mm .5mm 0; font-size: 6.7pt; line-height: 1.15; font-weight: 700; text-align: center; overflow-wrap: anywhere; }
+.visual-placeholder { width: 100%; height: 100%; border: 1px dashed #77717b; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 1.5mm; gap: .8mm; font-size: 6.3pt; }
+.visual-placeholder strong { font-size: 6.5pt; }
+.empty-guide { font-size: 8pt; text-align: center; }
+footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text-align: center; font-size: 6.3pt; color: #4d4652; }
+@media print { html, body { background: #fff; } .pdf-page { width: auto; min-height: 196mm; margin: 0; padding: 0; border: 0; } .fold-layout { min-height: 196mm; } }
 </style></head><body>${pages.map((page) => renderPage(plan, page)).join("")}</body></html>`;
   }
 

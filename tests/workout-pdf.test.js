@@ -83,16 +83,26 @@ assert.equal(pages.length, 3);
 assert.deepEqual(pages.map((page) => page.workout.id), ["A", "A", "B"]);
 assert.deepEqual(pages.map((page) => page.exercises.length), [6, 1, 2]);
 assert.equal(pages[2].pageNumber, 3);
+assert.deepEqual(pages.map((page) => page.exerciseOffset), [0, 6, 0]);
 
 const documentHtml = pdf.renderDocument(plan, { baseUrl: "https://example.com/app/" });
-assert.match(documentHtml, /@page\{size:A4 landscape/);
-assert.match(documentHtml, /grid-template-columns:minmax\(0,1\.45fr\) minmax\(0,1fr\)/);
-assert.match(documentHtml, /object-fit:contain/);
+assert.match(documentHtml, /@page \{ size: A4 landscape/);
+assert.match(documentHtml, /\.fold-layout \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[^}]*gap: 8mm/);
+assert.match(documentHtml, /\.fold-layout::before \{[^}]*left: 50%/);
+assert.match(documentHtml, /<section class="training-side">[\s\S]*?<header class="page-header">[\s\S]*?<aside class="visual-side">/);
+assert.match(documentHtml, /\.guide-image \{ height: 27mm/);
+assert.match(documentHtml, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+assert.match(documentHtml, /object-fit: contain/);
+assert.match(documentHtml, /guide-grid guide-count-6/);
+assert.match(documentHtml, /guide-grid guide-count-1/);
+assert.match(documentHtml, /guide-grid guide-count-2/);
+assert.equal((documentHtml.match(/class="pdf-page"/g) || []).length, 3);
+assert.match(documentHtml, /7\. Exercício 7/);
 assert.match(documentHtml, /Ana Teste/);
 assert.match(documentHtml, /Personal Responsável/);
 assert.match(documentHtml, /Treino A/);
 assert.match(documentHtml, /Treino B/);
-assert.match(documentHtml, /Movimento controlado · Manter postura estável/);
+assert.match(documentHtml, /Movimento controlado - Manter postura estável/);
 assert.doesNotMatch(documentHtml, /nao-vazar@example\.com|11999999999|dado sensível fora da ficha/);
 
 const planWithoutAnyImage = pdf.buildPlan({
