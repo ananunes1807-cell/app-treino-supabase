@@ -232,14 +232,9 @@ body[data-role="admin"] .admin-entry {
 }
 
 body[data-role="student"] .trainer-nav,
-body[data-role="student"] .academy-nav,
 body[data-role="student"] .admin-entry,
 body[data-role="trainer"] .student-nav,
-body[data-role="trainer"] .academy-nav,
-body[data-role="trainer"] .admin-entry,
-body[data-role="owner"] .student-nav,
-body[data-role="owner"] .trainer-nav,
-body[data-role="owner"] .admin-entry {
+body[data-role="trainer"] .admin-entry {
   display: none;
 }
 
@@ -2044,6 +2039,21 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   display: none;
 }
 
+.public-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 12px 12px calc(74px + env(safe-area-inset-bottom));
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.public-footer a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
 @media (min-width: 900px) {
   .independent-columns {
     display: block;
@@ -2428,7 +2438,6 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   }
 
   .admin-panel,
-  #screen-academy-area,
   #screen-admin-area,
   #screen-trainer-area {
     overflow-x: clip;

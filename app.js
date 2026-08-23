@@ -18,29 +18,20 @@ const REQUIRED_TABLES = [
   "exercise_library",
   "workouts",
   "workout_exercises",
-  "workout_logs",
-  "academies",
-  "academy_personal_links",
-  "academy_attendance",
-  "academy_financials"
+  "workout_logs"
 ];
 const EXPECTED_RLS_POLICIES = [
-  ["app_profiles", "SELECT authenticated", "app_profiles_read_own_or_admin"],
-  ["app_profiles", "ALL admin", "app_profiles_admin_write"],
-  ["students", "RLS authenticated", "students_real_select / students_academy_select_pilot"],
-  ["assessments", "RLS authenticated", "assessments_real_access"],
-  ["body_measurements", "RLS authenticated", "body_measurements_real_access"],
-  ["exercise_library", "SELECT anon", "exercise_library_public_read"],
-  ["exercise_library", "WRITE authenticated", "exercise_library_secure_admin_personal_write"],
-  ["workouts", "RLS authenticated", "workouts_real_access"],
-  ["workout_exercises", "RLS authenticated", "workout_exercises_real_access"],
-  ["workout_logs", "RLS authenticated", "workout_logs_real_access"],
-  ["student_invites", "RLS authenticated", "student_invites_persistent_read"],
-  ["trainer_students", "RLS authenticated", "trainer_students_select_real"],
-  ["academies", "RLS authenticated", "academies_read_by_role"],
-  ["academy_personal_links", "RLS authenticated", "academy_links_read_related"],
-  ["academy_attendance", "RLS authenticated", "academy_attendance_access"],
-  ["academy_financials", "RLS authenticated", "academy_financials_access"]
+  ["app_profiles", "SELF / trusted Admin", "alion_app_profiles_select + identity trigger"],
+  ["profiles", "SELF / trusted Admin", "alion_profiles_select + identity trigger"],
+  ["students", "OWNERSHIP", "alion_students_* + students_protect_ownership"],
+  ["student_invites", "PERSONAL OWNER", "alion_student_invites_* + ownership trigger"],
+  ["trainer_students", "READ OWN / RPC WRITE", "alion_trainer_students_*"],
+  ["assessments", "STUDENT OWNER", "alion_assessments_*"],
+  ["body_measurements", "STUDENT OWNER", "alion_body_measurements_*"],
+  ["exercise_library", "PUBLIC READ / PERSONAL WRITE", "alion_exercise_library_*"],
+  ["workouts", "STUDENT OWNER", "alion_workouts_* + assignment trigger"],
+  ["workout_exercises", "WORKOUT OWNER", "alion_workout_exercises_*"],
+  ["workout_logs", "STUDENT + WORKOUT", "alion_workout_logs_*"]
 ];
 const DEFAULT_EXERCISES = [
   ["Agachamento livre", "Pernas", "Barra livre", "Intermediario", "Manter tronco firme, descer com controle e subir empurrando o chao."],
@@ -77,10 +68,6 @@ const state = {
   exercises: [],
   studentInvites: [],
   trainerStudents: [],
-  academies: [],
-  academyLinks: [],
-  academyAttendance: [],
-  academyFinancials: [],
   appProfiles: [],
   workouts: [],
   workoutExercises: [],
@@ -114,6 +101,7 @@ const state = {
   pendingAdminConfirmation: null,
   accessRole: "",
   adminUnlocked: false,
+  trustedAdmin: false,
   lastError: "",
   tableErrors: {}
 };
@@ -184,6 +172,7 @@ const el = {
   adminSupabaseUrl: document.querySelector("#admin-supabase-url"),
   adminSupabaseKey: document.querySelector("#admin-supabase-key"),
   adminTablesList: document.querySelector("#admin-tables-list"),
+  adminPersonalsList: document.querySelector("#admin-personals-list"),
   adminStudentsList: document.querySelector("#admin-students-list"),
   adminExercisesList: document.querySelector("#admin-exercises-list"),
   adminDiagnostics: document.querySelector("#admin-diagnostics"),
@@ -199,7 +188,6 @@ const el = {
   authEmail: document.querySelector("#auth-email"),
   authPassword: document.querySelector("#auth-password"),
   authLogoutButton: document.querySelector("#auth-logout-button"),
-  bootstrapAdminButton: document.querySelector("#bootstrap-admin-button"),
   authStatus: document.querySelector("#auth-status"),
   loginRolePicker: document.querySelector("#login-role-picker"),
   loginHelperTitle: document.querySelector("#login-helper-title"),
@@ -210,32 +198,6 @@ const el = {
   passwordFlowDescription: document.querySelector("#password-flow-description"),
   studentAccessResult: document.querySelector("#student-access-result")
 };
-
-Object.assign(el, {
-  totalAcademies: document.querySelector("#total-academies"),
-  totalAttendanceToday: document.querySelector("#total-attendance-today"),
-  totalInactiveStudents: document.querySelector("#total-inactive-students"),
-  financeTotalPaid: document.querySelector("#finance-total-paid"),
-  financeTotalPending: document.querySelector("#finance-total-pending"),
-  trainerAcademyLinkForm: document.querySelector("#trainer-academy-link-form"),
-  academyLinkFields: document.querySelector("#academy-link-fields"),
-  trainerAcademySubmit: document.querySelector("#trainer-academy-submit"),
-  trainerAcademyStatus: document.querySelector("#trainer-academy-status"),
-  academyForm: document.querySelector("#academy-form"),
-  academyList: document.querySelector("#academy-list"),
-  academyLinkList: document.querySelector("#academy-link-list"),
-  academyStudentForm: document.querySelector("#academy-student-form"),
-  academyStudentsList: document.querySelector("#academy-students-list"),
-  academyInvitesList: document.querySelector("#academy-invites-list"),
-  attendanceForm: document.querySelector("#attendance-form"),
-  attendanceStudentSelect: document.querySelector("#attendance-student-select"),
-  attendanceList: document.querySelector("#attendance-list"),
-  exportAttendanceCsv: document.querySelector("#export-attendance-csv"),
-  financialForm: document.querySelector("#financial-form"),
-  financialStudentSelect: document.querySelector("#financial-student-select"),
-  financeMonthFilter: document.querySelector("#finance-month-filter"),
-  financialList: document.querySelector("#financial-list")
-});
 
 /**
  * Retorna o primeiro valor preenchido entre nomes de coluna equivalentes.
@@ -410,10 +372,6 @@ async function loadSupabaseData(options = {}) {
     state.workouts = [];
     state.workoutExercises = [];
     state.workoutLogs = [];
-    state.academies = [];
-    state.academyLinks = [];
-    state.academyAttendance = [];
-    state.academyFinancials = [];
     state.appProfiles = [];
     setConnectionStatus("Faça login para carregar seus dados", false);
     return;
@@ -422,10 +380,8 @@ async function loadSupabaseData(options = {}) {
   setConnectionStatus("Conectando...", false);
 
   const role = getCurrentRole();
-  const canLoadInvites = ["trainer", "owner", "admin"].includes(role);
-  const canLoadAcademy = ["trainer", "owner", "admin"].includes(role);
-  const canLoadAcademyOperations = ["owner", "admin"].includes(role);
-  const canLoadRelatedProfiles = ["owner", "admin"].includes(role);
+  const canLoadInvites = ["trainer", "admin"].includes(role);
+  const canLoadProfiles = role === "admin";
   const [
     students,
     exercises,
@@ -434,10 +390,6 @@ async function loadSupabaseData(options = {}) {
     workouts,
     workoutExercises,
     workoutLogs,
-    academies,
-    academyLinks,
-    academyAttendance,
-    academyFinancials,
     appProfiles
   ] = await Promise.all([
     safeFetchTable("students", { orderBy: "created_at" }),
@@ -447,11 +399,7 @@ async function loadSupabaseData(options = {}) {
     safeFetchTable("workouts", { orderBy: "created_at" }),
     safeFetchTable("workout_exercises"),
     safeFetchTable("workout_logs", { orderBy: "created_at" }),
-    canLoadAcademy ? safeFetchTable("academies", { orderBy: "created_at" }) : Promise.resolve([]),
-    canLoadAcademy ? safeFetchTable("academy_personal_links", { orderBy: "created_at" }) : Promise.resolve([]),
-    canLoadAcademyOperations ? safeFetchTable("academy_attendance", { orderBy: "created_at" }) : Promise.resolve([]),
-    canLoadAcademyOperations ? safeFetchTable("academy_financials", { orderBy: "created_at" }) : Promise.resolve([]),
-    canLoadRelatedProfiles ? safeFetchTable("app_profiles", { orderBy: "created_at" }) : Promise.resolve([])
+    canLoadProfiles ? safeFetchTable("app_profiles", { orderBy: "created_at" }) : Promise.resolve([])
   ]);
 
   state.students = students;
@@ -461,10 +409,6 @@ async function loadSupabaseData(options = {}) {
   state.workouts = workouts;
   state.workoutExercises = workoutExercises;
   state.workoutLogs = workoutLogs;
-  state.academies = academies;
-  state.academyLinks = academyLinks;
-  state.academyAttendance = academyAttendance;
-  state.academyFinancials = academyFinancials;
   state.appProfiles = appProfiles;
 
   const accessibleStudents = getAccessibleStudents();
@@ -482,17 +426,12 @@ async function loadSupabaseData(options = {}) {
   const hasBlockingError = Boolean(state.tableErrors.students || state.tableErrors.exercise_library);
   if (!hasBlockingError) state.lastError = "";
   setConnectionStatus(hasBlockingError ? "Conexao parcial" : "Supabase conectado", !hasBlockingError);
-  if (!hasBlockingError) {
-    syncPendingWorkoutLogs();
-  }
+  if (!hasBlockingError) syncPendingWorkoutLogs();
   renderAll();
 
   if (options.silent) return;
-
   if (hasBlockingError) {
     showToast(state.tableErrors.students || state.tableErrors.exercise_library, "error");
-  } else if (!students.length) {
-    showToast("Conexao OK, mas nenhum aluno foi retornado pela anon key.", "error");
   } else {
     showToast("Dados carregados do Supabase.");
   }
@@ -519,7 +458,6 @@ function renderAll() {
     renderExerciseSelect();
     renderExerciseLibrary();
     renderTrainerProfile();
-    renderTrainerAcademyStatus();
     renderInvites();
   }
   if (role === "student") {
@@ -527,10 +465,6 @@ function renderAll() {
     renderStudentArea();
   }
   if (role === "admin") renderAdminArea();
-  if (["owner", "admin"].includes(role)) {
-    renderAcademyArea();
-    renderInvites();
-  }
 }
 
 /**
@@ -547,7 +481,6 @@ function renderMetrics() {
   setKpiValue(el.totalExercises, metrics.exercises);
   setKpiValue(el.totalWorkouts, metrics.workouts);
   setKpiValue(el.totalLogs, metrics.completed);
-  if (el.totalAcademies) el.totalAcademies.textContent = state.academies.length;
 }
 
 function setKpiValue(element, value) {
@@ -709,7 +642,13 @@ function getNextWorkout(studentId, currentWorkoutId) {
 }
 
 function getPendingWorkoutLogs() {
-  return readLocalJson(PENDING_WORKOUT_LOGS_KEY, []);
+  if (!state.authUser?.id) return [];
+  return readLocalJson(`${PENDING_WORKOUT_LOGS_KEY}:${state.authUser.id}`, []);
+}
+
+function savePendingWorkoutLogs(logs) {
+  if (!state.authUser?.id) return;
+  writeLocalJson(`${PENDING_WORKOUT_LOGS_KEY}:${state.authUser.id}`, logs);
 }
 
 function getAllWorkoutLogs() {
@@ -719,7 +658,8 @@ function getAllWorkoutLogs() {
 function getStudentSyncStatus() {
   if (!navigator.onLine) return { label: "Aguardando internet", className: "waiting" };
   if (state.pendingLogSyncInProgress) return { label: "Sincronizando", className: "syncing" };
-  if (getPendingWorkoutLogs().length) return { label: "Salvo no aparelho", className: "local" };
+  const pendingCount = getPendingWorkoutLogs().length;
+  if (pendingCount) return { label: `${pendingCount} pendente(s) de sincronização`, className: "local" };
   if (state.lastError) return { label: "Não foi possível sincronizar", className: "error" };
   return { label: "Sincronizado", className: "synced" };
 }
@@ -968,8 +908,8 @@ function renderStudentExerciseStep(exercise, index, total) {
 }
 
 function getExecutionDraftKey(workoutId = getCurrentWorkout(state.studentAreaId)?.id) {
-  return workoutId && state.studentAreaId
-    ? `${EXECUTION_DRAFT_PREFIX}:${state.studentAreaId}:${workoutId}`
+  return state.authUser?.id && workoutId && state.studentAreaId
+    ? `${EXECUTION_DRAFT_PREFIX}:${state.authUser.id}:${state.studentAreaId}:${workoutId}`
     : "";
 }
 
@@ -1563,7 +1503,6 @@ async function createStudent(form) {
       throw new Error("Perfil do Personal/Admin nao encontrado em app_profiles. Faca logout/login e tente novamente.");
     }
 
-    const approvedAcademyId = pick(getApprovedTrainerAcademyLink(), ["academy_id"], "") || null;
     const fullPayload = {
       name: formData.get("name"),
       email,
@@ -1581,9 +1520,8 @@ async function createStudent(form) {
       senha_temporaria: false,
       personal_id: responsibleProfileId,
       trainer_id: responsibleProfileId,
-      academy_id: approvedAcademyId,
-      academy_status: approvedAcademyId ? "vinculado" : "independente",
-      created_by: state.authUser?.id || null
+      academy_id: null,
+      academy_status: "independente"
     };
 
     const created = await insertStudentWithFallback(fullPayload);
@@ -1723,8 +1661,8 @@ function getInviteStudent(invite) {
   return state.students.find((student) => String(student.id) === String(invite.student_id)) || null;
 }
 
-function getVisibleInvites(scope = "trainer") {
-  const students = scope === "academy" ? getAccessibleAcademyStudents() : getAccessibleStudents();
+function getVisibleInvites() {
+  const students = getAccessibleStudents();
   const visibleStudentIds = new Set(students.map((student) => String(student.id)));
   return state.studentInvites
     .filter((invite) => visibleStudentIds.has(String(invite.student_id)) || isAdmin())
@@ -1764,17 +1702,10 @@ function renderInviteCard(invite) {
 }
 function renderInvites() {
   if (el.trainerInvitesList) {
-    const trainerInvites = getVisibleInvites("trainer");
+    const trainerInvites = getVisibleInvites();
     el.trainerInvitesList.innerHTML = trainerInvites.length
       ? trainerInvites.map(renderInviteCard).join("")
       : emptyMessage("Nenhum convite encontrado para seus alunos.");
-  }
-
-  if (el.academyInvitesList) {
-    const academyInvites = getVisibleInvites("academy");
-    el.academyInvitesList.innerHTML = academyInvites.length
-      ? academyInvites.map(renderInviteCard).join("")
-      : emptyMessage("Nenhum convite encontrado para alunos da academia.");
   }
 }
 
@@ -2013,6 +1944,25 @@ function resetMeasurementEditMode(form) {
   setSubmitLabel(form, "Salvar medidas");
 }
 
+function cancelTrainerEditModes() {
+  const assessmentForm = document.querySelector("#new-assessment-form");
+  const measurementForm = document.querySelector("#new-measurement-form");
+  const workoutForm = document.querySelector("#new-workout-form");
+
+  [assessmentForm, measurementForm, workoutForm].forEach((form) => form?.reset());
+  resetAssessmentEditMode(assessmentForm);
+  resetMeasurementEditMode(measurementForm);
+  if (workoutForm) {
+    workoutForm.dataset.editId = "";
+    setSubmitLabel(workoutForm, "Criar treino");
+  }
+  if (el.addExerciseButton) {
+    el.addExerciseButton.dataset.editId = "";
+    el.addExerciseButton.textContent = "Adicionar exercício";
+  }
+  clearWorkoutExerciseForm();
+}
+
 /**
  * Normaliza entrada numerica pt-BR e remove zeros a esquerda.
  */
@@ -2050,7 +2000,6 @@ function normalizeOptionalUrl(value, fieldLabel) {
 function normalizeRole(role) {
   const value = normalizeText(role || "");
   if (["admin", "admin_ti", "ti", "controle"].includes(value)) return "admin";
-  if (["owner", "gestor", "gestor_academia"].includes(value)) return "owner";
   if (["personal", "trainer", "treinador"].includes(value)) return "trainer";
   if (["student", "aluno"].includes(value)) return "student";
   return "";
@@ -2059,31 +2008,27 @@ function normalizeRole(role) {
 function toDatabaseRole(role) {
   const normalized = normalizeRole(role);
   if (normalized === "admin") return "admin_ti";
-  if (normalized === "owner") return "gestor_academia";
   if (normalized === "trainer") return "personal";
   return "aluno";
 }
 
-function getDefaultRoleForEmail(email, requestedRole = "aluno") {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (normalizedEmail === window.AlionSecurity.ADMIN_EMAIL) return "admin_ti";
+function getDefaultRoleForEmail(_email, requestedRole = "aluno") {
   return toDatabaseRole(requestedRole);
 }
 
 function getCurrentRole() {
-  return normalizeRole(state.authProfile?.role) || normalizeRole(state.accessRole);
+  if (state.authUser?.id && state.trustedAdmin) return "admin";
+  const profileRole = normalizeRole(state.authProfile?.role);
+  if (profileRole === "admin") return "";
+  return profileRole || normalizeRole(state.accessRole);
 }
 
 function isAuthenticatedAdminTi() {
-  return window.AlionSecurity.isPrimaryAdmin(state.authUser, state.authProfile?.role);
+  return Boolean(state.authUser?.id && state.trustedAdmin);
 }
 
 function isAdmin() {
   return isAuthenticatedAdminTi();
-}
-
-function isOwner() {
-  return getCurrentRole() === "owner";
 }
 
 function isTrainer() {
@@ -2096,31 +2041,6 @@ function isStudent() {
 
 function getCurrentTrainerProfileId() {
   return state.authProfile?.id || state.authProfile?.trainer_id || "";
-}
-
-function getApprovedTrainerAcademyLink() {
-  const profileIds = getProfileOwnerIds();
-  return state.academyLinks.find((link) => (
-    normalizeText(pick(link, ["status"], "")) === "aprovado"
-    && (
-      profileIds.includes(String(pick(link, ["trainer_id"], "")))
-      || profileIds.includes(String(pick(link, ["trainer_user_id"], "")))
-    )
-  ));
-}
-
-function getCurrentAcademyId() {
-  if (isAdmin() || isOwner()) {
-    return state.academies[0]?.id || state.authProfile?.academy_id || "";
-  }
-  return pick(getApprovedTrainerAcademyLink(), ["academy_id"], "") || state.authProfile?.academy_id || "";
-}
-
-function getAccessibleAcademyStudents() {
-  const academyId = getCurrentAcademyId();
-  const students = getAccessibleStudents();
-  if (!academyId || isAdmin()) return students;
-  return students.filter((student) => String(pick(student, ["academy_id"], "")) === String(academyId));
 }
 
 function getProfileOwnerIds() {
@@ -2141,7 +2061,7 @@ function isDeletedRecord(record) {
 }
 
 function getAccessibleStudents() {
-  const visibleStudents = isAdmin() || isOwner()
+  const visibleStudents = isAdmin()
     ? state.students
     : state.students.filter((student) => !isDeletedRecord(student));
 
@@ -2152,13 +2072,7 @@ function getAccessibleStudents() {
 
   if (isTrainer()) {
     const ownerIds = getProfileOwnerIds();
-    const hasOwnershipColumns = state.students.some((student) => (
-      pick(student, ["personal_id", "trainer_id", "owner_id", "created_by"], "") !== ""
-    ));
-
-    if (!hasOwnershipColumns) return visibleStudents;
-
-    return visibleStudents.filter((student) => ownerIds.includes(String(pick(student, ["personal_id", "trainer_id", "owner_id", "created_by"], ""))));
+    return visibleStudents.filter((student) => ownerIds.includes(String(pick(student, ["personal_id", "trainer_id"], ""))));
   }
 
   return visibleStudents;
@@ -2166,7 +2080,6 @@ function getAccessibleStudents() {
 
 function canManageStudent(studentId) {
   if (isAdmin()) return true;
-  if (isOwner()) return false;
   return getAccessibleStudents().some((student) => String(student.id) === String(studentId));
 }
 
@@ -2269,7 +2182,7 @@ async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises", "academies", "academy_personal_links", "academy_attendance", "academy_financials"].includes(tableName)) {
+      if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
         console.info(`[Alion Treinos] Salvando registro em ${tableName}.`);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
@@ -2321,8 +2234,12 @@ function enqueuePendingWorkoutLog(payload) {
     && window.AlionWorkoutRotation.localDateKey(item.completed_at) === payloadDay
   ));
   if (duplicate) return;
-  pending.push({ ...payload, pending_id: crypto.randomUUID?.() || String(Date.now()) });
-  writeLocalJson(PENDING_WORKOUT_LOGS_KEY, pending);
+  pending.push({
+    ...payload,
+    queued_by_user_id: state.authUser?.id,
+    pending_id: crypto.randomUUID?.() || String(Date.now())
+  });
+  savePendingWorkoutLogs(pending);
 }
 
 async function syncPendingWorkoutLogs() {
@@ -2335,7 +2252,11 @@ async function syncPendingWorkoutLogs() {
   const failed = [];
   try {
     for (const item of pending) {
-      const { pending_id: _pendingId, ...payload } = item;
+      if (String(item.queued_by_user_id) !== String(state.authUser?.id)) {
+        failed.push(item);
+        continue;
+      }
+      const { pending_id: _pendingId, queued_by_user_id: _queuedByUserId, ...payload } = item;
       const alreadySynced = state.workoutLogs.some((log) => (
         String(log.student_id) === String(payload.student_id)
         && String(log.workout_id) === String(payload.workout_id)
@@ -2352,7 +2273,7 @@ async function syncPendingWorkoutLogs() {
       }
     }
 
-    writeLocalJson(PENDING_WORKOUT_LOGS_KEY, failed);
+    savePendingWorkoutLogs(failed);
     if (failed.length < pending.length) showToast("Treinos pendentes sincronizados.");
   } finally {
     state.pendingLogSyncInProgress = false;
@@ -2686,6 +2607,11 @@ function renderAdminArea() {
     ? state.students.map(renderAdminStudentItem).join("")
     : emptyMessage("Nenhum aluno encontrado.");
 
+  const personalProfiles = state.appProfiles.filter((profile) => normalizeRole(profile.role) === "trainer");
+  el.adminPersonalsList.innerHTML = personalProfiles.length
+    ? personalProfiles.map(renderAdminPersonalItem).join("")
+    : emptyMessage("Nenhum Personal encontrado.");
+
   renderAdminExerciseGroupFilter();
   const adminExercises = getFilteredAdminExercises();
   el.adminExercisesList.innerHTML = adminExercises.length
@@ -2698,9 +2624,8 @@ function renderAdminArea() {
     ${renderDiagnostic("Exercícios carregados", state.exercises.length)}
     ${renderDiagnostic("Treinos carregados nesta sessão", state.workouts.length)}
     ${renderDiagnostic("Sessões concluídas carregadas", state.workoutLogs.length)}
-    ${renderDiagnostic("Academias carregadas", state.academies.length)}
-    ${renderDiagnostic("Presencas carregadas", state.academyAttendance.length)}
-    ${renderDiagnostic("Financeiros carregados", state.academyFinancials.length)}
+    ${renderDiagnostic("Personals carregados", personalProfiles.length)}
+    ${renderDiagnostic("Identidade Admin confiável", state.trustedAdmin ? "validada por UUID" : "não validada")}
     ${renderDiagnostic("Último erro", state.lastError || "Nenhum")}
     ${renderDiagnostic("Erros por tabela", Object.keys(state.tableErrors).length ? Object.values(state.tableErrors).join(" | ") : "Nenhum")}
   `;
@@ -2724,11 +2649,7 @@ function getTableStatus(tableName) {
     exercise_library: state.exercises.length,
     workouts: state.workouts.length,
     workout_exercises: state.workoutExercises.length,
-    workout_logs: state.workoutLogs.length,
-    academies: state.academies.length,
-    academy_personal_links: state.academyLinks.length,
-    academy_attendance: state.academyAttendance.length,
-    academy_financials: state.academyFinancials.length
+    workout_logs: state.workoutLogs.length
   };
 
   if (tableName === "assessments" || tableName === "body_measurements") {
@@ -2982,6 +2903,10 @@ async function requestStudentDeletionByPersonal(id) {
 
 async function updateStudentWorkoutsStatus(studentId, status) {
   if (!studentId) throw new Error("Selecione um aluno antes de alterar treinos.");
+  if (isAdmin()) {
+    await runAdminRpc("admin_clear_student_workouts", { target_student_id: studentId }, "Erro ao ocultar treinos do aluno");
+    return null;
+  }
   const workouts = state.workouts.filter((workout) => String(workout.student_id) === String(studentId));
 
   for (const workout of workouts) {
@@ -2994,37 +2919,25 @@ async function updateStudentWorkoutsStatus(studentId, status) {
 async function clearStudentLogs(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar sessoes.");
   if (isAdmin()) {
-    await runAdminMaintenanceRpc("admin_clear_student_sessions", studentId, "Erro ao excluir sessoes do aluno");
+    await runAdminRpc("admin_clear_student_sessions", { target_student_id: studentId }, "Erro ao excluir sessoes do aluno");
     return;
   }
-
-  try {
-    await deleteByColumn("workout_logs", "student_id", studentId, "Erro ao excluir sessoes do aluno");
-  } catch (error) {
-    if (!isAdmin()) throw error;
-    await runAdminMaintenanceRpc("admin_clear_student_sessions", studentId, error.message);
-  }
+  await deleteByColumn("workout_logs", "student_id", studentId, "Erro ao excluir sessoes do aluno");
 }
 
 async function clearStudentMeasurements(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar medidas.");
   if (isAdmin()) {
-    await runAdminMaintenanceRpc("admin_clear_student_measurements", studentId, "Erro ao excluir medidas do aluno");
+    await runAdminRpc("admin_clear_student_measurements", { target_student_id: studentId }, "Erro ao excluir medidas do aluno");
     return;
   }
-
-  try {
-    await deleteByColumn("body_measurements", "student_id", studentId, "Erro ao excluir medidas do aluno");
-  } catch (error) {
-    if (!isAdmin()) throw error;
-    await runAdminMaintenanceRpc("admin_clear_student_measurements", studentId, error.message);
-  }
+  await deleteByColumn("body_measurements", "student_id", studentId, "Erro ao excluir medidas do aluno");
 }
 
 async function clearStudentAssessments(studentId) {
   if (!studentId) throw new Error("Selecione um aluno antes de limpar avaliacoes.");
   if (isAdmin()) {
-    await runAdminMaintenanceRpc("admin_clear_student_assessments", studentId, "Erro ao excluir avaliacoes do aluno");
+    await runAdminRpc("admin_clear_student_assessments", { target_student_id: studentId }, "Erro ao excluir avaliacoes do aluno");
     return;
   }
 
@@ -3032,23 +2945,28 @@ async function clearStudentAssessments(studentId) {
 }
 
 async function resetStudentData(studentId) {
-  try {
-    await clearStudentLogs(studentId);
-    await clearStudentMeasurements(studentId);
-    await clearStudentAssessments(studentId);
-    await updateStudentWorkoutsStatus(studentId, "arquivado");
-  } catch (error) {
-    if (!isAdmin()) throw error;
-    await runAdminMaintenanceRpc("admin_reset_student_for_tests", studentId, error.message);
+  if (isAdmin()) {
+    await runAdminRpc("admin_reset_student_for_tests", { target_student_id: studentId }, "Erro ao resetar aluno");
+    return;
   }
+  await clearStudentLogs(studentId);
+  await clearStudentMeasurements(studentId);
+  await clearStudentAssessments(studentId);
+  await updateStudentWorkoutsStatus(studentId, "arquivado");
 }
 
-async function runAdminMaintenanceRpc(functionName, studentId, originalMessage) {
-  const { error } = await supabaseClient.rpc(functionName, { target_student_id: studentId });
+async function runAdminRpc(functionName, args = {}, originalMessage = "Erro na operacao administrativa") {
+  if (!isAdmin()) throw new Error("Identidade Admin TI nao validada pelo servidor.");
+  const { data, error } = await supabaseClient.rpc(functionName, args);
   if (error) {
     console.error(`[Alion Treinos] Erro RPC ${functionName}:`, error);
     throw new Error(`${originalMessage}. RPC ${functionName}: ${error.message}`);
   }
+  return data;
+}
+
+async function runAdminMaintenanceRpc(functionName, studentId, originalMessage) {
+  return runAdminRpc(functionName, { target_student_id: studentId }, originalMessage);
 }
 
 function renderAdminStudentRecords(studentId) {
@@ -3072,6 +2990,7 @@ async function handleAdminStudentAction(action, studentId) {
     }
 
     if (action === "edit") {
+      if (String(state.selectedStudentId) !== String(studentId)) cancelTrainerEditModes();
       state.selectedStudentId = studentId;
       renderTrainerStudents();
       await renderTrainerProfile();
@@ -3091,11 +3010,17 @@ async function handleAdminStudentAction(action, studentId) {
 
     if (destructiveLabels[action]) {
       const confirmName = getStudentConfirmName(studentId);
+      const preview = await runAdminRpc(
+        "admin_preview_student_maintenance",
+        { target_student_id: studentId },
+        "Erro ao calcular previa do aluno"
+      ) || {};
+      const previewText = Object.entries(preview).map(([key, value]) => `${key}: ${value}`).join(" | ");
       const confirmed = await confirmAdminDestructiveAction({
         title: destructiveLabels[action],
         description: action === "clear-workouts"
-          ? `Confirme para ocultar os treinos de ${confirmName}. O histórico e os exercícios não serão apagados.`
-          : `Confirme para ${destructiveLabels[action]} de ${confirmName}.`,
+          ? `Confirme para ocultar os treinos de ${confirmName}. O histórico e os exercícios não serão apagados. Prévia: ${previewText}.`
+          : `Confirme para ${destructiveLabels[action]} de ${confirmName}. Prévia: ${previewText}.`,
         expectedText: confirmName
       });
       if (!confirmed) return;
@@ -3168,11 +3093,40 @@ async function handleAdminMaintenance(action) {
     orphans: "LIMPAR ORFAOS"
   };
   const expectedText = operationLabels[action] || "CONFIRMAR";
+  const selectedStudentId = action.startsWith("selected-") ? getSelectedAdminStudentId() : "";
+  let preview = {};
+  try {
+    if (selectedStudentId) {
+      preview = await runAdminRpc(
+        "admin_preview_student_maintenance",
+        { target_student_id: selectedStudentId },
+        "Erro ao calcular previa do aluno"
+      ) || {};
+    } else if (["test-students", "test-workouts", "orphans"].includes(action)) {
+      preview = await runAdminRpc(
+        "admin_preview_maintenance",
+        { maintenance_action: action },
+        "Erro ao calcular previa da manutencao"
+      ) || {};
+    } else if (action === "test-data") {
+      const [studentsPreview, workoutsPreview] = await Promise.all([
+        runAdminRpc("admin_preview_maintenance", { maintenance_action: "test-students" }),
+        runAdminRpc("admin_preview_maintenance", { maintenance_action: "test-workouts" })
+      ]);
+      preview = { ...(studentsPreview || {}), ...(workoutsPreview || {}) };
+    }
+  } catch (error) {
+    showToast(error.message, "error");
+    return;
+  }
+  const previewText = Object.entries(preview)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(" | ");
   const confirmed = await confirmAdminDestructiveAction({
     title: "Confirmar manutencao",
     description: action === "selected-workouts"
-      ? "Esta rotina oculta os treinos do aluno sem apagar histórico ou exercícios."
-      : "Esta rotina pode remover ou ocultar dados do banco.",
+      ? `Esta rotina oculta os treinos do aluno sem apagar histórico ou exercícios. Prévia do banco: ${previewText || "sem registros"}.`
+      : `Esta rotina pode remover ou ocultar dados do banco. Prévia do banco: ${previewText || "sem registros"}.`,
     expectedText
   });
   if (!confirmed) return;
@@ -3237,27 +3191,11 @@ async function handleAdminMaintenance(action) {
 }
 
 async function removeTestStudents() {
-  const testStudents = state.students.filter((student) => (
-    isTestRecord(student, ["name", "nickname", "objective", "notes"])
-  ));
-
-  for (const student of testStudents) {
-    await deleteStudentPermanently(student.id);
-  }
-
-  return testStudents.length;
+  return Number(await runAdminRpc("admin_delete_test_students", {}, "Erro ao excluir alunos de teste") || 0);
 }
 
 async function removeTestWorkouts() {
-  const testWorkouts = state.workouts.filter((workout) => (
-    isTestRecord(workout, ["name", "title", "goal", "notes", "description"])
-  ));
-
-  for (const workout of testWorkouts) {
-    await deleteWorkoutPermanently(workout.id, { removeLogs: true });
-  }
-
-  return testWorkouts.length;
+  return Number(await runAdminRpc("admin_delete_test_workouts", {}, "Erro ao excluir treinos de teste") || 0);
 }
 
 async function removeDuplicateExercises() {
@@ -3282,55 +3220,16 @@ async function removeDuplicateExercises() {
 }
 
 async function removeOrphanWorkoutData() {
-  const workoutIds = new Set(state.workouts.map((workout) => String(workout.id)));
-  const studentIds = new Set(state.students.map((student) => String(student.id)));
-  const orphanExercises = state.workoutExercises.filter((item) => !workoutIds.has(String(item.workout_id)));
-  const orphanLogs = state.workoutLogs.filter((log) => (
-    !workoutIds.has(String(log.workout_id)) || !studentIds.has(String(log.student_id))
-  ));
-
-  for (const item of orphanExercises) {
-    await deleteById("workout_exercises", item.id, "Erro ao remover exercicio orfao");
-  }
-
-  for (const log of orphanLogs) {
-    await deleteById("workout_logs", log.id, "Erro ao remover log orfao");
-  }
-
-  return orphanExercises.length + orphanLogs.length;
+  const result = await runAdminRpc("admin_cleanup_orphan_workout_data", {}, "Erro ao excluir dados orfaos") || {};
+  return Number(result.workout_exercises || 0) + Number(result.workout_logs || 0);
 }
 
 async function deleteStudentPermanently(id) {
-  if (isAdmin()) {
-    const { error } = await supabaseClient.rpc("admin_delete_student_permanently", { target_student_id: id });
-    if (!error) return;
-    console.error("[Alion Treinos] Erro RPC admin_delete_student_permanently:", error);
-    state.lastError = error.message;
-  }
-
-  const workoutIds = state.workouts
-    .filter((workout) => String(workout.student_id) === String(id))
-    .map((workout) => workout.id)
-    .filter(Boolean);
-
-  for (const workoutId of workoutIds) {
-    await deleteWorkoutPermanently(workoutId, { removeLogs: true });
-  }
-
-  await deleteByColumn("workout_logs", "student_id", id, "Erro ao excluir logs do aluno");
-  await deleteByColumn("assessments", "student_id", id, "Erro ao excluir avaliacoes do aluno");
-  await deleteByColumn("body_measurements", "student_id", id, "Erro ao excluir medidas do aluno");
-  await deleteByColumn("trainer_students", "student_id", id, "Erro ao excluir vinculos do aluno");
-  await deleteByColumn("student_invites", "student_id", id, "Erro ao excluir convites do aluno");
-  await deleteById("students", id, "Erro ao excluir aluno");
+  await runAdminRpc("admin_delete_student_permanently", { target_student_id: id }, "Erro ao excluir aluno definitivamente");
 }
 
-async function deleteWorkoutPermanently(id, options = {}) {
-  if (options.removeLogs) {
-    await deleteByColumn("workout_logs", "workout_id", id, "Erro ao excluir logs do treino");
-  }
-  await deleteByColumn("workout_exercises", "workout_id", id, "Erro ao excluir exercicios do treino");
-  await deleteById("workouts", id, "Erro ao excluir treino");
+async function deleteWorkoutPermanently(id, _options = {}) {
+  await runAdminRpc("admin_delete_workout_permanently", { target_workout_id: id }, "Erro ao excluir treino definitivamente");
 }
 
 async function seedExerciseLibrary() {
@@ -4416,23 +4315,27 @@ async function deleteWorkout(id) {
 
   const workout = state.workouts.find((item) => String(item.id) === String(id));
   const workoutName = pick(workout, ["name", "title", "nome"], "EXCLUIR TREINO");
+  let preview;
+  try {
+    preview = await runAdminRpc(
+      "admin_preview_workout_deletion",
+      { target_workout_id: id },
+      "Erro ao calcular previa do treino"
+    ) || {};
+  } catch (error) {
+    showToast(error.message, "error");
+    return;
+  }
   const confirmed = await confirmAdminDestructiveAction({
     title: "Excluir treino definitivamente",
-    description: "Esta acao remove o treino do banco. Historico relacionado pode ser removido quando existir.",
+    description: `Esta acao remove o treino e seus vínculos. Prévia real do banco: exercícios ${preview.exercises || 0}, sessões ${preview.sessions || 0}.`,
     expectedText: workoutName
   });
   if (!confirmed) return;
   console.log("[Alion Treinos] deleteWorkout(id):", id);
 
   try {
-    if (workoutHasLogs(id) && !await confirmAdminDestructiveAction({
-      title: "Excluir logs do treino",
-      description: "Este treino possui histórico. Confirme para remover também os registros vinculados.",
-      expectedText: "EXCLUIR LOGS"
-    })) {
-      return;
-    }
-    await deleteWorkoutPermanently(id, { removeLogs: workoutHasLogs(id) });
+    await deleteWorkoutPermanently(id);
     if (String(state.selectedWorkoutId) === String(id)) state.selectedWorkoutId = "";
     showToast("Treino excluido.");
     await reloadAfterDelete();
@@ -4770,550 +4673,7 @@ function formatCurrency(value) {
   return number.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function getAcademyLinkStatus() {
-  const profileIds = getProfileOwnerIds();
-  const links = state.academyLinks
-    .filter((link) => (
-    profileIds.includes(String(pick(link, ["trainer_id"], "")))
-    || profileIds.includes(String(pick(link, ["trainer_user_id"], "")))
-    ))
-    .sort((a, b) => String(pick(b, ["created_at"], "")).localeCompare(String(pick(a, ["created_at"], ""))));
-
-  return links.find((link) => normalizeText(pick(link, ["status"], "")) === "aprovado" && !pick(link, ["independent_personal"], false))
-    || links.find((link) => normalizeText(pick(link, ["status"], "")) === "pendente" && !pick(link, ["independent_personal"], false))
-    || links.find((link) => pick(link, ["independent_personal"], false))
-    || links[0]
-    || null;
-}
-
-function renderTrainerAcademyStatus() {
-  if (!el.trainerAcademyStatus) return;
-  const link = getAcademyLinkStatus();
-
-  if (!link) {
-    el.trainerAcademyStatus.innerHTML = emptyMessage("Escolha seu modo de trabalho. Voce pode mudar depois.");
-    return;
-  }
-
-  const status = normalizeText(pick(link, ["status"], "pendente"));
-  const isIndependent = Boolean(pick(link, ["independent_personal"], false));
-  const academy = state.academies.find((item) => String(item.id) === String(pick(link, ["academy_id"], "")));
-  const mode = isIndependent ? "Personal independente" : "Vinculo com academia";
-  const details = isIndependent
-    ? `
-      <span>Voce esta usando o painel normalmente como personal independente.</span>
-      <small>Deseja vincular-se a uma academia?</small>
-      <button class="tiny-button" type="button" data-trainer-academy-action="start-link">Solicitar vinculo</button>
-    `
-    : `
-      <span>Status: ${escapeHtml(formatInviteStatus(status))}</span>
-      ${academy ? `<small>Academia: ${escapeHtml(pick(academy, ["name"], "Academia"))}</small>` : ""}
-      ${pick(link, ["academy_code"], "") ? `<small>Codigo solicitado: ${escapeHtml(pick(link, ["academy_code"], ""))}</small>` : ""}
-      ${pick(link, ["responsible_email"], "") ? `<small>Responsavel: ${escapeHtml(pick(link, ["responsible_email"], ""))}</small>` : ""}
-      ${status === "pendente" ? `<small>Enquanto o vinculo nao for aprovado, voce continua usando como independente.</small>` : ""}
-      ${status === "pendente" ? `<button class="tiny-button danger" type="button" data-trainer-academy-action="cancel-link" data-id="${escapeHtml(link.id)}">Cancelar solicitacao</button>` : ""}
-      ${status === "aprovado" ? `<button class="tiny-button" type="button" data-trainer-academy-action="unlink" data-id="${escapeHtml(link.id)}">Sair da academia</button>` : ""}
-    `;
-
-  el.trainerAcademyStatus.innerHTML = `
-    <article class="simple-item stacked">
-      <strong>${escapeHtml(mode)}</strong>
-      ${details}
-    </article>
-  `;
-}
-
-function renderAcademyStudentOptions() {
-  const students = getAccessibleAcademyStudents();
-  const options = students.length
-    ? students.map(renderStudentOption).join("")
-    : `<option value="">Nenhum aluno disponivel</option>`;
-
-  if (el.attendanceStudentSelect) el.attendanceStudentSelect.innerHTML = options;
-  if (el.financialStudentSelect) el.financialStudentSelect.innerHTML = options;
-}
-
-function getStudentLastAttendanceDate(studentId) {
-  const records = state.academyAttendance
-    .filter((item) => String(pick(item, ["student_id", "aluno_id"], "")) === String(studentId))
-    .map((item) => pick(item, ["checkin_at", "created_at"], ""))
-    .filter(Boolean)
-    .sort((a, b) => String(b).localeCompare(String(a)));
-
-  return records[0] || "";
-}
-
-function getDaysSinceDate(dateValue) {
-  if (!dateValue) return null;
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return null;
-  const today = new Date();
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  return Math.max(0, Math.floor((end - start) / 86400000));
-}
-
-function getStudentInactivityInfo(student) {
-  const lastAttendance = getStudentLastAttendanceDate(student.id);
-  const fallbackDate = pick(student, ["created_at"], "");
-  const days = getDaysSinceDate(lastAttendance || fallbackDate);
-
-  if (days === null || days < 7) {
-    return { days, badge: "", level: "" };
-  }
-
-  const level = days > 14 ? "danger" : "warning";
-  return {
-    days,
-    level,
-    badge: `Sem comparecer há ${days} dias`
-  };
-}
-
-function getAcademyLinkTrainerProfile(link) {
-  const trainerIds = [
-    pick(link, ["trainer_id"], ""),
-    pick(link, ["trainer_user_id"], "")
-  ].filter(Boolean).map(String);
-
-  return state.appProfiles.find((profile) => trainerIds.some((id) => (
-    [profile.id, profile.user_id, profile.auth_user_id].filter(Boolean).map(String).includes(id)
-  ))) || null;
-}
-
-function getAcademyAttendanceForDate(dateValue = toDateInputValue()) {
-  return state.academyAttendance.filter((item) => (
-    String(pick(item, ["checkin_at", "created_at"], "")).startsWith(dateValue)
-  ));
-}
-
-function getTimeFromDateTime(value) {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
-function escapeCsvCell(value) {
-  const text = String(value ?? "");
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function exportAttendanceCsv() {
-  const today = toDateInputValue();
-  const records = getAcademyAttendanceForDate(today);
-  if (!records.length) {
-    showToast("Nenhuma presença registrada hoje para exportar.", "error");
-    return;
-  }
-
-  const rows = records.map((item) => {
-    const student = state.students.find((record) => String(record.id) === String(item.student_id));
-    const checkinAt = pick(item, ["checkin_at"], "");
-    const checkoutAt = pick(item, ["checkout_at"], "");
-    return [
-      pick(student, ["name", "nome"], "Aluno"),
-      formatDate(checkinAt || pick(item, ["created_at"], "")),
-      getTimeFromDateTime(checkinAt),
-      getTimeFromDateTime(checkoutAt),
-      pick(item, ["observation"], "")
-    ].map(escapeCsvCell).join(",");
-  });
-
-  const csv = [
-    ["Nome do aluno", "Data", "Hora de entrada", "Hora de saída", "Observação"].map(escapeCsvCell).join(","),
-    ...rows
-  ].join("\r\n");
-
-  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `presenca-academia-${today}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-  showToast("CSV de presença gerado.");
-}
-
-function renderAcademyArea() {
-  if (!el.academyList) return;
-  const academyId = getCurrentAcademyId();
-  const today = toDateInputValue();
-  const month = el.financeMonthFilter?.value || getMonthInputValue();
-  if (el.financeMonthFilter && !el.financeMonthFilter.value) el.financeMonthFilter.value = month;
-
-  const attendanceToday = getAcademyAttendanceForDate(today);
-  const finances = state.academyFinancials.filter((item) => String(pick(item, ["month_ref"], "")).startsWith(month));
-  const totalPaid = finances
-    .filter((item) => normalizeText(pick(item, ["status"], "")) === "pago")
-    .reduce((sum, item) => sum + Number(pick(item, ["monthly_value"], 0) || 0), 0);
-  const totalPending = finances
-    .filter((item) => ["pendente", "atrasado"].includes(normalizeText(pick(item, ["status"], ""))))
-    .reduce((sum, item) => sum + Number(pick(item, ["monthly_value"], 0) || 0), 0);
-
-  if (el.totalAcademies) el.totalAcademies.textContent = state.academies.length;
-  if (el.totalAttendanceToday) el.totalAttendanceToday.textContent = attendanceToday.length;
-  if (el.financeTotalPaid) el.financeTotalPaid.textContent = formatCurrency(totalPaid);
-  if (el.financeTotalPending) el.financeTotalPending.textContent = formatCurrency(totalPending);
-
-  el.academyList.innerHTML = state.academies.length
-    ? state.academies.map((academy) => `
-      <article class="simple-item stacked">
-        <strong>${escapeHtml(pick(academy, ["name"], "Academia"))}</strong>
-        <span>Plano: ${escapeHtml(pick(academy, ["plan_name"], "Piloto 6 meses"))}</span>
-        <small>Responsável: ${escapeHtml(pick(academy, ["responsible_name", "responsible_email"], "Não informado"))}</small>
-        <small>Piloto: ${formatDate(pick(academy, ["pilot_start_date"], ""))} até ${formatDate(pick(academy, ["pilot_end_date"], ""))}</small>
-        <small>Status: ${escapeHtml(pick(academy, ["status"], "ativo"))}</small>
-      </article>
-    `).join("")
-    : emptyMessage(state.tableErrors.academies || "Nenhuma academia cadastrada.");
-
-  if (el.academyLinkList) {
-    el.academyLinkList.innerHTML = state.academyLinks.length
-      ? state.academyLinks.map((link) => {
-        const trainerProfile = getAcademyLinkTrainerProfile(link);
-        const trainerName = pick(trainerProfile, ["full_name", "nome", "name"], "Personal não identificado");
-        const trainerEmail = pick(trainerProfile, ["email"], pick(link, ["responsible_email"], "Não informado"));
-        return `
-        <article class="simple-item stacked">
-          <strong>${escapeHtml(trainerName)}</strong>
-          <small>E-mail: ${escapeHtml(trainerEmail)}</small>
-          <span>Status: ${escapeHtml(formatInviteStatus(pick(link, ["status"], "pendente")))}</span>
-          <small>Solicitação: ${escapeHtml(formatDateTime(pick(link, ["created_at"], "")))}</small>
-          <small>Código: ${escapeHtml(pick(link, ["academy_code"], "Não informado"))}</small>
-          ${(isAdmin() || isOwner()) ? `
-            <div class="record-actions">
-              <button class="tiny-button" type="button" data-academy-link-action="approve" data-id="${escapeHtml(link.id)}">Aprovar</button>
-              <button class="tiny-button danger" type="button" data-academy-link-action="reject" data-id="${escapeHtml(link.id)}">Recusar</button>
-            </div>
-          ` : ""}
-        </article>
-      `;
-      }).join("")
-      : emptyMessage(state.tableErrors.academy_personal_links || "Nenhuma solicitação encontrada.");
-  }
-
-  if (el.academyStudentsList) {
-    const academyStudents = getAccessibleAcademyStudents();
-    const inactiveStudentsCount = academyStudents
-      .filter((student) => (getStudentInactivityInfo(student).days || 0) >= 7)
-      .length;
-    if (el.totalInactiveStudents) el.totalInactiveStudents.textContent = inactiveStudentsCount;
-    el.academyStudentsList.innerHTML = academyStudents.length
-      ? academyStudents.map((student) => {
-        const inactivity = getStudentInactivityInfo(student);
-        return `
-          <article class="simple-item stacked">
-            <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
-            <span>${escapeHtml(pick(student, ["objective"], "Sem objetivo informado"))}</span>
-            <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp", "contact", "phone", "telefone"], "Não informado"))}</small>
-            <small>Situação cadastral: ${escapeHtml(formatWorkoutStatus(pick(student, ["status"], "ativo")))}</small>
-            <small>Frequência: ${inactivity.badge ? escapeHtml(inactivity.badge) : "Regular nos últimos 7 dias"}</small>
-            ${inactivity.badge ? `<span class="inactive-badge ${escapeHtml(inactivity.level)}">Alerta de frequência</span>` : ""}
-          </article>
-        `;
-      }).join("")
-      : emptyMessage("Nenhum aluno vinculado a esta academia.");
-  }
-
-  renderAcademyStudentOptions();
-
-  el.attendanceList.innerHTML = attendanceToday.length
-    ? attendanceToday.map((item) => {
-      const student = state.students.find((record) => String(record.id) === String(item.student_id));
-      return `
-        <article class="simple-item stacked">
-          <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
-          <span>Entrada: ${escapeHtml(formatDateTime(pick(item, ["checkin_at"], "")))}</span>
-          <span>Saída: ${escapeHtml(pick(item, ["checkout_at"], "") ? formatDateTime(pick(item, ["checkout_at"], "")) : "Em aberto")}</span>
-          <small>Registrado por: ${escapeHtml(pick(item, ["registered_by"], "usuário logado"))}</small>
-          ${pick(item, ["observation"], "") ? `<small>Obs: ${escapeHtml(pick(item, ["observation"], ""))}</small>` : ""}
-        </article>
-      `;
-    }).join("")
-    : emptyMessage(state.tableErrors.academy_attendance || "Nenhuma entrada registrada hoje.");
-
-  el.financialList.innerHTML = finances.length
-    ? finances.map((item) => {
-      const student = state.students.find((record) => String(record.id) === String(item.student_id));
-      return `
-        <article class="simple-item stacked">
-          <strong>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</strong>
-          <span>${formatCurrency(pick(item, ["monthly_value"], 0))} - ${escapeHtml(pick(item, ["status"], "pendente"))}</span>
-          <small>Vencimento: ${formatDate(pick(item, ["due_date"], ""))}</small>
-          <small>Pagamento: ${escapeHtml(pick(item, ["payment_method"], "Não informado"))} ${pick(item, ["paid_at"], "") ? `em ${formatDate(pick(item, ["paid_at"], ""))}` : ""}</small>
-          ${pick(item, ["observation"], "") ? `<small>Obs: ${escapeHtml(pick(item, ["observation"], ""))}</small>` : ""}
-        </article>
-      `;
-    }).join("")
-    : emptyMessage(state.tableErrors.academy_financials || "Nenhum financeiro no mes selecionado.");
-}
-
-async function saveTrainerAcademyLink(form) {
-  const formData = new FormData(form);
-  const answer = String(formData.get("works_from_academy") || "");
-  if (!answer) {
-    showToast("Escolha como deseja trabalhar agora.", "error");
-    return;
-  }
-
-  const responsibleProfile = await fetchAppProfileByUserId(state.authUser?.id);
-  const isIndependent = answer === "independent" || answer === "nao";
-  const wantsAcademy = answer === "academy" || answer === "sim";
-  const responsibleContact = formData.get("responsible_contact") || formData.get("responsible_email") || null;
-  const payload = {
-    trainer_id: responsibleProfile?.id || state.authProfile?.id || null,
-    trainer_user_id: state.authUser?.id || null,
-    academy_code: wantsAcademy ? formData.get("academy_code") || null : null,
-    responsible_email: wantsAcademy ? responsibleContact : null,
-    works_from_academy: wantsAcademy,
-    independent_personal: isIndependent,
-    status: isIndependent ? "aprovado" : "pendente",
-    notes: isIndependent ? "Personal independente" : "Solicitacao de vinculo enviada"
-  };
-
-  if (wantsAcademy && (!payload.academy_code || !payload.responsible_email)) {
-    showToast("Informe codigo da academia e e-mail ou WhatsApp do responsavel.", "error");
-    return;
-  }
-
-  try {
-    const duplicateRequest = state.academyLinks.find((link) => (
-      normalizeText(pick(link, ["status"], "")) === payload.status
-      && String(pick(link, ["trainer_id"], "")) === String(payload.trainer_id)
-      && normalizeText(pick(link, ["academy_code"], "")) === normalizeText(payload.academy_code)
-      && Boolean(pick(link, ["independent_personal"], false)) === payload.independent_personal
-    ));
-    if (duplicateRequest) {
-      showToast("Esta solicitação já está registrada. O vínculo existente foi mantido.", "error");
-      return;
-    }
-    await insertWithSchemaFallback("academy_personal_links", payload, "Erro ao salvar vinculo com academia");
-    showToast(isIndependent ? "Modo personal independente ativado." : "Solicitacao de vinculo enviada.");
-    form.reset();
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function handleTrainerAcademyAction(action, id = "") {
-  try {
-    if (action === "start-link") {
-      el.trainerAcademyLinkForm.elements.works_from_academy.value = "academy";
-      updateTrainerAcademyFormMode("academy");
-      el.trainerAcademyLinkForm.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
-    if (!id) throw new Error("Solicitacao nao encontrada.");
-
-    if (action === "cancel-link") {
-      if (!window.confirm("Cancelar solicitacao de vinculo?")) return;
-      await updateWithSchemaFallback("academy_personal_links", id, {
-        status: "cancelado",
-        notes: "Solicitacao cancelada pelo personal"
-      }, "Erro ao cancelar solicitacao");
-      showToast("Solicitacao cancelada.");
-    }
-
-    if (action === "unlink") {
-      if (!window.confirm("Sair desta academia? Seus alunos independentes serao preservados.")) return;
-      await updateWithSchemaFallback("academy_personal_links", id, {
-        status: "cancelado",
-        notes: "Personal saiu da academia"
-      }, "Erro ao desvincular academia");
-      showToast("Vinculo removido. Seus dados independentes foram preservados.");
-    }
-
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-function updateTrainerAcademyFormMode(value) {
-  const wantsAcademy = value === "academy" || value === "sim";
-  el.academyLinkFields?.classList.toggle("hidden", !wantsAcademy);
-  if (el.trainerAcademySubmit) {
-    el.trainerAcademySubmit.textContent = wantsAcademy ? "Solicitar vinculo" : "Salvar modo independente";
-  }
-}
-
-async function saveAcademy(form) {
-  const formData = new FormData(form);
-  const startDate = formData.get("pilot_start_date") || toDateInputValue();
-  const endDate = formData.get("pilot_end_date") || addMonthsToDateOnly(startDate, 6);
-  const payload = {
-    name: formData.get("name"),
-    document: formData.get("document") || null,
-    phone: formData.get("whatsapp") || null,
-    whatsapp: formData.get("whatsapp") || null,
-    address: formData.get("address") || null,
-    responsible_name: formData.get("responsible_name") || null,
-    responsible_email: formData.get("responsible_email") || null,
-    plan_name: "Piloto 6 meses",
-    pilot_start_date: startDate,
-    pilot_end_date: endDate,
-    status: "ativo"
-  };
-
-  try {
-    const created = await insertWithSchemaFallback("academies", payload, "Erro ao salvar academia");
-    const academyId = created?.[0]?.id;
-    if (academyId && state.authProfile?.id && isOwner()) {
-      await updateWithSchemaFallback("app_profiles", state.authProfile.id, {
-        academy_id: academyId,
-        academy_link_status: "aprovado"
-      }, "Erro ao vincular academia ao perfil");
-      state.authProfile = {
-        ...state.authProfile,
-        academy_id: academyId,
-        academy_link_status: "aprovado"
-      };
-    }
-    showToast("Academia salva.");
-    form.reset();
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function updateAcademyLinkStatus(id, status) {
-  if (!id || !["aprovado", "recusado"].includes(status)) return;
-  try {
-    const academyId = getCurrentAcademyId() || state.academies[0]?.id || null;
-    await updateWithSchemaFallback("academy_personal_links", id, {
-      status,
-      academy_id: status === "aprovado" ? academyId : null,
-      approved_by: status === "aprovado" ? state.authUser?.id || null : null,
-      approved_at: status === "aprovado" ? new Date().toISOString() : null
-    }, "Erro ao atualizar vinculo do personal");
-    showToast(status === "aprovado" ? "Vinculo aprovado." : "Vinculo recusado.");
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function createAcademyStudent(form) {
-  const formData = new FormData(form);
-  const name = String(formData.get("name") || "").trim();
-  if (!name) {
-    showToast("Informe o nome do aluno.", "error");
-    return;
-  }
-
-  const academyId = getCurrentAcademyId();
-  if (!academyId && !isAdmin()) {
-    showToast("Cadastre ou selecione uma academia antes de adicionar alunos.", "error");
-    return;
-  }
-
-  const payload = {
-    name,
-    email: String(formData.get("email") || "").trim().toLowerCase() || null,
-    ...buildStudentContactPayload(formData.get("whatsapp")),
-    objective: formData.get("objective") || null,
-    status: formData.get("status") || "ativo",
-    status_usuario: "ativo",
-    academy_id: academyId || null,
-    academy_status: "vinculado",
-    created_by: state.authUser?.id || null
-  };
-
-  try {
-    const created = await insertStudentWithFallback(payload);
-    const createdStudent = created?.[0] || null;
-    if (createdStudent && payload.email) {
-      await createStudentInvite(createdStudent, payload.email);
-    }
-    showToast("Aluno cadastrado na academia.");
-    form.reset();
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function saveAttendance(form, action) {
-  const formData = new FormData(form);
-  const studentId = formData.get("student_id");
-  if (!studentId) {
-    showToast("Selecione um aluno.", "error");
-    return;
-  }
-
-  try {
-    if (action === "checkout") {
-      const openRecord = state.academyAttendance.find((item) => (
-        String(item.student_id) === String(studentId)
-        && !pick(item, ["checkout_at"], "")
-        && normalizeText(pick(item, ["status"], "aberto")) === "aberto"
-      ));
-      if (!openRecord) throw new Error("Nenhuma entrada aberta encontrada para este aluno.");
-      await updateWithSchemaFallback("academy_attendance", openRecord.id, {
-        checkout_at: new Date().toISOString(),
-        observation: formData.get("observation") || pick(openRecord, ["observation"], null),
-        status: "finalizado"
-      }, "Erro ao registrar saida");
-      showToast("Saida registrada.");
-    } else {
-      await insertWithSchemaFallback("academy_attendance", {
-        academy_id: getCurrentAcademyId() || null,
-        student_id: studentId,
-        checkin_at: new Date().toISOString(),
-        registered_by: state.authUser?.id || null,
-        observation: formData.get("observation") || null,
-        status: "aberto"
-      }, "Erro ao registrar entrada");
-      showToast("Entrada registrada.");
-    }
-
-    form.reset();
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-async function saveFinancial(form) {
-  const formData = new FormData(form);
-  const studentId = formData.get("student_id");
-  if (!studentId) {
-    showToast("Selecione um aluno.", "error");
-    return;
-  }
-
-  try {
-    await insertWithSchemaFallback("academy_financials", {
-      academy_id: getCurrentAcademyId() || null,
-      student_id: studentId,
-      month_ref: `${el.financeMonthFilter?.value || getMonthInputValue()}-01`,
-      monthly_value: numberOrNull(formData.get("monthly_value")) || 0,
-      due_date: formData.get("due_date") || null,
-      status: formData.get("status") || "pendente",
-      payment_method: formData.get("payment_method") || null,
-      paid_at: formData.get("paid_at") || null,
-      observation: formData.get("observation") || null,
-      registered_by: state.authUser?.id || null
-    }, "Erro ao salvar financeiro");
-    showToast("Financeiro salvo.");
-    form.reset();
-    await loadSupabaseData({ silent: true });
-  } catch (error) {
-    showToast(error.message, "error");
-  }
-}
-
-/**
- * Alterna a area visivel do sistema.
- */
-function changeScreen(screenName) {
+function changeScreen(screenName, options = {}) {
   if (screenName === "admin-area" && !enforceAdminAccess()) {
     document.body.dataset.role = "";
     el.sidebar.classList.add("hidden");
@@ -5325,6 +4685,7 @@ function changeScreen(screenName) {
     return;
   }
 
+  const currentScreen = document.querySelector(".screen.active")?.id?.replace("screen-", "") || "";
   document.querySelectorAll(".screen").forEach((screen) => {
     screen.classList.toggle("active", screen.id === `screen-${screenName}`);
   });
@@ -5341,8 +4702,11 @@ function changeScreen(screenName) {
     "trainer-area": "Treinador",
     "admin-area": "Controle do Sistema"
   };
-  labels["academy-area"] = "Academia";
   el.pageTitle.textContent = labels[screenName] || "Alion Treinos";
+
+  if (options.pushHistory && currentScreen !== screenName) {
+    window.history.pushState({ alionScreen: screenName }, "", window.location.href);
+  }
 
   if (screenName === "trainer-area") {
     loadSupabaseData();
@@ -5353,6 +4717,7 @@ function changeScreen(screenName) {
  * Define o papel visual escolhido na tela inicial.
  */
 function setAccessRole(role) {
+  if (!["student", "trainer", "admin"].includes(role)) return;
   state.accessRole = role;
   if (role !== "admin") {
     state.authProfile = state.authProfile || { role };
@@ -5380,11 +4745,6 @@ function setAccessRole(role) {
     return;
   }
 
-  if (role === "owner") {
-    changeScreen("academy-area");
-    return;
-  }
-
   changeScreen("admin-area");
 }
 
@@ -5402,10 +4762,6 @@ function updateLoginRoleHelper(role) {
       title: "Area do personal",
       description: "Cadastre alunos, monte treinos, acompanhe evolução e visualize históricos."
     },
-    owner: {
-      title: "Area da academia",
-      description: "Acompanhe entrada, saida, alunos, pagamentos e personal vinculado."
-    },
     admin: {
       title: "Area administrativa",
       description: "Gerencie usuarios, permissoes, dados de teste, exclusoes e manutencao do sistema."
@@ -5418,7 +4774,21 @@ function updateLoginRoleHelper(role) {
   });
   el.loginHelperTitle.textContent = content.title;
   el.loginHelperDescription.textContent = content.description;
-  el.bootstrapAdminButton?.classList.add("hidden");
+}
+
+function renderAdminPersonalItem(profile) {
+  const ownedStudents = state.students.filter((student) => (
+    String(pick(student, ["personal_id", "trainer_id"], "")) === String(profile.id)
+  )).length;
+  return `
+    <article class="simple-item stacked">
+      <strong>${escapeHtml(pick(profile, ["nome", "full_name"], "Personal"))}</strong>
+      <span>${escapeHtml(pick(profile, ["email"], "E-mail não informado"))}</span>
+      <small>Status: ${escapeHtml(pick(profile, ["status_usuario"], "ativo"))}</small>
+      <small>Alunos sob responsabilidade: ${ownedStudents}</small>
+      <small>ID operacional: ${escapeHtml(profile.id)}</small>
+    </article>
+  `;
 }
 
 function switchAuthMode(mode) {
@@ -5566,240 +4936,39 @@ function normalizeAuthPhone(value) {
   return String(value || "").replace(/\D/g, "");
 }
 
-async function fetchAppProfileByEmail(email) {
-  const normalizedEmail = normalizeAuthEmail(email);
-  if (!normalizedEmail) return null;
-
-  const { data, error } = await supabaseClient
-    .from("app_profiles")
-    .select("*")
-    .ilike("email", normalizedEmail)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data || null;
-}
-
-async function fetchStudentsByIdentity({ userId = "", email = "", phone = "" } = {}) {
-  const matches = [];
-  const seen = new Set();
-  const addMatches = (records = []) => {
-    records.forEach((record) => {
-      if (!record?.id || seen.has(String(record.id))) return;
-      seen.add(String(record.id));
-      matches.push(record);
-    });
-  };
-
-  if (userId) {
-    const { data, error } = await supabaseClient
-      .from("students")
-      .select("*")
-      .or(`auth_user_id.eq.${userId},profile_id.eq.${userId}`);
-    if (error) throw error;
-    addMatches(data || []);
-  }
-
-  const normalizedEmail = normalizeAuthEmail(email);
-  if (normalizedEmail) {
-    const { data, error } = await supabaseClient
-      .from("students")
-      .select("*")
-      .ilike("email", normalizedEmail);
-    if (error) throw error;
-    addMatches(data || []);
-  }
-
-  const normalizedPhone = normalizeAuthPhone(phone);
-  if (normalizedPhone) {
-    const { data, error } = await supabaseClient
-      .from("students")
-      .select("*")
-      .or(`phone.eq.${normalizedPhone},telefone.eq.${normalizedPhone},whatsapp.eq.${normalizedPhone}`);
-    if (error) throw error;
-    addMatches(data || []);
-  }
-
-  return matches;
-}
-
-function pickSafeStudentForAuthLink(students, userId, invite = null) {
-  if (!students.length) return null;
-
-  const inviteStudentId = pick(invite, ["student_id"], "");
-  if (inviteStudentId) {
-    return students.find((student) => String(student.id) === String(inviteStudentId)) || null;
-  }
-
-  const alreadyLinked = students.find((student) => (
-    String(pick(student, ["auth_user_id", "profile_id"], "")) === String(userId)
-  ));
-  if (alreadyLinked) return alreadyLinked;
-
-  const unlinked = students.filter((student) => (
-    !pick(student, ["auth_user_id", "profile_id"], "")
-  ));
-
-  return unlinked.length === 1 ? unlinked[0] : null;
-}
-
-function hasAmbiguousStudentMatch(students, userId, invite = null) {
-  if (pick(invite, ["student_id"], "")) return false;
-  if (students.some((student) => String(pick(student, ["auth_user_id", "profile_id"], "")) === String(userId))) {
+async function fetchTrustedAdminStatus() {
+  if (!state.authUser?.id) return false;
+  const { data, error } = await supabaseClient.rpc("is_current_admin_ti");
+  if (error) {
+    console.warn("[Alion Treinos] Nao foi possivel validar identidade Admin TI.", error);
     return false;
   }
-  return students.filter((student) => !pick(student, ["auth_user_id", "profile_id"], "")).length > 1;
-}
-
-async function ensureTrainerStudentLink(student, user, invite = null) {
-  const trainerId = pick(invite, ["trainer_id"], "") || pick(student, ["trainer_id", "personal_id"], "");
-  if (!student?.id || !trainerId) return;
-
-  const { data, error } = await supabaseClient
-    .from("trainer_students")
-    .select("*")
-    .eq("student_id", student.id)
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (data?.id) {
-    const payload = {};
-    if (!pick(data, ["student_user_id"], "") && user?.id) payload.student_user_id = user.id;
-    if (normalizeText(pick(data, ["status"], "")) !== "ativo") payload.status = "ativo";
-    if (Object.keys(payload).length) {
-      await updateWithSchemaFallback("trainer_students", data.id, payload, "Erro ao atualizar vinculo aluno-personal");
-    }
-    return;
-  }
-
-  const payload = {
-    trainer_id: trainerId,
-    student_id: student.id,
-    student_user_id: user?.id || null,
-    status: "ativo",
-    invite_id: pick(invite, ["id"], null)
-  };
-  const { error: upsertError } = await supabaseClient
-    .from("trainer_students")
-    .upsert(payload, { onConflict: "trainer_id,student_id" });
-  if (upsertError) throw upsertError;
-}
-
-async function acceptInviteTrainerStudentLink(invite, user) {
-  const token = pick(invite, ["token"], "");
-  if (token) {
-    const { data, error } = await supabaseClient.rpc("accept_student_invite_link", {
-      invite_token: token
-    });
-    if (!error) return data;
-    const missingFunction = normalizeText(error.message).includes("accept_student_invite_link")
-      || normalizeText(error.code) === "pgrst202";
-    if (!missingFunction) throw error;
-  }
-
-  await ensureTrainerStudentLink({
-    id: invite.student_id,
-    trainer_id: invite.trainer_id
-  }, user, invite);
-  return null;
+  return data === true;
 }
 
 async function ensureUserProfileAndStudentLink(user, options = {}) {
   if (!user?.id) return null;
 
-  const email = normalizeAuthEmail(user.email);
-  const phone = normalizeAuthPhone(user.phone || user.user_metadata?.phone || user.user_metadata?.telefone || "");
-  const requestedRole = options.requestedRole || user.user_metadata?.role || state.preferredLoginRole || "aluno";
-  const displayName = options.name || user.user_metadata?.nome || user.user_metadata?.name || email;
-  const invite = options.invite || state.pendingInvite || null;
+  const existing = await fetchAppProfileByUserId(user.id);
+  if (existing) return existing;
 
-  let appProfile = await fetchAppProfileByUserId(user.id);
-  const profileByEmail = appProfile ? null : await fetchAppProfileByEmail(email);
-
-  if (!appProfile && profileByEmail) {
-    const linkedUserId = pick(profileByEmail, ["user_id", "auth_user_id"], "");
-    if (!linkedUserId) {
-      await updateWithSchemaFallback("app_profiles", profileByEmail.id, { user_id: user.id }, "Erro ao vincular perfil existente");
-      appProfile = { ...profileByEmail, user_id: user.id };
-      showToast("Conta encontrada. Vinculamos seu acesso ao perfil existente.");
-    } else if (String(linkedUserId) === String(user.id)) {
-      appProfile = profileByEmail;
-    } else {
-      showToast("Este e-mail já está vinculado a outra conta. Peça revisão ao Admin TI.", "error");
-      return profileByEmail;
-    }
+  const requestedRole = normalizeRole(options.requestedRole || user.user_metadata?.role || state.preferredLoginRole);
+  if (requestedRole !== "trainer") {
+    return null;
   }
 
-  if (!appProfile) {
-    const normalizedRequestedRole = normalizeRole(getDefaultRoleForEmail(email, requestedRole));
-    if (normalizedRequestedRole === "student" && !invite) {
-      showToast("Seu login foi feito, mas ainda não encontramos um aluno vinculado.", "error");
-      return null;
-    }
+  const payload = getProfilePayload(
+    user,
+    "personal",
+    options.name || user.user_metadata?.nome || user.user_metadata?.name || user.email
+  );
+  payload.academy_id = null;
+  payload.academy_link_status = null;
+  payload.independent_personal = true;
 
-    const payload = getProfilePayload(user, requestedRole, displayName);
-    const normalizedRole = normalizeRole(payload.role);
-    if (normalizedRole === "student" && !invite) {
-      payload.role = "aluno";
-    }
-    const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao criar perfil de acesso");
-    appProfile = created?.[0] || payload;
-  }
-
-  await syncCanonicalProfile(user, {
-    ...appProfile,
-    email: appProfile.email || email,
-    nome: appProfile.nome || appProfile.full_name || displayName,
-    full_name: appProfile.full_name || appProfile.nome || displayName,
-    role: appProfile.role || getDefaultRoleForEmail(email, requestedRole)
-  });
-
-  const students = await fetchStudentsByIdentity({ userId: user.id, email, phone });
-  const ambiguousStudentMatch = hasAmbiguousStudentMatch(students, user.id, invite);
-  const student = pickSafeStudentForAuthLink(students, user.id, invite);
-
-  if (!student && normalizeRole(appProfile.role) === "student") {
-    if (ambiguousStudentMatch) {
-      showToast("Encontramos mais de um aluno com este e-mail. Peça revisão ao responsável.", "error");
-    } else {
-      showToast("Seu login foi feito, mas ainda não encontramos um aluno vinculado.", "error");
-    }
-    return appProfile;
-  }
-
-  if (student) {
-    const linkedAuthUserId = pick(student, ["auth_user_id", "profile_id"], "");
-    if (linkedAuthUserId && String(linkedAuthUserId) !== String(user.id)) {
-      showToast("Encontramos um cadastro com este telefone/e-mail, mas ele já está vinculado a outra conta. Peça revisão.", "error");
-      return appProfile;
-    }
-
-    const studentPayload = {};
-    if (!pick(student, ["auth_user_id"], "")) studentPayload.auth_user_id = user.id;
-    if (!pick(student, ["profile_id"], "")) studentPayload.profile_id = user.id;
-    if (normalizeText(pick(student, ["status"], "")) !== "ativo") studentPayload.status = "ativo";
-    if (normalizeText(pick(student, ["status_usuario"], "")) !== "ativo") studentPayload.status_usuario = "ativo";
-
-    if (Object.keys(studentPayload).length) {
-      await updateWithSchemaFallback("students", student.id, studentPayload, "Erro ao vincular aluno ao login");
-      showToast("Conta encontrada. Vinculamos seu acesso ao perfil existente.");
-    }
-
-    if (normalizeRole(appProfile.role) === "student") {
-      const appProfilePayload = {};
-      if (!pick(appProfile, ["student_id"], "")) appProfilePayload.student_id = student.id;
-      if (normalizeRole(appProfile.role) !== "student") appProfilePayload.role = "aluno";
-      if (Object.keys(appProfilePayload).length && appProfile.id) {
-        await updateWithSchemaFallback("app_profiles", appProfile.id, appProfilePayload, "Erro ao atualizar perfil do aluno");
-        appProfile = { ...appProfile, ...appProfilePayload };
-      }
-      appProfile.student_id = appProfile.student_id || student.id;
-      await ensureTrainerStudentLink(student, user, invite);
-    }
-  }
-
+  const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao criar perfil de Personal");
+  const appProfile = created?.[0] || payload;
+  await syncCanonicalProfile(user, appProfile);
   return appProfile;
 }
 
@@ -5844,62 +5013,21 @@ async function loadInviteFromUrl() {
 }
 
 async function completeInviteForUser(user, invite = state.pendingInvite) {
-  if (!user?.id || !invite?.id) return null;
+  if (!user?.id || !invite?.token) return null;
 
-  if (!invite.student_id || !invite.trainer_id) {
-    throw new Error("Convite sem aluno ou personal vinculado. Gere um novo convite pelo Personal.");
-  }
-
-  const inviteEmail = String(invite.email || "").trim().toLowerCase();
-  const userEmail = String(user.email || "").trim().toLowerCase();
-  if (inviteEmail && userEmail && inviteEmail !== userEmail) {
+  const inviteEmail = normalizeAuthEmail(invite.email);
+  const userEmail = normalizeAuthEmail(user.email);
+  if (!inviteEmail || inviteEmail !== userEmail) {
     throw new Error("Este convite pertence a outro e-mail.");
   }
 
-  const profilePayload = {
-    user_id: user.id,
-    role: "aluno",
-    full_name: pick(invite, ["name", "nome"], user.email),
-    nome: pick(invite, ["name", "nome"], user.email),
-    email: userEmail,
-    student_id: invite.student_id,
-    status_usuario: "ativo",
-    primeiro_acesso_obrigatorio: false,
-    senha_temporaria: false
-  };
-
-  const existingAppProfile = await fetchAppProfileByUserId(user.id);
-  const existingAnyProfile = existingAppProfile || await fetchAuthProfile(user, { createIfMissing: false });
-
-  if (existingAnyProfile?.id && normalizeRole(existingAnyProfile.role) !== "student") {
-    throw new Error("Este e-mail ja possui outro perfil. O Admin TI deve corrigir o vinculo manualmente.");
+  const { error } = await supabaseClient.rpc("accept_student_invite_link", {
+    invite_token: invite.token
+  });
+  if (error) {
+    console.error("[Alion Treinos] Erro ao aceitar convite atomico:", error);
+    throw new Error(`Nao foi possivel aceitar o convite com seguranca: ${error.message}`);
   }
-
-  if (existingAppProfile?.id) {
-    await updateWithSchemaFallback("app_profiles", existingAppProfile.id, profilePayload, "Erro ao atualizar perfil do aluno convidado");
-  } else {
-    await insertWithSchemaFallback("app_profiles", profilePayload, "Erro ao criar perfil do aluno convidado");
-  }
-  await syncCanonicalProfile(user, profilePayload);
-
-  if (invite.student_id) {
-    await updateWithSchemaFallback("students", invite.student_id, {
-      auth_user_id: user.id,
-      profile_id: user.id,
-      status: "ativo",
-      status_usuario: "ativo",
-      personal_id: invite.trainer_id || null,
-      trainer_id: invite.trainer_id || null
-    }, "Erro ao vincular aluno ao usuario");
-  }
-
-  await acceptInviteTrainerStudentLink(invite, user);
-
-  await updateWithSchemaFallback("student_invites", invite.id, {
-    status: "aceito",
-    accepted_at: new Date().toISOString(),
-    accepted_user_id: user.id
-  }, "Erro ao marcar convite como aceito");
 
   state.pendingInvite = null;
   state.inviteToken = "";
@@ -5925,17 +5053,12 @@ async function ensureAuthProfile(user, requestedRole = "aluno", name = "") {
   } catch (error) {
     console.warn("[Alion Treinos] Nao foi possivel criar app_profiles automaticamente.", error);
     showToast(`Login feito, mas o perfil nao foi vinculado: ${error.message}`, "error");
-    return {
-      user_id: user.id,
-      role: payload.role,
-      email: payload.email,
-      nome: payload.nome
-    };
+    return null;
   }
 }
 
-async function fetchAuthProfile(user, options = {}) {
-  if (!user) return null;
+async function fetchAuthProfile(user, _options = {}) {
+  if (!user?.id) return null;
 
   try {
     const { data, error } = await supabaseClient
@@ -5953,28 +5076,16 @@ async function fetchAuthProfile(user, options = {}) {
       .or(`id.eq.${user.id},user_id.eq.${user.id},auth_user_id.eq.${user.id}`)
       .maybeSingle();
 
-    if (!profileByUserId.error && profileByUserId.data) {
-      return {
-        ...profileByUserId.data,
-        user_id: profileByUserId.data.auth_user_id || profileByUserId.data.user_id || profileByUserId.data.id
-      };
-    }
-
-    if (options.createIfMissing === false) return null;
+    if (profileByUserId.error) throw profileByUserId.error;
+    if (!profileByUserId.data) return null;
     return {
-      user_id: user.id,
-      role: user.user_metadata?.role || "",
-      student_id: user.user_metadata?.student_id || null
+      ...profileByUserId.data,
+      user_id: profileByUserId.data.auth_user_id || profileByUserId.data.user_id || profileByUserId.data.id
     };
   } catch (error) {
-    console.warn("[Alion Treinos] app_profiles indisponivel. Usando metadados do Auth.", error);
+    console.warn("[Alion Treinos] Perfil autorizado indisponivel.", error);
     state.lastError = error.message;
-    if (options.createIfMissing === false) return null;
-    return {
-      user_id: user.id,
-      role: user.user_metadata?.role || "",
-      student_id: user.user_metadata?.student_id || null
-    };
+    return null;
   }
 }
 
@@ -5985,7 +5096,6 @@ function renderAuthStatus() {
   el.authStatus.textContent = email
     ? `Logado como ${email} (${formatRoleLabel(role)})`
     : "Use o login criado no Supabase Auth.";
-  el.bootstrapAdminButton?.classList.add("hidden");
 }
 
 function formatSupabaseAuthError(error) {
@@ -6039,11 +5149,9 @@ function formatRoleLabel(role) {
     admin: "Admin TI",
     trainer: "Personal",
     student: "Aluno",
-    owner: "Gestor academia",
     personal: "Personal",
     aluno: "Aluno",
-    admin_ti: "Admin TI",
-    gestor_academia: "Gestor academia"
+    admin_ti: "Admin TI"
   };
   return labels[normalizeRole(role)] || "perfil nao definido";
 }
@@ -6130,6 +5238,7 @@ async function applyAuthenticatedSessionInternal(session) {
   if (!session?.user) return;
 
   state.authUser = session.user;
+  state.trustedAdmin = await fetchTrustedAdminStatus();
   const metadataInviteToken = session.user.user_metadata?.invite_token || "";
   if (!state.pendingInvite && metadataInviteToken) {
     state.pendingInvite = await fetchInviteByToken(metadataInviteToken);
@@ -6212,7 +5321,6 @@ async function applyAuthenticatedSessionInternal(session) {
   if (role === "student") changeScreen("student-area");
   if (role === "trainer") changeScreen("trainer-area");
   if (role === "admin") changeScreen("admin-area");
-  if (role === "owner") changeScreen("academy-area");
 }
 
 async function applyAuthenticatedSession(session) {
@@ -6310,8 +5418,8 @@ async function handleAuthRegister(form) {
     return;
   }
 
-  if (normalizeRole(role) === "admin" && email !== window.AlionSecurity.ADMIN_EMAIL) {
-    showToast("O perfil Admin TI principal é reservado.", "error");
+  if (!state.pendingInvite && normalizeRole(role) !== "trainer") {
+    showToast("Somente Personal pode criar cadastro livre. Aluno entra por convite.", "error");
     return;
   }
 
@@ -6399,74 +5507,32 @@ async function handleForgotPassword() {
   }
 }
 
-async function handleBootstrapAdmin() {
-  const email = String(el.authEmail.value || "").trim().toLowerCase();
-  const password = String(el.authPassword.value || "");
-
-  if (!email || !password) {
-    showToast("Informe e-mail e senha para criar o primeiro Admin TI.", "error");
-    return;
-  }
-
-  if (password.length < 6) {
-    showToast("A senha precisa ter pelo menos 6 caracteres.", "error");
-    return;
-  }
-
-  if (!window.confirm("Criar este e-mail como primeiro Admin TI responsavel pelo sistema?")) return;
-
-  setFormLoading(el.authLoginForm, true);
-
-  try {
-    const { data, error } = await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: getAuthRedirectUrl(),
-        data: {
-          role: "admin_ti",
-          primeiro_admin_ti: true
-        }
-      }
-    });
-
-    if (error) throw error;
-
-    if (!data.session) {
-      showToast("Usuario criado. Confirme o e-mail ou desative confirmacao de e-mail no Supabase para concluir o primeiro acesso.", "error");
-      return;
-    }
-
-    await insertWithSchemaFallback("app_profiles", {
-      user_id: data.user.id,
-      role: "admin_ti",
-      full_name: "Admin TI",
-      nome: "Admin TI",
-      email,
-      status_usuario: "ativo",
-      primeiro_acesso_obrigatorio: false,
-      senha_temporaria: false
-    }, "Erro ao criar primeiro perfil Admin TI");
-
-    await applyAuthenticatedSession(data.session);
-    showToast("Primeiro Admin TI criado com sucesso.");
-  } catch (error) {
-    showToast(`Erro ao criar Admin TI: ${error.message}`, "error");
-  } finally {
-    setFormLoading(el.authLoginForm, false);
-    renderAuthStatus();
-  }
-}
-
 async function handleAuthLogout() {
+  const pendingCount = getPendingWorkoutLogs().length;
+  if (pendingCount) {
+    const confirmed = window.confirm(
+      `Existem ${pendingCount} conclusão(ões) pendente(s) de sincronização neste aparelho. `
+      + "Se você sair agora, os registros locais serão preservados, mas só serão enviados depois de um novo login. Deseja sair?"
+    );
+    if (!confirmed) return;
+  }
   await supabaseClient.auth.signOut();
   state.authUser = null;
   state.authProfile = null;
   state.accessRole = "";
   state.adminUnlocked = false;
+  state.trustedAdmin = false;
   state.studentAreaId = "";
   state.selectedStudentId = "";
   state.selectedWorkoutId = "";
+  state.students = [];
+  state.workouts = [];
+  state.workoutExercises = [];
+  state.workoutLogs = [];
+  state.studentInvites = [];
+  state.trainerStudents = [];
+  state.appProfiles = [];
+  state.studentExerciseExecution = {};
   document.body.dataset.role = "";
   el.sidebar.classList.add("hidden");
   el.adminLock.classList.remove("hidden");
@@ -6528,10 +5594,6 @@ async function handleFirstAccessPasswordChange(form) {
       await updateWithSchemaFallback("app_profiles", state.authProfile.id, profilePayload, "Erro ao atualizar primeiro acesso");
     }
 
-    if (state.authProfile?.student_id) {
-      await updateWithSchemaFallback("students", state.authProfile.student_id, profilePayload, "Erro ao ativar aluno");
-    }
-
     state.authProfile = { ...state.authProfile, ...profilePayload };
     form.reset();
     showToast("Senha atualizada. Bem-vindo ao app.");
@@ -6589,8 +5651,7 @@ function canAccessScreen(screenName) {
   if (screenName === "first-access") return state.passwordRecoveryMode || needsFirstAccessPasswordChange();
   if (state.accessRole === "student") return screenName === "student-area";
   if (state.accessRole === "trainer") return screenName === "trainer-area";
-  if (state.accessRole === "owner") return ["academy-area", "trainer-area"].includes(screenName);
-  if (state.accessRole === "admin" && isAdmin()) return ["admin-area", "trainer-area", "student-area", "academy-area"].includes(screenName);
+  if (state.accessRole === "admin" && isAdmin()) return ["admin-area", "trainer-area", "student-area"].includes(screenName);
   return false;
 }
 
@@ -7060,7 +6121,6 @@ function bindEvents() {
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
-  el.bootstrapAdminButton?.addEventListener("click", handleBootstrapAdmin);
   el.firstAccessForm.addEventListener("submit", (event) => {
     event.preventDefault();
     handleFirstAccessPasswordChange(event.currentTarget);
@@ -7080,7 +6140,7 @@ function bindEvents() {
         el.sidebar.classList.add("hidden");
         renderAuthStatus();
       }
-      changeScreen(button.dataset.screen);
+      changeScreen(button.dataset.screen, { pushHistory: true });
     });
   });
 
@@ -7110,65 +6170,20 @@ function bindEvents() {
   document.querySelector("#exercise-image-modal")?.addEventListener("click", (event) => {
     if (event.target.id === "exercise-image-modal") closeExerciseImage();
   });
+  window.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!document.querySelector("#exercise-image-modal")?.classList.contains("hidden")) closeExerciseImage();
+    if (!el.adminConfirmModal?.classList.contains("hidden")) closeStrongConfirmation(false);
+  });
+  window.addEventListener("popstate", (event) => {
+    const screenName = event.state?.alionScreen;
+    if (screenName && canAccessScreen(screenName)) changeScreen(screenName);
+  });
 
   el.studentSearch.addEventListener("input", (event) => {
     state.studentSearch = event.target.value;
     renderTrainerStudents();
   });
-
-  el.trainerAcademyLinkForm?.addEventListener("change", (event) => {
-    if (event.target.name !== "works_from_academy") return;
-    updateTrainerAcademyFormMode(event.target.value);
-  });
-
-  el.trainerAcademyLinkForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveTrainerAcademyLink(event.currentTarget);
-  });
-
-  el.trainerAcademyStatus?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-trainer-academy-action]");
-    if (!button) return;
-    handleTrainerAcademyAction(button.dataset.trainerAcademyAction, button.dataset.id);
-  });
-
-  el.academyForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveAcademy(event.currentTarget);
-  });
-
-  el.academyStudentForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    createAcademyStudent(event.currentTarget);
-  });
-
-  el.academyLinkList?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-academy-link-action]");
-    if (!button) return;
-    const status = button.dataset.academyLinkAction === "approve" ? "aprovado" : "recusado";
-    updateAcademyLinkStatus(button.dataset.id, status);
-  });
-
-  el.academyInvitesList?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-invite-action]");
-    if (!button) return;
-    handleInviteAction(button.dataset.inviteAction, button.dataset.id);
-  });
-
-  el.attendanceForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const action = event.submitter?.dataset.attendanceAction || "checkin";
-    saveAttendance(event.currentTarget, action);
-  });
-
-  el.exportAttendanceCsv?.addEventListener("click", exportAttendanceCsv);
-
-  el.financialForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveFinancial(event.currentTarget);
-  });
-
-  el.financeMonthFilter?.addEventListener("change", renderAcademyArea);
 
   el.exerciseSearch.addEventListener("input", (event) => {
     state.exerciseSearch = event.target.value;
@@ -7244,6 +6259,7 @@ function bindEvents() {
   el.trainerStudentsList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-student-id]");
     if (!button) return;
+    if (String(state.selectedStudentId) !== String(button.dataset.studentId)) cancelTrainerEditModes();
     state.selectedStudentId = button.dataset.studentId;
     renderTrainerStudents();
     renderTrainerProfile();

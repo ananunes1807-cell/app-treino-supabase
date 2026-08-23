@@ -1,0 +1,19 @@
+# Chaves e artefatos de assinatura Android nunca devem entrar no Git.
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+android-twa/signing/
+android-twa/.gradle/
+android-twa/build/
+android-twa/app/build/
+android-twa/gradle.properties
+android-twa/local.properties
+
+# Pacotes Android gerados localmente.
+*.apk
+*.aab
+
+# Artefatos locais de auditoria e documentos temporários com dados pessoais.
+tmp/
