@@ -41,6 +41,11 @@ assert.equal(app.includes('.from("trainer_students").upsert'), false);
 assert.match(app, /function cancelTrainerEditModes\(\)/);
 assert.match(app, /admin_preview_student_maintenance/);
 assert.match(app, /admin_preview_workout_deletion/);
+assert.match(
+  index,
+  /<\/article>\s*<\/div>\s*<\/section>\s*<section class="screen" id="screen-admin-area">/,
+  "A area Admin deve ficar fora da section do Personal"
+);
 
 // O helper legado também não trata e-mail como identidade administrativa.
 assert.equal(security.includes("ananunes1807@gmail.com"), false);
