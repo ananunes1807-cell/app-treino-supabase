@@ -260,6 +260,11 @@
 
   function renderFullPlanPage(plan) {
     const uniqueExercises = getUniqueExercises(plan);
+    const guideDensity = uniqueExercises.length <= 11
+      ? "few"
+      : uniqueExercises.length <= 20 ? "medium" : "many";
+    const guideColumns = guideDensity === "few" ? 3 : guideDensity === "medium" ? 4 : 5;
+    const guideRemainder = uniqueExercises.length % guideColumns;
     const totalExercises = plan.workouts.reduce((total, workout) => total + workout.exercises.length, 0);
     return `
       <section class="pdf-page full-plan">
@@ -284,7 +289,7 @@
             <div class="full-plan-content">
               <div class="area-title"><h2>Guia visual</h2><span>${uniqueExercises.length} exercício(s) sem repetição</span></div>
               <p class="placeholder-legend">Imagem padrão = mídia ainda não cadastrada</p>
-              <div class="guide-grid full-plan-guide">${uniqueExercises.length ? uniqueExercises.map(renderGuideItem).join("") : '<p class="empty-guide">Sem imagens para este plano.</p>'}</div>
+              <div class="guide-grid full-plan-guide guide-density-${guideDensity} guide-remainder-${guideRemainder}">${uniqueExercises.length ? uniqueExercises.map(renderGuideItem).join("") : '<p class="empty-guide">Sem imagens para este plano.</p>'}</div>
             </div>
           </aside>
         </main>
@@ -334,7 +339,7 @@
     return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${escapeHtml(options.baseUrl || "./")}"><title>${escapeHtml(title)}</title>
 <style>
-@page { size: A4 landscape; margin: 7mm; }
+@page { size: A4 landscape; margin: ${isFullPlan ? "4mm" : "7mm"}; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: #e8e8ec; color: #17131c; font-family: Arial, Helvetica, sans-serif; -webkit-print-color-adjust: economy; print-color-adjust: economy; }
 .pdf-page { width: 283mm; min-height: 196mm; margin: 7mm auto; padding: 6mm; background: #fff; border: 1px solid #8f8995; break-after: page; page-break-after: always; }
@@ -381,29 +386,30 @@ th:nth-child(5), td:nth-child(5) { width: 14%; }
 .visual-placeholder strong { font-size: 6.5pt; }
 .empty-guide { font-size: 8pt; text-align: center; }
 footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text-align: center; font-size: 6.3pt; color: #4d4652; }
-.full-plan { padding: 3mm; }
-.full-plan-layout { min-height: 188mm; gap: 8mm; }
-.full-plan-training, .full-plan-visual { height: 188mm; overflow: hidden; padding: 1.5mm; }
-.full-plan-content { width: calc(100% / var(--full-plan-zoom, 1)); zoom: var(--full-plan-zoom, 1); }
-.full-plan-header { padding: 1.2mm 1.5mm; margin-bottom: 1.2mm; }
-.full-plan-heading { display: flex; align-items: center; gap: 1.5mm; padding-bottom: .8mm; margin-bottom: .8mm; border-bottom: 1px solid #8f8995; }
+.full-plan { width: 289mm; height: 202mm; min-height: 202mm; margin: 4mm auto; padding: 2.5mm; overflow: hidden; }
+.full-plan-layout { height: 197mm; min-height: 197mm; gap: 6mm; }
+.full-plan-training, .full-plan-visual { height: 197mm; overflow: hidden; padding: 1.4mm; }
+.full-plan-content { width: 100%; height: 100%; }
+.full-plan-visual .full-plan-content { display: flex; flex-direction: column; }
+.full-plan-header { padding: 1mm 1.3mm; margin-bottom: 1mm; }
+.full-plan-heading { display: flex; align-items: center; gap: 1.3mm; padding-bottom: .6mm; margin-bottom: .6mm; border-bottom: 1px solid #8f8995; }
 .full-plan-header .brand-mark { width: 7mm; height: 7mm; font-size: 6pt; }
 .full-plan-header h1 { font-size: 8.5pt; }
 .full-plan-header h1 small { font-size: 6.5pt; font-weight: 700; letter-spacing: 0; }
-.full-plan-header dl { grid-template-columns: 1.15fr 1fr .65fr; gap: .45mm 2mm; }
+.full-plan-header dl { grid-template-columns: 1.15fr 1fr .65fr; gap: .3mm 1.8mm; }
 .full-plan-header dl .student-field { grid-column: span 1; }
 .full-plan-header dl .personal-field { grid-column: span 2; }
 .full-plan-header dt { display: inline; font-size: 4.8pt; }
 .full-plan-header dd { display: inline; font-size: 5.7pt; margin: 0 0 0 .6mm; }
-.full-plan-title { margin-bottom: .7mm; padding-bottom: .5mm; }
+.full-plan-title { margin-bottom: .55mm; padding-bottom: .4mm; }
 .full-plan-title h2 { font-size: 7pt; }
 .full-plan-title span { font-size: 5pt; }
-.full-workout-block { margin: 0 0 .8mm; break-inside: avoid; page-break-inside: avoid; }
+.full-workout-block { margin: 0 0 .65mm; break-inside: avoid; page-break-inside: avoid; }
 .full-workout-title { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; border: 1px solid #39333d; border-bottom: 0; padding: .55mm .8mm; color: #fff; background: #39333d; }
 .full-workout-title h3 { margin: 0; font-size: 6.2pt; text-transform: uppercase; }
 .full-workout-title span { font-size: 4.8pt; }
 .full-workout-table { font-size: 5.5pt; }
-.full-workout-table th, .full-workout-table td { padding: .45mm .5mm; line-height: 1.08; }
+.full-workout-table th, .full-workout-table td { padding: .42mm .48mm; line-height: 1.08; }
 .full-workout-table th { font-size: 4.5pt; }
 .full-workout-table th:first-child, .full-workout-table td:first-child { width: 48%; }
 .full-workout-table th:nth-child(2), .full-workout-table td:nth-child(2) { width: 10%; }
@@ -411,33 +417,41 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
 .full-workout-table th:nth-child(4), .full-workout-table td:nth-child(4) { width: 12%; }
 .full-workout-table th:nth-child(5), .full-workout-table td:nth-child(5) { width: 13%; }
 .full-workout-table .exercise-name b { font-size: 5.8pt; }
-.full-plan-visual .area-title { margin-bottom: 1mm; padding-bottom: .6mm; }
-.full-plan-visual .area-title h2 { font-size: 7pt; }
-.full-plan-visual .area-title span { font-size: 5pt; }
-.placeholder-legend { margin: -0.3mm 0 .8mm; font-size: 4.6pt; color: #4d4652; text-align: right; }
-.full-plan-guide { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .9mm; }
-.full-plan-guide .guide-item { padding: .5mm; }
-.full-plan-guide .guide-image { height: 18.5mm; }
-.full-plan-guide .guide-item figcaption { min-height: 4mm; margin-top: .35mm; padding: .4mm .2mm 0; font-size: 4.6pt; line-height: 1.05; }
+.full-plan-visual .area-title { margin-bottom: .6mm; padding-bottom: .5mm; }
+.full-plan-visual .area-title h2 { font-size: 8pt; }
+.full-plan-visual .area-title span { font-size: 5.5pt; }
+.placeholder-legend { margin: 0 0 .7mm; font-size: 4.8pt; color: #4d4652; text-align: right; }
+.full-plan-guide { flex: 1; min-height: 0; display: grid; gap: 1.2mm; align-content: stretch; }
+.full-plan-guide.guide-density-few { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.full-plan-guide.guide-density-medium { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.full-plan-guide.guide-density-many { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .9mm; }
+.full-plan-guide.guide-density-medium.guide-remainder-1 .guide-item:last-child { grid-column: 2 / span 2; }
+.full-plan-guide.guide-density-medium.guide-remainder-2 .guide-item:nth-last-child(-n + 2) { grid-column: span 2; }
+.full-plan-guide .guide-item { min-height: 0; display: flex; flex-direction: column; padding: .7mm; }
+.full-plan-guide .guide-image { flex: 1; min-height: 0; height: auto; }
+.full-plan-guide .guide-item figcaption { flex: 0 0 auto; min-height: 4.5mm; margin-top: .45mm; padding: .45mm .25mm 0; font-size: 5.2pt; line-height: 1.08; }
+.full-plan-guide.guide-density-few .guide-item figcaption { font-size: 5.8pt; }
+.full-plan-guide.guide-density-many .guide-item { padding: .45mm; }
+.full-plan-guide.guide-density-many .guide-item figcaption { min-height: 3.8mm; font-size: 4.5pt; }
 .full-plan-guide .visual-placeholder { padding: .4mm; gap: .2mm; font-size: 3.5pt; }
 .full-plan-guide .visual-placeholder strong { font-size: 3.8pt; }
-@media print { html, body { background: #fff; } .pdf-page { width: auto; min-height: 196mm; margin: 0; padding: 0; border: 0; } .fold-layout { min-height: 196mm; } }
+.full-plan-dense .full-workout-table { font-size: 5.2pt; }
+.full-plan-dense .full-workout-table th, .full-plan-dense .full-workout-table td { padding: .3mm .4mm; }
+.full-plan-extra-dense .full-workout-title { padding-top: .35mm; padding-bottom: .35mm; }
+.full-plan-extra-dense .full-workout-block { margin-bottom: .4mm; }
+@media print { html, body { width: 100%; height: 100%; background: #fff; } .pdf-page { margin: 0; border: 0; } .pdf-page:not(.full-plan) { width: auto; min-height: 196mm; padding: 0; } .pdf-page:not(.full-plan) .fold-layout { min-height: 196mm; } .full-plan { width: 289mm; height: 202mm; min-height: 202mm; padding: 2.5mm; } }
 </style></head><body>${isFullPlan ? renderFullPlanPage(plan) : pages.map((page) => renderPage(plan, page)).join("")}</body></html>`;
   }
 
   function fitFullPlanPages(documentRef) {
     [...documentRef.querySelectorAll(".full-plan")].forEach((page) => {
-      page.style.setProperty("--full-plan-zoom", "1");
-      const sides = [...page.querySelectorAll("[data-fit-side]")];
-      const overflowRatio = sides.reduce((largest, side) => {
+      page.classList.remove("full-plan-dense", "full-plan-extra-dense");
+      const hasOverflow = () => [...page.querySelectorAll("[data-fit-side]")].some((side) => {
         const content = side.querySelector(".full-plan-content");
-        if (!content || !side.clientHeight) return largest;
-        return Math.max(largest, content.scrollHeight / side.clientHeight);
-      }, 1);
-      if (overflowRatio > 1) {
-        const zoom = Math.max(0.78, Math.min(1, 0.985 / overflowRatio));
-        page.style.setProperty("--full-plan-zoom", zoom.toFixed(3));
-      }
+        return Boolean(content && side.clientHeight && content.scrollHeight > side.clientHeight + 1);
+      });
+      if (hasOverflow()) page.classList.add("full-plan-dense");
+      if (hasOverflow()) page.classList.add("full-plan-extra-dense");
     });
   }
 

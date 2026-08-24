@@ -134,8 +134,11 @@ assert.equal((fullPlanHtml.match(/<tr>\s*<td class="exercise-name"/g) || []).len
 assert.match(fullPlanHtml, /<dt>Página<\/dt><dd>1\/1<\/dd>/);
 assert.match(fullPlanHtml, /Plano completo - 5 treinos/);
 assert.match(fullPlanHtml, /<th>Exercício<\/th><th>Séries<\/th><th>Reps<\/th><th>Carga<\/th><th>Desc\.<\/th>/);
-assert.match(fullPlanHtml, /\.full-plan-guide \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-assert.match(fullPlanHtml, /\.full-plan-guide \.guide-image \{ height: 18\.5mm/);
+assert.match(fullPlanHtml, /@page \{ size: A4 landscape; margin: 4mm; \}/);
+assert.match(fullPlanHtml, /\.full-plan \{ width: 289mm; height: 202mm; min-height: 202mm/);
+assert.match(fullPlanHtml, /guide-grid full-plan-guide guide-density-many/);
+assert.match(fullPlanHtml, /\.full-plan-guide\.guide-density-many \{ grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(fullPlanHtml, /\.full-plan-guide \.guide-image \{ flex: 1; min-height: 0; height: auto; \}/);
 assert.match(fullPlanHtml, /\.full-workout-block \{[^}]*break-inside: avoid;[^}]*page-break-inside: avoid/);
 assert.equal((fullPlanHtml.match(/class="guide-item"/g) || []).length, 26);
 assert.equal((fullPlanHtml.match(/<figcaption>Agachamento compartilhado<\/figcaption>/g) || []).length, 1);
@@ -144,6 +147,44 @@ assert.doesNotMatch(fullPlanHtml, /Movimento controlado|Manter postura estável/
 for (let workoutIndex = 0; workoutIndex < 5; workoutIndex += 1) {
   assert.match(fullPlanHtml, new RegExp(`Treino ${String.fromCharCode(65 + workoutIndex)}`));
 }
+
+function buildDensityPlan(uniqueCount) {
+  const exercises = Array.from({ length: uniqueCount }, (_, index) => ({
+    id: `density-assignment-${uniqueCount}-${index}`,
+    libraryExerciseId: `density-library-${uniqueCount}-${index}`,
+    name: `Densidade ${index + 1}`,
+    sets: "3",
+    reps: "10",
+    load: "—",
+    rest: "60",
+    imageUrl: `assets/exercicios/imagens/density-${index + 1}.webp`
+  }));
+  return {
+    ...plan,
+    workouts: [
+      { id: "density-a", name: "Treino A", exercises: exercises.slice(0, Math.ceil(uniqueCount / 2)) },
+      { id: "density-b", name: "Treino B", exercises: exercises.slice(Math.ceil(uniqueCount / 2)) }
+    ]
+  };
+}
+
+const fewGuideHtml = pdf.renderDocument(buildDensityPlan(10));
+const currentGuideHtml = pdf.renderDocument(buildDensityPlan(13));
+const mediumGuideHtml = pdf.renderDocument(buildDensityPlan(18));
+const manyGuideHtml = pdf.renderDocument(buildDensityPlan(26));
+assert.match(fewGuideHtml, /guide-density-few/);
+assert.match(fewGuideHtml, /guide-density-few \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+assert.match(currentGuideHtml, /guide-density-medium guide-remainder-1/);
+assert.match(currentGuideHtml, /guide-remainder-1 \.guide-item:last-child \{ grid-column: 2 \/ span 2/);
+assert.match(mediumGuideHtml, /guide-density-medium/);
+assert.match(mediumGuideHtml, /guide-density-medium \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+assert.match(manyGuideHtml, /guide-density-many/);
+assert.equal((fewGuideHtml.match(/class="pdf-page full-plan"/g) || []).length, 1);
+assert.equal((currentGuideHtml.match(/class="pdf-page full-plan"/g) || []).length, 1);
+assert.equal((mediumGuideHtml.match(/class="pdf-page full-plan"/g) || []).length, 1);
+assert.equal((manyGuideHtml.match(/class="pdf-page full-plan"/g) || []).length, 1);
+assert.doesNotMatch(fullPlanHtml, /zoom:|transform:\s*scale/);
+assert.match(pdf.fitFullPlanPages.toString(), /full-plan-dense/);
 
 const planWithoutAnyImage = pdf.buildPlan({
   student,
