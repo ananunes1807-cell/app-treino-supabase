@@ -3997,19 +3997,84 @@ function clearExerciseLibraryForm(form = el.exerciseLibraryForm) {
   if (!form) return;
   form.reset();
   form.dataset.editId = "";
+  form.dataset.pendingUploads = "0";
+  form.querySelectorAll("[data-exercise-image-preview]").forEach((preview) => delete preview.dataset.localPreview);
+  form.querySelectorAll("[data-upload-status]").forEach((status) => {
+    status.textContent = "WEBP, PNG ou JPEG - até 2 MB";
+  });
   form.querySelector("button[type='submit']").textContent = "Salvar exercício";
+  form.querySelector("button[type='submit']").disabled = false;
   updateExerciseImagePreview(form);
 }
 
 function updateExerciseImagePreview(form) {
-  const preview = form?.querySelector("[data-exercise-image-preview]");
-  if (!preview) return;
-  const url = getExerciseMediaUrl(form.elements.image_url?.value, "image");
-  preview.innerHTML = `
-    <span>Prévia da imagem</span>
-    <img src="${escapeHtml(url || window.AlionExerciseMedia.PLACEHOLDER)}" alt="Prévia da imagem do exercício" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${window.AlionExerciseMedia.PLACEHOLDER}';" />
-    ${url ? `<button class="ghost-button" type="button" data-remove-exercise-image>Remover imagem</button>` : ""}
-  `;
+  const previews = [...(form?.querySelectorAll("[data-exercise-image-preview]") || [])];
+  previews.forEach((preview) => {
+    const field = preview.dataset.exerciseImagePreview || "image_url";
+    const localUrl = preview.dataset.localPreview || "";
+    const url = localUrl || getExerciseMediaUrl(form.elements[field]?.value, "image");
+    preview.innerHTML = `
+      <span>Prévia</span>
+      <img src="${escapeHtml(url || window.AlionExerciseMedia.PLACEHOLDER)}" alt="Prévia da imagem do exercício" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${window.AlionExerciseMedia.PLACEHOLDER}';" />
+      ${form.elements[field]?.value ? `<button class="ghost-button" type="button" data-remove-exercise-image="${escapeHtml(field)}">Remover imagem</button>` : ""}
+    `;
+  });
+}
+
+function setExerciseUploadPending(form, pending) {
+  const current = Number(form.dataset.pendingUploads || 0);
+  const next = Math.max(0, current + (pending ? 1 : -1));
+  form.dataset.pendingUploads = String(next);
+  const submit = form.querySelector("button[type='submit']");
+  if (submit) submit.disabled = next > 0;
+}
+
+async function uploadExerciseLibraryImage(form, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const variant = input.dataset.exerciseImageFile;
+  const card = input.closest("[data-image-variant]");
+  const status = card?.querySelector("[data-upload-status]");
+  const preview = card?.querySelector("[data-exercise-image-preview]");
+  let localPreview = "";
+  let pending = false;
+
+  try {
+    if (!isAuthenticatedAdminTi()) throw new Error("Somente o Admin legítimo pode enviar imagens.");
+    if (!window.AlionExerciseUpload) throw new Error("O módulo de upload de imagens não foi carregado.");
+    const exerciseName = String(form.elements.name?.value || "").trim();
+    window.AlionExerciseUpload.validateImageFile(file);
+    if (!exerciseName) throw new Error("Informe o nome do exercício antes de selecionar a imagem.");
+
+    localPreview = URL.createObjectURL(file);
+    if (preview) preview.dataset.localPreview = localPreview;
+    updateExerciseImagePreview(form);
+    if (status) status.textContent = "Enviando imagem...";
+    setExerciseUploadPending(form, true);
+    pending = true;
+
+    const result = await window.AlionExerciseUpload.uploadExerciseImage({
+      client: supabaseClient,
+      file,
+      exerciseName,
+      variant,
+      isAdmin: isAuthenticatedAdminTi()
+    });
+    form.elements[result.field].value = result.publicUrl;
+    if (preview) delete preview.dataset.localPreview;
+    updateExerciseImagePreview(form);
+    if (status) status.textContent = "Upload concluído. URL preenchida automaticamente.";
+    showToast("Imagem enviada com sucesso.");
+  } catch (error) {
+    if (preview) delete preview.dataset.localPreview;
+    updateExerciseImagePreview(form);
+    if (status) status.textContent = error.message || "Falha no upload.";
+    input.value = "";
+    showToast(error.message || "Não foi possível enviar a imagem.", "error");
+  } finally {
+    if (localPreview) URL.revokeObjectURL(localPreview);
+    if (pending) setExerciseUploadPending(form, false);
+  }
 }
 
 function updateAssessmentCalculatedFields(form) {
@@ -6422,10 +6487,17 @@ function bindEvents() {
       event.preventDefault();
       saveExerciseLibraryItem(event.currentTarget);
     });
-    form.elements.image_url?.addEventListener("input", () => updateExerciseImagePreview(form));
+    ["image_url", "image_url_masculino", "image_url_feminino"].forEach((field) => {
+      form.elements[field]?.addEventListener("input", () => updateExerciseImagePreview(form));
+    });
+    form.querySelectorAll("[data-exercise-image-file]").forEach((input) => {
+      input.addEventListener("change", () => uploadExerciseLibraryImage(form, input));
+    });
     form.addEventListener("click", (event) => {
-      if (!event.target.closest("[data-remove-exercise-image]")) return;
-      form.elements.image_url.value = "";
+      const removeButton = event.target.closest("[data-remove-exercise-image]");
+      if (!removeButton) return;
+      const field = removeButton.dataset.removeExerciseImage || "image_url";
+      if (form.elements[field]) form.elements[field].value = "";
       updateExerciseImagePreview(form);
     });
     updateExerciseImagePreview(form);

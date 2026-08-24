@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260823-workout-pdf-v50" />
+    <link rel="stylesheet" href="style.css?v=20260824-exercise-upload-v51" />
   </head>
   <body>
     <div class="app">
@@ -570,8 +570,8 @@
                       <input name="muscle_group" type="text" placeholder="Grupo muscular" />
                       <input name="equipment" type="text" placeholder="Equipamento" />
                       <input name="difficulty" type="text" placeholder="Dificuldade" />
-                      <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
                       <input name="video_url" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio.mp4" />
+                      <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
                       <input name="image_url_masculino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_m.webp" />
                       <input name="image_url_feminino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_f.webp" />
                       <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
@@ -675,14 +675,33 @@
                       <input name="muscle_group" type="text" placeholder="Grupo muscular" />
                       <input name="equipment" type="text" placeholder="Equipamento" />
                       <input name="difficulty" type="text" placeholder="Dificuldade" />
-                      <input name="image_url" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio.webp" />
                       <input name="video_url" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio.mp4" />
-                      <input name="image_url_masculino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_m.webp" />
-                      <input name="image_url_feminino" type="text" placeholder="assets/exercicios/imagens/nome-do-exercicio_f.webp" />
                       <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
                       <input name="video_url_feminino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_f.mp4" />
                     </div>
-                    <div class="exercise-image-preview" data-exercise-image-preview aria-live="polite"></div>
+                    <div class="exercise-upload-grid" aria-label="Imagens do exercício">
+                      <section class="exercise-upload-card" data-image-variant="default">
+                        <strong>Imagem padrão</strong>
+                        <label class="secondary-button file-picker">Selecionar imagem<input type="file" accept="image/webp,image/png,image/jpeg" data-exercise-image-file="default" /></label>
+                        <span class="upload-status" data-upload-status>WEBP, PNG ou JPEG - até 2 MB</span>
+                        <div class="exercise-image-preview" data-exercise-image-preview="image_url" aria-live="polite"></div>
+                        <label>URL<input name="image_url" type="text" placeholder="Preenchida automaticamente após o upload" /></label>
+                      </section>
+                      <section class="exercise-upload-card" data-image-variant="masculino">
+                        <strong>Imagem masculina</strong>
+                        <label class="secondary-button file-picker">Selecionar imagem<input type="file" accept="image/webp,image/png,image/jpeg" data-exercise-image-file="masculino" /></label>
+                        <span class="upload-status" data-upload-status>WEBP, PNG ou JPEG - até 2 MB</span>
+                        <div class="exercise-image-preview" data-exercise-image-preview="image_url_masculino" aria-live="polite"></div>
+                        <label>URL<input name="image_url_masculino" type="text" placeholder="Preenchida automaticamente após o upload" /></label>
+                      </section>
+                      <section class="exercise-upload-card" data-image-variant="feminino">
+                        <strong>Imagem feminina</strong>
+                        <label class="secondary-button file-picker">Selecionar imagem<input type="file" accept="image/webp,image/png,image/jpeg" data-exercise-image-file="feminino" /></label>
+                        <span class="upload-status" data-upload-status>WEBP, PNG ou JPEG - até 2 MB</span>
+                        <div class="exercise-image-preview" data-exercise-image-preview="image_url_feminino" aria-live="polite"></div>
+                        <label>URL<input name="image_url_feminino" type="text" placeholder="Preenchida automaticamente após o upload" /></label>
+                      </section>
+                    </div>
                     <textarea name="instructions" rows="3" placeholder="Instru&ccedil;&otilde;es simples"></textarea>
                     <textarea name="observations" rows="2" placeholder="Observa&ccedil;&otilde;es adicionais"></textarea>
                     <textarea name="posture" rows="2" placeholder="Postura"></textarea>
@@ -775,10 +794,11 @@
     <script src="modules/workout-rotation.js?v=20260727-easy-v45"></script>
     <script src="modules/easy-workout-flow.js?v=20260727-experience-v46"></script>
     <script src="modules/exercise-media.js?v=20260823-workout-pdf-v50"></script>
+    <script src="modules/exercise-upload.js?v=20260824-exercise-upload-v51"></script>
     <script src="modules/workout-pdf.js?v=20260823-workout-pdf-v50"></script>
     <script src="modules/trainer-data-rules.js?v=20260728-trainer-fixes"></script>
     <script src="supabase.js?v=20260727-security-v44"></script>
-    <script src="app.js?v=20260823-workout-pdf-v50"></script>
+    <script src="app.js?v=20260824-exercise-upload-v51"></script>
     <script src="modules/pwa.js?v=20260823-core-security-v49"></script>
   </body>
 </html>
