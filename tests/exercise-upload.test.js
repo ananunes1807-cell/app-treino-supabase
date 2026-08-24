@@ -59,15 +59,15 @@ test("interface, compatibilidade e policies usam a estrutura segura", () => {
   const app = read("app.js");
   const media = read("modules/exercise-media.js");
   const migration = read("supabase/migrations/20260824000100_exercise_media_storage.sql");
-  assert.equal((index.match(/data-exercise-image-file=/g) || []).length, 3);
-  assert.match(index, /data-exercise-image-file="default"/);
+  assert.equal((index.match(/data-exercise-image-file=/g) || []).length, 2);
+  assert.doesNotMatch(index, /data-exercise-image-file="default"/);
   assert.match(index, /data-exercise-image-file="masculino"/);
   assert.match(index, /data-exercise-image-file="feminino"/);
   assert.match(app, /URL\.createObjectURL\(file\)/);
   assert.match(app, /form\.elements\[result\.field\]\.value = result\.publicUrl/);
   assert.match(app, /isAuthenticatedAdminTi\(\)/);
   assert.match(media, /assets\/exercicios\/\$\{folder\}/);
-  assert.match(media, /return PLACEHOLDER/);
+  assert.match(media, /\|\| PLACEHOLDER/);
   assert.match(migration, /public\.is_current_admin_ti\(\)/);
   assert.match(migration, /file_size_limit/);
   assert.match(migration, /image\/webp/);

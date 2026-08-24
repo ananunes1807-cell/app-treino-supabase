@@ -47,27 +47,80 @@
     return "";
   }
 
-  function selectExerciseImage(exercise, gender, options = {}) {
-    const normalizedGender = normalizeGender(gender);
-    const allowOppositeFallback = options.allowOppositeFallback !== false;
-    let fields;
-
-    if (normalizedGender === "masculino") {
-      fields = ["image_url_masculino", "image_url"];
-      if (allowOppositeFallback) fields.push("image_url_feminino");
-    } else if (normalizedGender === "feminino") {
-      fields = ["image_url_feminino", "image_url"];
-      if (allowOppositeFallback) fields.push("image_url_masculino");
-    } else {
-      fields = ["image_url", "image_url_masculino", "image_url_feminino"];
-    }
-
-    for (const field of fields) {
-      const url = safeUrl(exercise?.[field], "image");
-      if (url) return url;
-    }
-    return PLACEHOLDER;
+  function normalizeCharacterPreference(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["masculine", "masculino"].includes(normalized)) return "masculine";
+    if (["feminine", "feminino"].includes(normalized)) return "feminine";
+    if (["random", "aleatorio", "aleatório"].includes(normalized)) return "random";
+    return "";
   }
 
-  return { PLACEHOLDER, instructionParts, isAllowedUrl, normalizeGender, safeUrl, selectExerciseImage };
+  function resolveCharacterPreference(preference, gender) {
+    const explicit = normalizeCharacterPreference(preference);
+    if (explicit) return explicit;
+    const normalizedGender = normalizeGender(gender);
+    if (normalizedGender === "masculino") return "masculine";
+    if (normalizedGender === "feminino") return "feminine";
+    return "random";
+  }
+
+  function stableHash(value) {
+    let hash = 2166136261;
+    for (const character of String(value || "")) {
+      hash ^= character.codePointAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function getStableCharacterVariant(studentId, exerciseId) {
+    return stableHash(`${studentId || "student"}:${exerciseId || "exercise"}`) % 2 === 0
+      ? "masculine"
+      : "feminine";
+  }
+
+  function resolveExerciseImage({ exercise, preference, gender, studentId, exerciseId } = {}) {
+    const resolvedPreference = resolveCharacterPreference(preference, gender);
+    const masculine = safeUrl(exercise?.image_url_masculino, "image");
+    const feminine = safeUrl(exercise?.image_url_feminino, "image");
+    const legacy = safeUrl(exercise?.image_url, "image");
+    let candidates;
+
+    if (resolvedPreference === "masculine") {
+      candidates = [masculine, feminine, legacy];
+    } else if (resolvedPreference === "feminine") {
+      candidates = [feminine, masculine, legacy];
+    } else if (masculine && feminine) {
+      const stableVariant = getStableCharacterVariant(studentId, exerciseId || exercise?.id);
+      candidates = stableVariant === "masculine" ? [masculine, feminine, legacy] : [feminine, masculine, legacy];
+    } else {
+      candidates = [masculine, feminine, legacy];
+    }
+
+    return candidates.find(Boolean) || PLACEHOLDER;
+  }
+
+  function selectExerciseImage(exercise, gender, options = {}) {
+    return resolveExerciseImage({
+      exercise,
+      preference: options.preference || gender,
+      gender: options.gender || gender,
+      studentId: options.studentId,
+      exerciseId: options.exerciseId || exercise?.id
+    });
+  }
+
+  return {
+    PLACEHOLDER,
+    getStableCharacterVariant,
+    instructionParts,
+    isAllowedUrl,
+    normalizeCharacterPreference,
+    normalizeGender,
+    resolveCharacterPreference,
+    resolveExerciseImage,
+    safeUrl,
+    selectExerciseImage,
+    stableHash
+  };
 });

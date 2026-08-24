@@ -125,6 +125,7 @@ const el = {
   studentPdfControls: document.querySelector("#student-pdf-controls"),
   studentPdfWorkoutSelect: document.querySelector("#student-pdf-workout-select"),
   studentDownloadWorkoutPdf: document.querySelector("#student-download-workout-pdf"),
+  studentCharacterPreferenceForm: document.querySelector("#student-character-preference-form"),
   studentCurrentWorkout: document.querySelector("#student-current-workout"),
   studentHistory: document.querySelector("#student-history"),
   studentEvolution: document.querySelector("#student-evolution"),
@@ -552,6 +553,7 @@ function renderStudentArea() {
   updateStudentModeUi();
   clearStudentAreaContainers();
   renderStudentPdfControls();
+  renderStudentCharacterPreference();
 
   if (!state.studentAreaId) {
     el.studentCurrentWorkout.innerHTML = emptyMessage("Selecione um aluno para visualizar o treino atual.");
@@ -654,6 +656,42 @@ function getNextWorkout(studentId, currentWorkoutId) {
 function getPendingWorkoutLogs() {
   if (!state.authUser?.id) return [];
   return readLocalJson(`${PENDING_WORKOUT_LOGS_KEY}:${state.authUser.id}`, []);
+}
+
+function renderStudentCharacterPreference() {
+  const form = el.studentCharacterPreferenceForm;
+  if (!form) return;
+  const student = getStudentForExerciseMedia(state.studentAreaId);
+  const canEditOwnPreference = isStudent()
+    && String(state.authProfile?.student_id || "") === String(student?.id || "");
+  form.classList.toggle("hidden", !canEditOwnPreference);
+  if (!canEditOwnPreference) return;
+  const preference = getStudentCharacterPreference(student);
+  const input = form.querySelector(`input[name="preference"][value="${preference}"]`);
+  if (input) input.checked = true;
+}
+
+async function saveStudentCharacterPreference(form) {
+  const preference = new FormData(form).get("preference");
+  if (!window.AlionExerciseMedia?.normalizeCharacterPreference(preference)) {
+    showToast("Escolha Masculino, Feminino ou Aleatório.", "error");
+    return;
+  }
+  setFormLoading(form, true);
+  try {
+    const { data, error } = await supabaseClient.rpc("update_my_exercise_character_preference", {
+      selected_preference: preference
+    });
+    if (error) throw error;
+    const student = getStudentForExerciseMedia(state.studentAreaId);
+    if (student) student.exercise_character_preference = data || preference;
+    showToast("Preferência visual atualizada.");
+    renderStudentArea();
+  } catch (error) {
+    showToast(`Não foi possível salvar a preferência: ${error.message}`, "error");
+  } finally {
+    setFormLoading(form, false);
+  }
 }
 
 function savePendingWorkoutLogs(logs) {
@@ -1237,14 +1275,29 @@ function getStudentForExerciseMedia(studentId = state.studentAreaId || state.sel
   return state.students.find((student) => String(student.id) === String(studentId)) || null;
 }
 
-function chooseExerciseMediaVariant(student) {
-  const gender = normalizeStudentGender(student);
-  if (gender === "masculino" || gender === "feminino") return gender;
-  return Math.random() < 0.5 ? "masculino" : "feminino";
+function getStudentCharacterPreference(student) {
+  return window.AlionExerciseMedia?.resolveCharacterPreference(
+    pick(student, ["exercise_character_preference"], ""),
+    pick(student, ["genero", "gender"], "")
+  ) || "random";
 }
 
 function getExerciseMediaByGender(exercise, student, type = "image") {
-  const variant = chooseExerciseMediaVariant(student);
+  if (type === "image") {
+    return window.AlionExerciseMedia?.resolveExerciseImage({
+      exercise,
+      preference: pick(student, ["exercise_character_preference"], ""),
+      gender: pick(student, ["genero", "gender"], ""),
+      studentId: student?.id,
+      exerciseId: exercise?.id
+    }) || window.AlionExerciseMedia?.PLACEHOLDER || "";
+  }
+
+  const preference = getStudentCharacterPreference(student);
+  const stableVariant = preference === "random"
+    ? window.AlionExerciseMedia?.getStableCharacterVariant(student?.id, exercise?.id)
+    : preference;
+  const variant = stableVariant === "masculine" ? "masculino" : "feminino";
   const genderField = type === "video"
     ? (variant === "masculino" ? "video_url_masculino" : "video_url_feminino")
     : (variant === "masculino" ? "image_url_masculino" : "image_url_feminino");
@@ -6429,6 +6482,10 @@ function bindEvents() {
   });
   el.studentDownloadWorkoutPdf?.addEventListener("click", () => {
     generateWorkoutPdf(state.studentAreaId, state.studentPdfWorkoutId);
+  });
+  el.studentCharacterPreferenceForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveStudentCharacterPreference(event.currentTarget);
   });
 
   el.studentModeToggle?.addEventListener("click", (event) => {

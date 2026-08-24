@@ -11,7 +11,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-    <link rel="stylesheet" href="style.css?v=20260824-exercise-upload-v51" />
+    <link rel="stylesheet" href="style.css?v=20260824-character-preference-v52" />
   </head>
   <body>
     <div class="app">
@@ -199,6 +199,17 @@
                 </button>
                 <small>Na tela de impressão, escolha “Salvar como PDF”.</small>
               </div>
+              <form class="character-preference-card" id="student-character-preference-form">
+                <strong>Representação dos personagens</strong>
+                <span>Como você prefere visualizar os personagens dos exercícios?</span>
+                <div class="character-preference-options">
+                  <label><input type="radio" name="preference" value="masculine" /> Masculino</label>
+                  <label><input type="radio" name="preference" value="feminine" /> Feminino</label>
+                  <label><input type="radio" name="preference" value="random" /> Aleatório</label>
+                </div>
+                <small>Essa escolha altera apenas as imagens dos exercícios.</small>
+                <button class="secondary-button" type="submit">Salvar preferência</button>
+              </form>
               <div class="list" id="student-current-workout"></div>
               <button class="primary-button full-width" type="button" id="complete-workout-button">
                 Finalizar treino completo
@@ -679,14 +690,8 @@
                       <input name="video_url_masculino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_m.mp4" />
                       <input name="video_url_feminino" type="text" placeholder="assets/exercicios/videos/nome-do-exercicio_f.mp4" />
                     </div>
+                    <input name="image_url" type="hidden" />
                     <div class="exercise-upload-grid" aria-label="Imagens do exercício">
-                      <section class="exercise-upload-card" data-image-variant="default">
-                        <strong>Imagem padrão</strong>
-                        <label class="secondary-button file-picker">Selecionar imagem<input type="file" accept="image/webp,image/png,image/jpeg" data-exercise-image-file="default" /></label>
-                        <span class="upload-status" data-upload-status>WEBP, PNG ou JPEG - até 2 MB</span>
-                        <div class="exercise-image-preview" data-exercise-image-preview="image_url" aria-live="polite"></div>
-                        <label>URL<input name="image_url" type="text" placeholder="Preenchida automaticamente após o upload" /></label>
-                      </section>
                       <section class="exercise-upload-card" data-image-variant="masculino">
                         <strong>Imagem masculina</strong>
                         <label class="secondary-button file-picker">Selecionar imagem<input type="file" accept="image/webp,image/png,image/jpeg" data-exercise-image-file="masculino" /></label>
@@ -793,12 +798,12 @@
     <script src="modules/accessibility.js?v=20260727-a11y-v44"></script>
     <script src="modules/workout-rotation.js?v=20260727-easy-v45"></script>
     <script src="modules/easy-workout-flow.js?v=20260727-experience-v46"></script>
-    <script src="modules/exercise-media.js?v=20260823-workout-pdf-v50"></script>
+    <script src="modules/exercise-media.js?v=20260824-character-preference-v52"></script>
     <script src="modules/exercise-upload.js?v=20260824-exercise-upload-v51"></script>
-    <script src="modules/workout-pdf.js?v=20260823-workout-pdf-v50"></script>
+    <script src="modules/workout-pdf.js?v=20260824-character-preference-v52"></script>
     <script src="modules/trainer-data-rules.js?v=20260728-trainer-fixes"></script>
     <script src="supabase.js?v=20260727-security-v44"></script>
-    <script src="app.js?v=20260824-exercise-upload-v51"></script>
+    <script src="app.js?v=20260824-character-preference-v52"></script>
     <script src="modules/pwa.js?v=20260823-core-security-v49"></script>
   </body>
 </html>

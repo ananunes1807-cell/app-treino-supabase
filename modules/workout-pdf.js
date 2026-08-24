@@ -89,14 +89,19 @@
     )) || null;
   }
 
-  function buildExercise(item, libraryExercise, gender, selectExerciseImage) {
+  function buildExercise(item, libraryExercise, mediaContext, selectExerciseImage) {
     const source = libraryExercise || item || {};
     const name = cleanText(
       pick(libraryExercise, ["name", "title", "nome"], pick(item, ["exercise_name", "name", "nome"], "Exercício")),
       "Exercício"
     );
     const imageUrl = typeof selectExerciseImage === "function"
-      ? cleanText(selectExerciseImage(source, gender))
+      ? cleanText(selectExerciseImage(source, mediaContext.preference || mediaContext.gender, {
+        preference: mediaContext.preference,
+        gender: mediaContext.gender,
+        studentId: mediaContext.studentId,
+        exerciseId: libraryExercise?.id || item?.exercise_id
+      }))
       : cleanText(pick(source, ["image_url", "image_url_masculino", "image_url_feminino"], ""));
 
     return {
@@ -123,14 +128,18 @@
     selectExerciseImage
   }) {
     if (!student?.id) throw new Error("Aluno inválido para geração da ficha.");
-    const gender = pick(student, ["genero", "gender", "sexo", "avatar_gender"], "");
+    const mediaContext = {
+      gender: pick(student, ["genero", "gender", "sexo", "avatar_gender"], ""),
+      preference: pick(student, ["exercise_character_preference"], ""),
+      studentId: student.id
+    };
     const planWorkouts = (workouts || []).map((workout) => {
       const items = sortByStableOrder((workoutExercises || []).filter((item) => (
         String(item.workout_id) === String(workout.id)
       ))).map((item) => buildExercise(
         item,
         findLibraryExercise(item, exerciseLibrary),
-        gender,
+        mediaContext,
         selectExerciseImage
       ));
 
