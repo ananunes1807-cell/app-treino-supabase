@@ -145,18 +145,20 @@
 
       return {
         id: cleanText(workout.id),
-        name: cleanText(pick(workout, ["title", "name", "nome"], "Treino"), "Treino"),
-        objective: cleanText(pick(workout, ["goal", "objective", "objetivo"], "")),
-        notes: cleanText(pick(workout, ["notes", "instructions", "description"], "")),
+        name: cleanText(pick(workout, ["name", "title", "nome"], "Treino"), "Treino"),
+        objective: cleanText(pick(workout, ["objective", "goal", "description", "objetivo"], "")),
+        notes: cleanText(pick(workout, ["notes"], "")),
         exercises: items
       };
     });
 
+    const studentObjective = cleanText(pick(student, ["objective", "objetivo"], ""));
     return {
       studentId: String(student.id),
       studentName: cleanText(pick(student, ["name", "full_name", "nome"], "Aluno"), "Aluno"),
       personalName: cleanText(personalName, "Personal responsável"),
-      objective: cleanText(pick(student, ["objective", "objetivo"], planWorkouts[0]?.objective || "")),
+      studentObjective,
+      objective: studentObjective,
       generatedAt: generatedAt instanceof Date ? generatedAt.toISOString() : cleanText(generatedAt),
       workouts: planWorkouts
     };
@@ -250,6 +252,7 @@
     return `
       <section class="full-workout-block">
         <div class="full-workout-title"><h3>${workoutIndex + 1}. ${escapeHtml(workout.name)}</h3><span>${workout.exercises.length} exercício(s)</span></div>
+        <p class="full-workout-meta"><b>Objetivo:</b> ${escapeHtml(workout.objective || "Não informado")}${workout.notes ? ` <b>Observações:</b> ${escapeHtml(workout.notes)}` : ""}</p>
         <table class="full-workout-table">
           <thead><tr><th>Exercício</th><th>Séries</th><th>Reps</th><th>Carga</th><th>Desc.</th></tr></thead>
           <tbody>${workout.exercises.length ? workout.exercises.map(renderCompactExerciseRow).join("") : '<tr><td colspan="5">Nenhum exercício cadastrado neste treino.</td></tr>'}</tbody>
@@ -276,7 +279,7 @@
                 <dl>
                   <div class="student-field"><dt>Aluno</dt><dd>${escapeHtml(plan.studentName)}</dd></div>
                   <div class="personal-field"><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
-                  <div><dt>Objetivo</dt><dd>${escapeHtml(plan.objective || "Não informado")}</dd></div>
+                  <div><dt>Objetivo geral</dt><dd>${escapeHtml(plan.studentObjective || plan.objective || "Não informado")}</dd></div>
                   <div><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
                   <div><dt>Página</dt><dd>1/1</dd></div>
                 </dl>
@@ -311,7 +314,7 @@
                 <div><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
                 <div><dt>Página</dt><dd>${page.pageNumber}/${page.totalPages}</dd></div>
                 <div class="full-field"><dt>Treino</dt><dd>${escapeHtml(page.workout.name)}${escapeHtml(subtitle)}</dd></div>
-                <div class="full-field"><dt>Objetivo</dt><dd>${escapeHtml(page.workout.objective || plan.objective || "Não informado")}</dd></div>
+                <div class="full-field"><dt>Objetivo do treino</dt><dd>${escapeHtml(page.workout.objective || "Não informado")}</dd></div>
                 <div class="full-field"><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
               </dl>
             </header>
@@ -408,6 +411,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
 .full-workout-title { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; border: 1px solid #39333d; border-bottom: 0; padding: .55mm .8mm; color: #fff; background: #39333d; }
 .full-workout-title h3 { margin: 0; font-size: 6.2pt; text-transform: uppercase; }
 .full-workout-title span { font-size: 4.8pt; }
+.full-workout-meta { margin: 0; border: 1px solid #77717b; border-bottom: 0; padding: .35mm .55mm; font-size: 4.8pt; line-height: 1.08; overflow-wrap: anywhere; }
 .full-workout-table { font-size: 5.5pt; }
 .full-workout-table th, .full-workout-table td { padding: .42mm .48mm; line-height: 1.08; }
 .full-workout-table th { font-size: 4.5pt; }
@@ -438,6 +442,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
 .full-plan-dense .full-workout-table { font-size: 5.2pt; }
 .full-plan-dense .full-workout-table th, .full-plan-dense .full-workout-table td { padding: .3mm .4mm; }
 .full-plan-extra-dense .full-workout-title { padding-top: .35mm; padding-bottom: .35mm; }
+.full-plan-extra-dense .full-workout-meta { padding-top: .2mm; padding-bottom: .2mm; font-size: 4.4pt; }
 .full-plan-extra-dense .full-workout-block { margin-bottom: .4mm; }
 @media print { html, body { width: 100%; height: 100%; background: #fff; } .pdf-page { margin: 0; border: 0; } .pdf-page:not(.full-plan) { width: auto; min-height: 196mm; padding: 0; } .pdf-page:not(.full-plan) .fold-layout { min-height: 196mm; } .full-plan { width: 289mm; height: 202mm; min-height: 202mm; padding: 2.5mm; } }
 </style></head><body>${isFullPlan ? renderFullPlanPage(plan) : pages.map((page) => renderPage(plan, page)).join("")}</body></html>`;

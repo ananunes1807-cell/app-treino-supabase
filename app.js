@@ -221,6 +221,26 @@ function pick(record, keys, fallback = "") {
   return fallback;
 }
 
+function getWorkoutName(workout, fallback = "") {
+  return window.AlionWorkoutData.getWorkoutName(workout, fallback);
+}
+
+function getWorkoutObjective(workout, fallback = "") {
+  return window.AlionWorkoutData.getWorkoutObjective(workout, fallback);
+}
+
+function getWorkoutNotes(workout, fallback = "") {
+  return window.AlionWorkoutData.getWorkoutNotes(workout, fallback);
+}
+
+function buildWorkoutFields(fields) {
+  return window.AlionWorkoutData.buildWorkoutFields(fields);
+}
+
+function assertPersistedWorkout(result, expectedFields, fallbackMessage) {
+  return window.AlionWorkoutData.assertPersistedWorkout(result, expectedFields, fallbackMessage);
+}
+
 /**
  * Escapa textos vindos do banco antes de montar HTML.
  */
@@ -720,8 +740,8 @@ function renderEasyWorkoutCelebration(todayLog, nextWorkout) {
       <h2>Parabéns!</h2>
       <strong>Treino concluído por hoje.</strong>
       <p>Seu progresso foi salvo.</p>
-      <small>Treino realizado: ${escapeHtml(pick(completedWorkout, ["title", "name", "nome"], "Treino"))}</small>
-      <span>Próximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Aguardando novo treino"))}.</span>
+      <small>Treino realizado: ${escapeHtml(getWorkoutName(completedWorkout, "Treino"))}</small>
+      <span>Próximo treino: ${escapeHtml(getWorkoutName(nextWorkout, "Aguardando novo treino"))}.</span>
     </article>
   `;
 }
@@ -731,7 +751,8 @@ function renderEasyStudentWorkout(workout, logs) {
   const exercises = getWorkoutExercisesInStableOrder(workout.id);
   const nextWorkout = getNextWorkout(state.studentAreaId, workout.id);
   const lastLog = logs[0];
-  const personalNotes = pick(workout, ["notes", "instructions", "description"], "");
+  const workoutObjective = getWorkoutObjective(workout, "Objetivo não informado");
+  const personalNotes = getWorkoutNotes(workout, "");
   const summary = getWorkoutExecutionSummary(workout.id);
   const progressPercent = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
   const exerciseIds = exercises.map((item) => String(item.id));
@@ -753,10 +774,11 @@ function renderEasyStudentWorkout(workout, logs) {
     <article class="easy-summary-card">
       <span class="student-sync-status ${syncStatus.className}" role="status">● ${escapeHtml(syncStatus.label)}</span>
       <small>${escapeHtml(pick(student, ["name", "nome"], "Aluno"))}</small>
-      <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino de hoje"))}</strong>
-      <span>Próximo treino: ${escapeHtml(pick(nextWorkout, ["title", "name", "nome"], "Não informado"))}</span>
+      <strong>${escapeHtml(getWorkoutName(workout, "Treino de hoje"))}</strong>
+      <span>Objetivo: ${escapeHtml(workoutObjective)}</span>
+      <span>Próximo treino: ${escapeHtml(getWorkoutName(nextWorkout, "Não informado"))}</span>
       <span>Último treino feito: ${escapeHtml(lastLog ? formatDate(pick(lastLog, ["completed_at", "created_at"], "")) : "Ainda não registrado")}</span>
-      ${personalNotes ? `<small>Aviso do personal: ${escapeHtml(personalNotes)}</small>` : ""}
+      ${personalNotes ? `<small>Observações do treino: ${escapeHtml(personalNotes)}</small>` : ""}
       ${summary.total ? `
         <div class="workout-progress">
           <div class="workout-progress-label">
@@ -925,13 +947,15 @@ function renderWorkoutWithExercises(workout) {
   const safeIndex = Math.min(Math.max(state.studentExerciseIndex, 0), Math.max(exercises.length - 1, 0));
   state.studentExerciseIndex = safeIndex;
   const currentExercise = exercises[safeIndex];
+  const workoutNotes = getWorkoutNotes(workout, "");
 
   return `
     <article class="list-item workout-highlight student-workout-start">
       <div>
         <small>Treino do dia</small>
-        <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
-        <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo não informado"))}</span>
+        <strong>${escapeHtml(getWorkoutName(workout, "Treino sem nome"))}</strong>
+        <span>Objetivo: ${escapeHtml(getWorkoutObjective(workout, "Objetivo não informado"))}</span>
+        ${workoutNotes ? `<small>Observações: ${escapeHtml(workoutNotes)}</small>` : ""}
       </div>
     </article>
     ${exercises.length ? renderStudentExerciseStep(currentExercise, safeIndex, exercises.length) : emptyMessage("Este treino ainda não possui exercícios.")}
@@ -1074,7 +1098,7 @@ function renderWorkoutLogItem(log) {
 
   return `
     <article class="history-card">
-      <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</strong>
+      <strong>${escapeHtml(getWorkoutName(workout, "Treino"))}</strong>
       <span>Concluído em ${formatDate(pick(log, ["completed_at", "created_at"]))}</span>
       ${snapshot.length ? `<div class="history-exercises"><b>Exercícios:</b>${snapshot.map(renderSnapshotExerciseItem).join("")}</div>` : `<small>Nenhum exercício salvo neste histórico.</small>`}
     </article>
@@ -1465,7 +1489,7 @@ function renderWorkoutPdfSelect(select, workouts, selectedValue) {
   const options = [
     `<option value="all">Plano completo (${workouts.length} treino${workouts.length === 1 ? "" : "s"})</option>`,
     ...workouts.map((workout) => (
-      `<option value="${escapeHtml(workout.id)}">${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</option>`
+      `<option value="${escapeHtml(workout.id)}">${escapeHtml(getWorkoutName(workout, "Treino"))}</option>`
     ))
   ];
   select.innerHTML = options.join("");
@@ -1586,11 +1610,13 @@ function renderMeasurementItem(measurement) {
  * Renderiza um treino simples.
  */
 function renderWorkoutItem(workout) {
+  const workoutNotes = getWorkoutNotes(workout, "");
   return `
     <article class="list-item">
       <div>
-        <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
-        <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo não informado"))}</span>
+        <strong>${escapeHtml(getWorkoutName(workout, "Treino sem nome"))}</strong>
+        <span>Objetivo: ${escapeHtml(getWorkoutObjective(workout, "Objetivo não informado"))}</span>
+        ${workoutNotes ? `<small>Observações: ${escapeHtml(workoutNotes)}</small>` : ""}
         <small>Criado em ${formatDate(pick(workout, ["created_at", "start_date"]))}</small>
       </div>
     </article>
@@ -1602,7 +1628,7 @@ function renderWorkoutItem(workout) {
  */
 function renderTrainerWorkoutSelect(workouts) {
   el.trainerWorkoutSelect.innerHTML = workouts.length
-    ? workouts.map((workout) => `<option value="${escapeHtml(workout.id)}">${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}</option>`).join("")
+    ? workouts.map((workout) => `<option value="${escapeHtml(workout.id)}">${escapeHtml(getWorkoutName(workout, "Treino"))}</option>`).join("")
     : `<option value="">Crie um treino primeiro</option>`;
 
   if (state.selectedWorkoutId && workouts.some((workout) => String(workout.id) === String(state.selectedWorkoutId))) {
@@ -2275,17 +2301,22 @@ async function createWorkoutLegacy(form) {
   }
 
   const formData = new FormData(form);
+  const workoutName = String(getFormValue(formData, ["name", "title"]) || "").trim();
+  const workoutInput = {
+    name: workoutName,
+    objective: getFormValue(formData, ["objective", "goal"]),
+    notes: formData.get("notes")
+  };
   const payload = {
     student_id: state.selectedStudentId,
-    title: formData.get("title"),
-    goal: formData.get("goal") || null,
-    notes: formData.get("notes") || null,
+    ...buildWorkoutFields(workoutInput),
     status: "ativo"
   };
 
   try {
     const created = await insertWithSchemaFallback("workouts", payload, "Erro ao criar treino");
-    state.selectedWorkoutId = created[0]?.id || "";
+    const savedWorkout = assertPersistedWorkout(created, workoutInput, "Erro ao criar treino");
+    state.selectedWorkoutId = savedWorkout.id || "";
     form.reset();
     showToast("Treino criado com sucesso.");
     await loadSupabaseData();
@@ -2337,45 +2368,20 @@ async function insertWorkoutExerciseWithFallback(payload) {
 }
 
 /**
- * Remove automaticamente colunas que não existem no schema real e tenta inserir novamente.
+ * Adapta apenas aliases legados. Campos canonicos protegidos nunca sao descartados.
  */
 async function insertWithSchemaFallback(tableName, payload, fallbackMessage) {
-  let currentPayload = { ...payload };
-  const maxAttempts = Object.keys(currentPayload).length + 2;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
+  return window.AlionWorkoutData.runWithSchemaFallback({
+    tableName,
+    payload,
+    fallbackMessage,
+    execute: async (currentPayload) => {
       if (["app_profiles", "profiles", "student_invites", "trainer_students", "students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
         console.info(`[Alion Treinos] Salvando registro em ${tableName}.`);
       }
       return await runQuery(supabaseClient.from(tableName).insert(currentPayload).select(), fallbackMessage);
-    } catch (error) {
-      const missingColumn = getMissingColumnFromError(error.message);
-
-      if (!missingColumn || !(missingColumn in currentPayload)) {
-        throw error;
-      }
-
-      const { [missingColumn]: _removed, ...nextPayload } = currentPayload;
-      currentPayload = nextPayload;
     }
-  }
-
-  throw new Error(`${fallbackMessage}: não foi possível adaptar o payload ao schema.`);
-}
-
-/**
- * Extrai o nome de coluna ausente das mensagens do PostgREST.
- */
-function getMissingColumnFromError(message) {
-  const text = String(message);
-  const quotedMatch = text.match(/'([^']+)' column/);
-  if (quotedMatch) return quotedMatch[1];
-
-  const columnMatch = text.match(/column [^.]+\.([a-zA-Z0-9_]+) does not exist/);
-  if (columnMatch) return columnMatch[1];
-
-  return "";
+  });
 }
 
 async function insertWorkoutLog(payload) {
@@ -3829,13 +3835,15 @@ function renderWorkoutItem(workout) {
   const exercises = getWorkoutExercises(workout.id);
   const status = pick(workout, ["status"], "ativo");
   const hasLogs = workoutHasLogs(workout.id);
+  const workoutNotes = getWorkoutNotes(workout, "");
 
   return `
     <article class="workout-card" data-workout-id="${escapeHtml(workout.id)}">
       <div class="record-title">
         <div>
-          <strong>${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino sem nome"))}</strong>
-          <span>${escapeHtml(pick(workout, ["goal", "description", "notes"], "Objetivo nao informado"))}</span>
+          <strong>${escapeHtml(getWorkoutName(workout, "Treino sem nome"))}</strong>
+          <span>Objetivo: ${escapeHtml(getWorkoutObjective(workout, "Objetivo nao informado"))}</span>
+          ${workoutNotes ? `<small>Observações: ${escapeHtml(workoutNotes)}</small>` : ""}
           <small>Status: ${escapeHtml(formatWorkoutStatus(status))}${hasLogs ? " | possui histórico" : ""}</small>
           <small>Criado em ${formatDate(pick(workout, ["created_at", "start_date"]))}</small>
         </div>
@@ -4411,46 +4419,53 @@ async function createWorkout(form) {
   }
 
   const editId = form.dataset.editId;
+  const workoutInput = {
+    name: workoutName,
+    objective: getFormValue(formData, ["objective", "goal"]),
+    notes: formData.get("notes")
+  };
+  const workoutFields = buildWorkoutFields(workoutInput);
   setFormLoading(form, true);
 
   try {
-    const responsibleProfile = (isTrainer() || isAdmin())
-      ? await fetchAppProfileByUserId(state.authUser?.id)
-      : null;
-    const responsibleProfileId = responsibleProfile?.id || null;
-
-    if ((isTrainer() || isAdmin()) && !responsibleProfileId) {
-      throw new Error("Perfil do Personal/Admin nao encontrado em app_profiles. Faca logout/login e tente novamente.");
-    }
-
-    const payload = {
-      student_id: state.selectedStudentId,
-      name: workoutName,
-      title: workoutName,
-      goal: formData.get("goal") || null,
-      description: formData.get("goal") || null,
-      notes: formData.get("notes") || null,
-      status: "ativo",
-      personal_id: responsibleProfileId,
-      trainer_id: responsibleProfileId,
-      created_by: state.authUser?.id || null
-    };
-
-    console.log("[Alion Treinos] Enviando workout para Supabase:", {
-      mode: editId ? "update" : "insert",
-      id: editId || null,
-      payload
-    });
-
     if (editId) {
-      await updateWithSchemaFallback("workouts", editId, payload, "Erro ao editar treino");
+      console.log("[Alion Treinos] Enviando workout para Supabase:", {
+        mode: "update",
+        id: editId,
+        payload: workoutFields
+      });
+      const updated = await updateWithSchemaFallback("workouts", editId, workoutFields, "Erro ao editar treino");
+      assertPersistedWorkout(updated, workoutInput, "Erro ao editar treino");
       state.selectedWorkoutId = editId;
       form.dataset.editId = "";
       form.querySelector("button[type='submit']").textContent = "Criar treino";
       showToast("Treino atualizado.");
     } else {
-      const created = await insertWithSchemaFallback("workouts", payload, "Erro ao criar treino");
-      state.selectedWorkoutId = created[0]?.id || "";
+      const responsibleProfile = (isTrainer() || isAdmin())
+        ? await fetchAppProfileByUserId(state.authUser?.id)
+        : null;
+      const responsibleProfileId = responsibleProfile?.id || null;
+
+      if ((isTrainer() || isAdmin()) && !responsibleProfileId) {
+        throw new Error("Perfil do Personal/Admin nao encontrado em app_profiles. Faca logout/login e tente novamente.");
+      }
+
+      const insertPayload = {
+        student_id: state.selectedStudentId,
+        ...workoutFields,
+        status: "ativo",
+        personal_id: responsibleProfileId,
+        trainer_id: responsibleProfileId,
+        created_by: state.authUser?.id || null
+      };
+      console.log("[Alion Treinos] Enviando workout para Supabase:", {
+        mode: "insert",
+        id: null,
+        payload: insertPayload
+      });
+      const created = await insertWithSchemaFallback("workouts", insertPayload, "Erro ao criar treino");
+      const savedWorkout = assertPersistedWorkout(created, workoutInput, "Erro ao criar treino");
+      state.selectedWorkoutId = savedWorkout.id || "";
       showToast("Treino criado com sucesso.");
     }
     form.reset();
@@ -4526,31 +4541,20 @@ function clearWorkoutExerciseForm() {
 }
 
 /**
- * Atualiza registros removendo colunas que nao existam no schema atual.
+ * Atualiza com compatibilidade para aliases legados sem remover campos canonicos.
  */
 async function updateWithSchemaFallback(tableName, id, payload, fallbackMessage) {
-  let currentPayload = { ...payload };
-  const maxAttempts = Object.keys(currentPayload).length + 2;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
+  return window.AlionWorkoutData.runWithSchemaFallback({
+    tableName,
+    payload,
+    fallbackMessage,
+    execute: async (currentPayload) => {
       if (["students", "assessments", "body_measurements", "exercise_library", "workouts", "workout_exercises"].includes(tableName)) {
         console.log(`[Alion Treinos] UPDATE final em ${tableName}:`, { id, payload: currentPayload });
       }
       return await runQuery(supabaseClient.from(tableName).update(currentPayload).eq("id", id).select(), fallbackMessage);
-    } catch (error) {
-      const missingColumn = getMissingColumnFromError(error.message);
-
-      if (!missingColumn || !(missingColumn in currentPayload)) {
-        throw error;
-      }
-
-      const { [missingColumn]: _removed, ...nextPayload } = currentPayload;
-      currentPayload = nextPayload;
     }
-  }
-
-  throw new Error(`${fallbackMessage}: nao foi possivel adaptar o payload ao schema.`);
+  });
 }
 
 /**
@@ -4636,7 +4640,7 @@ async function deleteWorkout(id) {
   }
 
   const workout = state.workouts.find((item) => String(item.id) === String(id));
-  const workoutName = pick(workout, ["name", "title", "nome"], "EXCLUIR TREINO");
+  const workoutName = getWorkoutName(workout, "EXCLUIR TREINO");
   let preview;
   try {
     preview = await runAdminRpc(
@@ -4840,9 +4844,9 @@ function editWorkout(id) {
   if (!record || !form) return;
 
   form.dataset.editId = id;
-  form.elements.name.value = pick(record, ["name", "title", "nome"], "");
-  form.elements.goal.value = pick(record, ["goal", "description"], "");
-  form.elements.notes.value = pick(record, ["notes"], "");
+  setFormControlValue(form, "name", getWorkoutName(record, ""));
+  setFormControlValue(form, "objective", getWorkoutObjective(record, ""));
+  setFormControlValue(form, "notes", getWorkoutNotes(record, ""));
   form.querySelector("button[type='submit']").textContent = "Atualizar treino";
   state.selectedWorkoutId = id;
   renderTrainerWorkoutSelect(getStudentWorkouts(state.selectedStudentId).filter((workout) => {
@@ -4907,15 +4911,15 @@ function renderTrainerHistory() {
     renderHistoryBlock("Inicio", [
       `Peso inicial: ${formatNumber(pick(firstAssessment, ["weight", "weight_kg", "peso"], "-"))} kg`,
       `Cintura inicial: ${formatNumber(pick(firstMeasurement, ["waist", "waist_cm", "cintura"], "-"))} cm`,
-      `Primeiro treino: ${escapeHtml(pick(workouts.at(-1), ["title", "name", "nome"], "-"))}`
+      `Primeiro treino: ${escapeHtml(getWorkoutName(workouts.at(-1), "-"))}`
     ]),
     renderHistoryBlock("Agora", [
       `Peso atual: ${formatNumber(pick(latestAssessment, ["weight", "weight_kg", "peso"], "-"))} kg`,
       `Cintura atual: ${formatNumber(pick(latestMeasurement, ["waist", "waist_cm", "cintura"], "-"))} cm`,
-      `Treino atual: ${escapeHtml(pick(workouts[0], ["title", "name", "nome"], "-"))}`
+      `Treino atual: ${escapeHtml(getWorkoutName(workouts[0], "-"))}`
     ]),
     renderHistoryBlock("Treinos concluidos", logs.length
-      ? logs.slice(0, 8).map((log) => `${formatDate(pick(log, ["completed_at", "created_at"]))} - ${escapeHtml(pick(state.workouts.find((workout) => String(workout.id) === String(log.workout_id)), ["title", "name", "nome"], "Treino"))}`)
+      ? logs.slice(0, 8).map((log) => `${formatDate(pick(log, ["completed_at", "created_at"]))} - ${escapeHtml(getWorkoutName(state.workouts.find((workout) => String(workout.id) === String(log.workout_id)), "Treino"))}`)
       : ["Nenhum treino concluido ainda."]),
     renderHistoryBlock("Evolução de exercícios", renderExerciseEvolution(workouts))
   ];
@@ -4944,7 +4948,7 @@ function renderExerciseEvolution(workouts) {
     getWorkoutExercises(workout.id).forEach((item) => {
       const exercise = state.exercises.find((record) => String(record.id) === String(item.exercise_id));
       const exerciseName = pick(item, ["exercise_name"], pick(exercise, ["name", "title", "nome"], "Exercicio"));
-      lines.push(`${escapeHtml(pick(workout, ["title", "name", "nome"], "Treino"))}: ${escapeHtml(exerciseName)} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["weight"], "-"))}`);
+      lines.push(`${escapeHtml(getWorkoutName(workout, "Treino"))}: ${escapeHtml(exerciseName)} - ${formatNumber(pick(item, ["sets"], "-"))}x${escapeHtml(pick(item, ["reps"], "-"))} - ${escapeHtml(pick(item, ["weight"], "-"))}`);
     });
   });
   return lines.length ? lines.slice(0, 12) : ["Nenhum exercício cadastrado nos treinos."];

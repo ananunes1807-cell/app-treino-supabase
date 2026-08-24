@@ -70,6 +70,28 @@ const plan = pdf.buildPlan({
   selectExerciseImage: media.selectExerciseImage
 });
 
+assert.equal(plan.studentObjective, "Condicionamento");
+assert.equal(plan.workouts[0].objective, "Força");
+
+const compatibilityPlan = pdf.buildPlan({
+  student,
+  personalName: "Personal Responsável",
+  workouts: [
+    { id: "canonical", objective: "Hipertrofia", goal: "Alias ignorado", notes: "Executar com controle" },
+    { id: "goal", goal: "Força" },
+    { id: "description", description: "Mobilidade" },
+    { id: "notes-only", notes: "Não usar como objetivo" }
+  ],
+  workoutExercises: [],
+  exerciseLibrary: []
+});
+assert.deepEqual(compatibilityPlan.workouts.map((workout) => workout.objective), ["Hipertrofia", "Força", "Mobilidade", ""]);
+assert.deepEqual(compatibilityPlan.workouts.map((workout) => workout.notes), ["Executar com controle", "", "", "Não usar como objetivo"]);
+const compatibilityHtml = pdf.renderDocument(compatibilityPlan);
+assert.match(compatibilityHtml, /Objetivo:<\/b> Hipertrofia/);
+assert.match(compatibilityHtml, /Observações:<\/b> Executar com controle/);
+assert.match(compatibilityHtml, /Objetivo:<\/b> Não informado/);
+
 // Dados opcionais ausentes recebem traço sem impedir a ficha.
 assert.equal(plan.workouts[0].exercises[0].sets, "—");
 assert.equal(plan.workouts[0].exercises[0].reps, "—");
