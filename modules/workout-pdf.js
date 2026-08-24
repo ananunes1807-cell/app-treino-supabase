@@ -101,6 +101,7 @@
 
     return {
       id: cleanText(item?.id),
+      libraryExerciseId: cleanText(libraryExercise?.id || item?.exercise_id),
       name,
       sets: cleanText(pick(item, ["sets", "series", "set_count"], "—"), "—"),
       reps: cleanText(pick(item, ["reps", "repetitions", "repeticoes"], "—"), "—"),
@@ -202,6 +203,18 @@
     `;
   }
 
+  function renderCompactExerciseRow(exercise, index) {
+    return `
+      <tr>
+        <td class="exercise-name"><b>${index + 1}. ${escapeHtml(exercise.name)}</b></td>
+        <td>${escapeHtml(exercise.sets)}</td>
+        <td>${escapeHtml(exercise.reps)}</td>
+        <td>${escapeHtml(exercise.load)}</td>
+        <td>${escapeHtml(formatRest(exercise.rest))}</td>
+      </tr>
+    `;
+  }
+
   function renderGuideItem(exercise) {
     return `
       <figure class="guide-item">
@@ -215,7 +228,9 @@
     const unique = new Map();
     (plan?.workouts || []).forEach((workout) => {
       (workout.exercises || []).forEach((exercise) => {
-        const key = normalizeText(exercise.name);
+        const key = exercise.libraryExerciseId
+          ? `id:${exercise.libraryExerciseId}`
+          : `name:${normalizeText(exercise.name)}`;
         if (!unique.has(key)) unique.set(key, exercise);
       });
     });
@@ -226,10 +241,9 @@
     return `
       <section class="full-workout-block">
         <div class="full-workout-title"><h3>${workoutIndex + 1}. ${escapeHtml(workout.name)}</h3><span>${workout.exercises.length} exercício(s)</span></div>
-        ${workout.notes ? `<p class="full-workout-note">${escapeHtml(workout.notes)}</p>` : ""}
         <table class="full-workout-table">
-          <thead><tr><th>Exercício e orientação</th><th>Séries</th><th>Repetições</th><th>Carga</th><th>Descanso</th></tr></thead>
-          <tbody>${workout.exercises.length ? workout.exercises.map((exercise, index) => renderExerciseRow(exercise, index)).join("") : '<tr><td colspan="5">Nenhum exercício cadastrado neste treino.</td></tr>'}</tbody>
+          <thead><tr><th>Exercício</th><th>Séries</th><th>Reps</th><th>Carga</th><th>Desc.</th></tr></thead>
+          <tbody>${workout.exercises.length ? workout.exercises.map(renderCompactExerciseRow).join("") : '<tr><td colspan="5">Nenhum exercício cadastrado neste treino.</td></tr>'}</tbody>
         </table>
       </section>
     `;
@@ -244,13 +258,13 @@
           <section class="training-side full-plan-training" data-fit-side>
             <div class="full-plan-content">
               <header class="page-header full-plan-header">
-                <div class="brand-block"><span class="brand-mark">AT</span><div><h1>ALION TREINOS</h1><p>Plano completo de treino</p></div></div>
+                <div class="full-plan-heading"><span class="brand-mark">AT</span><h1>ALION TREINOS <small>- Plano completo</small></h1></div>
                 <dl>
-                  <div class="full-field"><dt>Aluno</dt><dd>${escapeHtml(plan.studentName)}</dd></div>
-                  <div><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
+                  <div class="student-field"><dt>Aluno</dt><dd>${escapeHtml(plan.studentName)}</dd></div>
+                  <div class="personal-field"><dt>Personal</dt><dd>${escapeHtml(plan.personalName)}</dd></div>
+                  <div><dt>Objetivo</dt><dd>${escapeHtml(plan.objective || "Não informado")}</dd></div>
+                  <div><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
                   <div><dt>Página</dt><dd>1/1</dd></div>
-                  <div class="full-field"><dt>Objetivo</dt><dd>${escapeHtml(plan.objective || "Não informado")}</dd></div>
-                  <div class="full-field"><dt>Gerado em</dt><dd>${escapeHtml(formatGeneratedDate(plan.generatedAt))}</dd></div>
                 </dl>
               </header>
               <div class="area-title full-plan-title"><h2>Plano completo - ${plan.workouts.length} treinos</h2><span>${totalExercises} exercício(s)</span></div>
@@ -260,6 +274,7 @@
           <aside class="visual-side full-plan-visual" data-fit-side>
             <div class="full-plan-content">
               <div class="area-title"><h2>Guia visual</h2><span>${uniqueExercises.length} exercício(s) sem repetição</span></div>
+              <p class="placeholder-legend">Imagem padrão = mídia ainda não cadastrada</p>
               <div class="guide-grid full-plan-guide">${uniqueExercises.length ? uniqueExercises.map(renderGuideItem).join("") : '<p class="empty-guide">Sem imagens para este plano.</p>'}</div>
             </div>
           </aside>
@@ -361,34 +376,40 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
 .full-plan-layout { min-height: 188mm; gap: 8mm; }
 .full-plan-training, .full-plan-visual { height: 188mm; overflow: hidden; padding: 1.5mm; }
 .full-plan-content { width: calc(100% / var(--full-plan-zoom, 1)); zoom: var(--full-plan-zoom, 1); }
-.full-plan-header { padding: 1.3mm; margin-bottom: 1.2mm; }
-.full-plan-header .brand-block { padding-bottom: .7mm; margin-bottom: .7mm; gap: 1.5mm; }
+.full-plan-header { padding: 1.2mm 1.5mm; margin-bottom: 1.2mm; }
+.full-plan-heading { display: flex; align-items: center; gap: 1.5mm; padding-bottom: .8mm; margin-bottom: .8mm; border-bottom: 1px solid #8f8995; }
 .full-plan-header .brand-mark { width: 7mm; height: 7mm; font-size: 6pt; }
 .full-plan-header h1 { font-size: 8.5pt; }
-.full-plan-header p { font-size: 5pt; margin: 0; }
-.full-plan-header dl { grid-template-columns: minmax(0, 1fr) 19mm; gap: .35mm 1.5mm; }
-.full-plan-header dt { font-size: 4.4pt; }
-.full-plan-header dd { font-size: 5.4pt; margin: 0; }
+.full-plan-header h1 small { font-size: 6.5pt; font-weight: 700; letter-spacing: 0; }
+.full-plan-header dl { grid-template-columns: 1.15fr 1fr .65fr; gap: .45mm 2mm; }
+.full-plan-header dl .student-field { grid-column: span 1; }
+.full-plan-header dl .personal-field { grid-column: span 2; }
+.full-plan-header dt { display: inline; font-size: 4.8pt; }
+.full-plan-header dd { display: inline; font-size: 5.7pt; margin: 0 0 0 .6mm; }
 .full-plan-title { margin-bottom: .7mm; padding-bottom: .5mm; }
 .full-plan-title h2 { font-size: 7pt; }
 .full-plan-title span { font-size: 5pt; }
 .full-workout-block { margin: 0 0 .8mm; break-inside: avoid; page-break-inside: avoid; }
-.full-workout-title { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; border: 1px solid #5f5864; border-bottom: 0; padding: .45mm .7mm; background: #eee; }
-.full-workout-title h3 { margin: 0; font-size: 5.7pt; text-transform: uppercase; }
-.full-workout-title span { font-size: 4.5pt; }
-.full-workout-note { margin: 0; border: 1px solid #77717b; border-bottom: 0; padding: .35mm .7mm; font-size: 4.5pt; line-height: 1.1; }
-.full-workout-table { font-size: 4.5pt; }
-.full-workout-table th, .full-workout-table td { padding: .35mm .45mm; line-height: 1.05; }
-.full-workout-table th { font-size: 4pt; }
-.full-workout-table .exercise-name b { font-size: 4.8pt; }
-.full-workout-table .exercise-name small { margin-top: .15mm; font-size: 4.1pt; line-height: 1.05; }
+.full-workout-title { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; border: 1px solid #39333d; border-bottom: 0; padding: .55mm .8mm; color: #fff; background: #39333d; }
+.full-workout-title h3 { margin: 0; font-size: 6.2pt; text-transform: uppercase; }
+.full-workout-title span { font-size: 4.8pt; }
+.full-workout-table { font-size: 5.5pt; }
+.full-workout-table th, .full-workout-table td { padding: .45mm .5mm; line-height: 1.08; }
+.full-workout-table th { font-size: 4.5pt; }
+.full-workout-table th:first-child, .full-workout-table td:first-child { width: 48%; }
+.full-workout-table th:nth-child(2), .full-workout-table td:nth-child(2) { width: 10%; }
+.full-workout-table th:nth-child(3), .full-workout-table td:nth-child(3) { width: 17%; }
+.full-workout-table th:nth-child(4), .full-workout-table td:nth-child(4) { width: 12%; }
+.full-workout-table th:nth-child(5), .full-workout-table td:nth-child(5) { width: 13%; }
+.full-workout-table .exercise-name b { font-size: 5.8pt; }
 .full-plan-visual .area-title { margin-bottom: 1mm; padding-bottom: .6mm; }
 .full-plan-visual .area-title h2 { font-size: 7pt; }
 .full-plan-visual .area-title span { font-size: 5pt; }
-.full-plan-guide { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .8mm; }
-.full-plan-guide .guide-item { padding: .45mm; }
-.full-plan-guide .guide-image { height: 16mm; }
-.full-plan-guide .guide-item figcaption { min-height: 3.7mm; margin-top: .35mm; padding: .35mm .2mm 0; font-size: 4.2pt; line-height: 1.05; }
+.placeholder-legend { margin: -0.3mm 0 .8mm; font-size: 4.6pt; color: #4d4652; text-align: right; }
+.full-plan-guide { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .9mm; }
+.full-plan-guide .guide-item { padding: .5mm; }
+.full-plan-guide .guide-image { height: 18.5mm; }
+.full-plan-guide .guide-item figcaption { min-height: 4mm; margin-top: .35mm; padding: .4mm .2mm 0; font-size: 4.6pt; line-height: 1.05; }
 .full-plan-guide .visual-placeholder { padding: .4mm; gap: .2mm; font-size: 3.5pt; }
 .full-plan-guide .visual-placeholder strong { font-size: 3.8pt; }
 @media print { html, body { background: #fff; } .pdf-page { width: auto; min-height: 196mm; margin: 0; padding: 0; border: 0; } .fold-layout { min-height: 196mm; } }
@@ -405,7 +426,7 @@ footer { margin-top: auto; padding-top: 2mm; border-top: 1px solid #77717b; text
         return Math.max(largest, content.scrollHeight / side.clientHeight);
       }, 1);
       if (overflowRatio > 1) {
-        const zoom = Math.max(0.68, Math.min(1, 0.985 / overflowRatio));
+        const zoom = Math.max(0.78, Math.min(1, 0.985 / overflowRatio));
         page.style.setProperty("--full-plan-zoom", zoom.toFixed(3));
       }
     });

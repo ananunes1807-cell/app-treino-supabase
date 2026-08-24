@@ -76,6 +76,7 @@ assert.equal(plan.workouts[0].exercises[0].reps, "—");
 assert.equal(plan.workouts[0].exercises[0].load, "—");
 assert.equal(plan.workouts[0].exercises[0].rest, "—");
 assert.equal(plan.workouts[0].exercises[0].imageUrl, exerciseImages.image_url_feminino);
+assert.equal(plan.workouts[0].exercises[0].libraryExerciseId, "exercise-1");
 
 // Mais de seis exercícios criam páginas adicionais e mantêm cada treino separado.
 const pages = pdf.paginatePlan(plan, 6);
@@ -114,6 +115,7 @@ const fullPlan = {
     notes: workoutIndex === 0 ? "Executar com controle" : "",
     exercises: Array.from({ length: 6 }, (_, exerciseIndex) => ({
       id: `full-assignment-${workoutIndex}-${exerciseIndex}`,
+      libraryExerciseId: exerciseIndex === 0 ? "shared-library-exercise" : `library-${workoutIndex}-${exerciseIndex}`,
       name: exerciseIndex === 0 ? "Agachamento compartilhado" : `Exercício ${workoutIndex + 1}-${exerciseIndex + 1}`,
       sets: "3",
       reps: "10",
@@ -131,11 +133,14 @@ assert.equal((fullPlanHtml.match(/class="full-workout-block"/g) || []).length, 5
 assert.equal((fullPlanHtml.match(/<tr>\s*<td class="exercise-name"/g) || []).length, 30);
 assert.match(fullPlanHtml, /<dt>Página<\/dt><dd>1\/1<\/dd>/);
 assert.match(fullPlanHtml, /Plano completo - 5 treinos/);
-assert.match(fullPlanHtml, /Exercício e orientação[\s\S]*Séries[\s\S]*Repetições[\s\S]*Carga[\s\S]*Descanso/);
-assert.match(fullPlanHtml, /\.full-plan-guide \{ grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+assert.match(fullPlanHtml, /<th>Exercício<\/th><th>Séries<\/th><th>Reps<\/th><th>Carga<\/th><th>Desc\.<\/th>/);
+assert.match(fullPlanHtml, /\.full-plan-guide \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+assert.match(fullPlanHtml, /\.full-plan-guide \.guide-image \{ height: 18\.5mm/);
 assert.match(fullPlanHtml, /\.full-workout-block \{[^}]*break-inside: avoid;[^}]*page-break-inside: avoid/);
 assert.equal((fullPlanHtml.match(/class="guide-item"/g) || []).length, 26);
 assert.equal((fullPlanHtml.match(/<figcaption>Agachamento compartilhado<\/figcaption>/g) || []).length, 1);
+assert.match(fullPlanHtml, /Imagem padrão = mídia ainda não cadastrada/);
+assert.doesNotMatch(fullPlanHtml, /Movimento controlado|Manter postura estável/);
 for (let workoutIndex = 0; workoutIndex < 5; workoutIndex += 1) {
   assert.match(fullPlanHtml, new RegExp(`Treino ${String.fromCharCode(65 + workoutIndex)}`));
 }
@@ -149,6 +154,12 @@ const planWithoutAnyImage = pdf.buildPlan({
   selectExerciseImage: () => ""
 });
 assert.match(pdf.renderDocument(planWithoutAnyImage), /\[imagem padrão\]<\/span><strong>Exercício 1/);
+
+// A impressão espera as mídias e troca falhas pelo placeholder antes de abrir o diálogo.
+const printPlanSource = pdf.printPlan.toString();
+assert.match(printPlanSource, /await waitForImages\(printWindow\.document/);
+assert.ok(printPlanSource.indexOf("await waitForImages") < printPlanSource.indexOf("printWindow.print()"));
+assert.match(pdf.waitForImages.toString(), /replaceBrokenImage\(image\)/);
 
 // O helper exige aluno visível e aplica as regras atuais de Aluno, Personal e Admin.
 assert.equal(pdf.canExportStudent({ role: "student", selectedStudentId: "student-1", ownStudentId: "student-1", accessibleStudentIds: ["student-1"] }), true);
