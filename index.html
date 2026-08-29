@@ -123,15 +123,18 @@
                 Confirmar senha
                 <input id="register-confirm-password" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repita a senha" required />
               </label>
-              <label>
-                Tipo de perfil
-                <select id="register-role" name="role" required>
-                  <option value="personal">Personal</option>
-                </select>
-              </label>
+              <input id="register-role" name="role" type="hidden" value="" />
               <button class="primary-button" type="submit">Criar cadastro</button>
-              <p class="muted-text" id="register-status">Aluno não cria conta livremente. O personal deve enviar um convite.</p>
+              <p class="muted-text" id="register-status">O cadastro só pode ser concluído por um link de convite válido.</p>
             </form>
+            <div class="form-box hidden" id="invite-session-conflict" role="alert">
+              <strong>Este convite pertence a outra conta.</strong>
+              <p class="muted-text">Saia da conta atual para aceitar o convite ou cancele para continuar conectado.</p>
+              <div class="button-row">
+                <button class="primary-button" type="button" id="invite-conflict-logout">Sair e aceitar convite</button>
+                <button class="secondary-button" type="button" id="invite-conflict-cancel">Cancelar convite</button>
+              </div>
+            </div>
             <div class="login-helper">
               <strong id="login-helper-title">&Aacute;rea do aluno</strong>
               <span id="login-helper-description">Acesse seus treinos, registre exerc&iacute;cios, cargas, repeti&ccedil;&otilde;es e observa&ccedil;&otilde;es.</span>
@@ -362,6 +365,7 @@
                   <button class="tab-button" type="button" data-trainer-tab="measurements">Medidas</button>
                   <button class="tab-button" type="button" data-trainer-tab="invites">Convites</button>
                   <button class="tab-button" type="button" data-trainer-tab="library">Biblioteca</button>
+                  <button class="tab-button" type="button" data-trainer-tab="trash">Lixeira</button>
                 </div>
               </div>
 
@@ -600,6 +604,16 @@
                   <div class="list spaced" id="trainer-exercise-library"></div>
                 </div>
               </section>
+
+              <section class="trainer-tab" id="trainer-tab-trash">
+                <div class="section-title compact-title">
+                  <div>
+                    <h3>Lixeira</h3>
+                    <p>Itens excluídos podem ser restaurados durante o prazo de retenção.</p>
+                  </div>
+                </div>
+                <div class="list compact-list" id="trainer-trash-list"></div>
+              </section>
             </article>
           </div>
         </section>
@@ -638,6 +652,24 @@
               <h2>Diagnóstico do sistema</h2>
               <div class="diagnostic-grid" id="admin-diagnostics"></div>
             </article>
+
+            <div class="grid two-columns">
+              <article class="card">
+                <h2>Convidar Personal</h2>
+                <p class="muted-text">Crie um link individual e compartilhe somente com o profissional autorizado.</p>
+                <form class="form-box compact-form" id="admin-trainer-invite-form">
+                  <input name="name" type="text" placeholder="Nome do Personal" required />
+                  <input name="email" type="email" placeholder="E-mail do Personal" required />
+                  <button class="primary-button" type="submit">Gerar convite</button>
+                </form>
+                <div class="list compact-list" id="admin-trainer-invites-list"></div>
+              </article>
+              <article class="card">
+                <h2>Lixeira administrativa</h2>
+                <p class="muted-text">Restaure itens excluídos enquanto estiverem dentro do prazo.</p>
+                <div class="list compact-list" id="admin-trash-list"></div>
+              </article>
+            </div>
 
             <div class="grid three-columns independent-columns">
               <article class="card">
@@ -722,28 +754,6 @@
               </article>
             </div>
 
-            <details class="card admin-danger-details">
-              <summary>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Manutenção perigosa — abrir somente se souber o que está fazendo
-              </summary>
-              <div class="section-title compact-title">
-                <div>
-                  <h2>Manutenção do sistema</h2>
-                  <p>Exclusões permanentes apenas para limpar testes, duplicados e dados órfãos. Essas ações não podem ser desfeitas.</p>
-                </div>
-              </div>
-              <div class="button-row">
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-sessions">Limpar sessões do aluno selecionado</button>
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-measurements">Limpar medidas do aluno selecionado</button>
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-workouts">Ocultar treinos do aluno selecionado</button>
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="selected-reset">Resetar aluno selecionado</button>
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="test-data">Limpar dados de teste</button>
-                <button class="secondary-button" type="button" data-admin-maintenance="duplicates">Analisar possíveis duplicados</button>
-                <button class="secondary-button danger-outline-button" type="button" data-admin-maintenance="orphans">Limpar dados órfãos</button>
-              </div>
-              <div class="list spaced" id="admin-maintenance-log"></div>
-            </details>
           </div>
         </section>
         <footer class="public-footer" aria-label="Informações legais e suporte">
@@ -789,7 +799,7 @@
     <script src="modules/workout-pdf.js?v=20260824-pdf-layout-v53"></script>
     <script src="modules/trainer-data-rules.js?v=20260728-trainer-fixes"></script>
     <script src="supabase.js?v=20260727-security-v44"></script>
-    <script src="app.js?v=20260824-workout-schema-v54"></script>
+    <script src="app.js?v=20260829-authorized-trainers-v55"></script>
     <script src="modules/pwa.js?v=20260823-core-security-v49"></script>
   </body>
 </html>

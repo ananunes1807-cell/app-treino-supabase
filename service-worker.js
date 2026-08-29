@@ -1,4 +1,4 @@
-const CACHE_NAME = "alion-pwa-v49-core-security-v55";
+const CACHE_NAME = "alion-pwa-v50-authorized-trainers-v56";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,7 +12,7 @@ const APP_SHELL = [
   "./modules/exercise-upload.js?v=20260824-exercise-upload-v51",
   "./modules/workout-pdf.js?v=20260824-pdf-layout-v53",
   "./modules/trainer-data-rules.js?v=20260728-trainer-fixes",
-  "./app.js?v=20260824-workout-schema-v54",
+  "./app.js?v=20260829-authorized-trainers-v55",
   "./supabase.js?v=20260727-security-v44",
   "./modules/pwa.js?v=20260823-core-security-v49",
   "./manifest.webmanifest",

@@ -239,7 +239,7 @@ const serviceWorker = read("service-worker.js");
 assert.match(index, /id="student-download-workout-pdf"/);
 assert.match(index, /id="trainer-download-workout-pdf"/);
 assert.match(index, /modules\/workout-pdf\.js\?v=/);
-assert.match(app, /data-admin-student-action="pdf"/);
+assert.equal(app.includes('data-admin-student-action="pdf"'), false, "Painel técnico não deve expor ação individual com dados do aluno");
 assert.match(app, /function generateWorkoutPdf/);
 assert.match(app, /canExportWorkoutPdfForStudent/);
 assert.match(serviceWorker, /modules\/workout-pdf\.js\?v=/);

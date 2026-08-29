@@ -65,11 +65,15 @@ const state = {
   passwordRecoveryMode: false,
   inviteToken: "",
   pendingInvite: null,
+  pendingInviteType: "",
+  inviteSessionConflict: false,
   students: [],
   exercises: [],
   studentInvites: [],
   trainerStudents: [],
   appProfiles: [],
+  trainerInvites: [],
+  trashRecords: [],
   workouts: [],
   workoutExercises: [],
   workoutLogs: [],
@@ -149,6 +153,7 @@ const el = {
   trainerTabs: document.querySelector("#trainer-tabs"),
   trainerHistory: document.querySelector("#trainer-history"),
   trainerInvitesList: document.querySelector("#trainer-invites-list"),
+  trainerTrashList: document.querySelector("#trainer-trash-list"),
   editStudentForm: document.querySelector("#edit-student-form"),
   exerciseSearch: document.querySelector("#exercise-search"),
   exerciseGroupFilter: document.querySelector("#exercise-group-filter"),
@@ -190,12 +195,18 @@ const el = {
   adminErrorsList: document.querySelector("#admin-errors-list"),
   adminRlsPolicies: document.querySelector("#admin-rls-policies"),
   adminMaintenanceLog: document.querySelector("#admin-maintenance-log"),
+  adminTrainerInviteForm: document.querySelector("#admin-trainer-invite-form"),
+  adminTrainerInvitesList: document.querySelector("#admin-trainer-invites-list"),
+  adminTrashList: document.querySelector("#admin-trash-list"),
   authLoginForm: document.querySelector("#auth-login-form"),
   authRegisterForm: document.querySelector("#auth-register-form"),
   registerStatus: document.querySelector("#register-status"),
   googleLoginButton: document.querySelector("#google-login-button"),
   forgotPasswordButton: document.querySelector("#forgot-password-button"),
   inviteRegisterButton: document.querySelector("#invite-register-button"),
+  inviteSessionConflict: document.querySelector("#invite-session-conflict"),
+  inviteConflictLogout: document.querySelector("#invite-conflict-logout"),
+  inviteConflictCancel: document.querySelector("#invite-conflict-cancel"),
   authEmail: document.querySelector("#auth-email"),
   authPassword: document.querySelector("#auth-password"),
   authLogoutButton: document.querySelector("#auth-logout-button"),
@@ -404,6 +415,8 @@ async function loadSupabaseData(options = {}) {
     state.workoutExercises = [];
     state.workoutLogs = [];
     state.appProfiles = [];
+    state.trainerInvites = [];
+    state.trashRecords = [];
     setConnectionStatus("Faça login para carregar seus dados", false);
     return;
   }
@@ -421,7 +434,9 @@ async function loadSupabaseData(options = {}) {
     workouts,
     workoutExercises,
     workoutLogs,
-    appProfiles
+    appProfiles,
+    trainerInvites,
+    trashRecords
   ] = await Promise.all([
     safeFetchTable("students", { orderBy: "created_at" }),
     safeFetchTable("exercise_library", { orderBy: "name", ascending: true }),
@@ -430,7 +445,9 @@ async function loadSupabaseData(options = {}) {
     safeFetchTable("workouts", { orderBy: "created_at" }),
     safeFetchTable("workout_exercises"),
     safeFetchTable("workout_logs", { orderBy: "created_at" }),
-    canLoadProfiles ? safeFetchTable("app_profiles", { orderBy: "created_at" }) : Promise.resolve([])
+    canLoadProfiles ? safeFetchTable("app_profiles", { orderBy: "created_at" }) : Promise.resolve([]),
+    canLoadProfiles ? safeFetchTable("trainer_invites", { orderBy: "created_at" }) : Promise.resolve([]),
+    ["trainer", "admin"].includes(role) ? safeFetchTable("alion_trash_records", { orderBy: "deleted_at" }) : Promise.resolve([])
   ]);
 
   state.students = students;
@@ -441,6 +458,8 @@ async function loadSupabaseData(options = {}) {
   state.workoutExercises = workoutExercises;
   state.workoutLogs = workoutLogs;
   state.appProfiles = appProfiles;
+  state.trainerInvites = trainerInvites;
+  state.trashRecords = trashRecords.filter((record) => !record.restored_at && !record.permanently_deleted_at);
 
   const accessibleStudents = getAccessibleStudents();
   if (isStudent() && state.authProfile?.student_id) state.studentAreaId = state.authProfile.student_id;
@@ -490,6 +509,7 @@ function renderAll() {
     renderExerciseLibrary();
     renderTrainerProfile();
     renderInvites();
+    renderTrash();
   }
   if (role === "student") {
     renderStudentAreaSelect();
@@ -1904,6 +1924,54 @@ function renderInvites() {
   }
 }
 
+function renderTrashItem(record) {
+  const typeLabels = { student: "Aluno", workout: "Treino", workout_exercise: "Exercício do treino", assessment: "Avaliação", body_measurement: "Medidas", exercise: "Exercício" };
+  return `
+    <article class="simple-item stacked">
+      <strong>${escapeHtml(record.display_name || typeLabels[record.record_type] || "Registro")}</strong>
+      <small>Tipo: ${escapeHtml(typeLabels[record.record_type] || record.record_type)}</small>
+      <small>Excluído em: ${escapeHtml(formatDateTime(record.deleted_at))}</small>
+      <small>Retenção até: ${escapeHtml(formatDateTime(record.purge_after))}</small>
+      ${record.purge_blocked_reason ? `<small>${escapeHtml(record.purge_blocked_reason)}</small>` : ""}
+      <div class="record-actions"><button class="tiny-button" type="button" data-trash-action="restore" data-id="${escapeHtml(record.id)}">Restaurar</button></div>
+    </article>`;
+}
+
+function renderTrash() {
+  const html = state.trashRecords.length ? state.trashRecords.map(renderTrashItem).join("") : emptyMessage("A lixeira está vazia.");
+  if (el.trainerTrashList) el.trainerTrashList.innerHTML = html;
+  if (el.adminTrashList) el.adminTrashList.innerHTML = html;
+}
+
+async function restoreTrashRecord(id) {
+  const { error } = await supabaseClient.rpc("alion_restore_trash", { trash_record_id: id });
+  if (error) throw error;
+  showToast("Item restaurado com sucesso.");
+  await loadSupabaseData({ silent: true });
+}
+
+function renderAdminTrainerInvites() {
+  if (!el.adminTrainerInvitesList) return;
+  el.adminTrainerInvitesList.innerHTML = state.trainerInvites.length ? state.trainerInvites.map((invite) => {
+    const link = `${APP_PUBLIC_URL}?trainer_invite=${encodeURIComponent(invite.token)}`;
+    return `<article class="simple-item stacked"><strong>Convite de Personal</strong><small>Status: ${escapeHtml(formatInviteStatus(invite.status))}</small><small>Validade: ${escapeHtml(formatDateTime(invite.expires_at))}</small>${invite.status === "pendente" ? `<button class="tiny-button" type="button" data-copy-trainer-invite="${escapeHtml(link)}">Copiar link</button>` : ""}</article>`;
+  }).join("") : emptyMessage("Nenhum convite de Personal criado.");
+}
+
+async function createTrainerInvite(form) {
+  if (!await requireAdminTi()) return;
+  const data = new FormData(form);
+  const { data: invite, error } = await supabaseClient.rpc("admin_create_trainer_invite", {
+    invited_name: String(data.get("name") || "").trim(),
+    invited_email: String(data.get("email") || "").trim().toLowerCase()
+  });
+  if (error) throw error;
+  form.reset();
+  await copyTextToClipboard(`${APP_PUBLIC_URL}?trainer_invite=${encodeURIComponent(invite.token)}`);
+  showToast("Convite criado e link copiado.");
+  await loadSupabaseData({ silent: true });
+}
+
 async function copyTextToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -2786,6 +2854,8 @@ function renderAdminArea() {
   el.adminPersonalsList.innerHTML = personalProfiles.length
     ? personalProfiles.map(renderAdminPersonalItem).join("")
     : emptyMessage("Nenhum Personal encontrado.");
+  renderAdminTrainerInvites();
+  renderTrash();
 
   renderAdminExerciseGroupFilter();
   const adminExercises = getFilteredAdminExercises();
@@ -2844,33 +2914,12 @@ function renderAdminStudentItem(student) {
   const status = getEntityStatus(student);
   const invite = getLatestInviteForStudent(student.id);
   const inviteStatus = invite ? formatInviteStatus(pick(invite, ["status"], "")) : "Sem convite";
-  const selected = String(student.id) === String(state.selectedAdminStudentId) ? " active" : "";
-  const exclusionReason = pick(student, ["exclusion_reason", "deletion_reason", "delete_reason", "motivo_exclusao"], "");
-  const archiveAction = status === "arquivado"
-    ? `<button class="tiny-button" type="button" data-admin-student-action="restore" data-student-id="${escapeHtml(student.id)}">Restaurar</button>`
-    : `<button class="tiny-button" type="button" data-admin-student-action="archive" data-student-id="${escapeHtml(student.id)}">Arquivar</button>`;
-  const permanentDeleteLabel = status === "excluido" ? "Excluir definitivo" : "Excluir definitivo";
 
   return `
-    <article class="simple-item stacked admin-student-item${selected}">
-      <strong>${escapeHtml(pick(student, ["name", "full_name", "nome"], "Aluno"))}</strong>
-      <span>${escapeHtml(pick(student, ["objective", "email"], "Sem objetivo informado"))}</span>
-      <small>E-mail: ${escapeHtml(pick(student, ["email"], "Não informado"))}</small>
-      <small>Telefone: ${escapeHtml(pick(student, ["phone", "telefone"], "Não informado"))}</small>
-      <small>WhatsApp: ${escapeHtml(pick(student, ["whatsapp"], "Não informado"))}</small>
+    <article class="simple-item stacked admin-student-item">
+      <strong>Aluno cadastrado</strong>
       <small>Convite: ${escapeHtml(inviteStatus)}</small>
       <small>Status: ${escapeHtml(formatWorkoutStatus(status))}</small>
-      ${exclusionReason ? `<small><b>Motivo da exclusao:</b> ${escapeHtml(exclusionReason)}</small>` : ""}
-      <div class="record-actions">
-        <button class="tiny-button" type="button" data-admin-student-action="select" data-student-id="${escapeHtml(student.id)}">Ver registros</button>
-        <button class="tiny-button" type="button" data-admin-student-action="edit" data-student-id="${escapeHtml(student.id)}">Editar</button>
-        <button class="tiny-button" type="button" data-admin-student-action="pdf" data-student-id="${escapeHtml(student.id)}">Testar PDF</button>
-        <button class="tiny-button" type="button" data-admin-student-action="clear-logs" data-student-id="${escapeHtml(student.id)}">Excluir sessoes</button>
-        <button class="tiny-button" type="button" data-admin-student-action="clear-workouts" data-student-id="${escapeHtml(student.id)}">Excluir treinos</button>
-        <button class="tiny-button" type="button" data-admin-student-action="reset" data-student-id="${escapeHtml(student.id)}">Resetar perfil</button>
-        ${archiveAction}
-        <button class="tiny-button danger" type="button" data-admin-student-action="delete-permanent" data-student-id="${escapeHtml(student.id)}">${permanentDeleteLabel}</button>
-      </div>
     </article>
   `;
 }
@@ -3163,8 +3212,8 @@ async function requestStudentDeletionByPersonal(id) {
     return false;
   }
 
-  await updateWithSchemaFallback("students", id, buildStudentExclusionPayload(normalizedReason), "Erro ao marcar aluno como excluido");
-  await updateStudentWorkoutsStatus(id, "excluido");
+  const student = state.students.find((item) => String(item.id) === String(id));
+  await moveOwnedRecordToTrash("student", id, `${pick(student, ["name", "nome"], "Aluno")} — ${normalizedReason}`);
   return true;
 }
 
@@ -4632,13 +4681,19 @@ async function deleteWorkoutExercise(id) {
  * Exclui treino pelo id e remove seus exercicios caso nao exista cascade.
  */
 async function deleteWorkout(id) {
-  if (!isAdmin()) {
-    showToast("Exclusão permanente de treinos é permitida apenas pelo sistema. Use arquivar ou desativar.", "error");
-    return;
-  }
-
   const workout = state.workouts.find((item) => String(item.id) === String(id));
   const workoutName = getWorkoutName(workout, "EXCLUIR TREINO");
+  if (!isAdmin()) {
+    if (!window.confirm("Mover este treino para a lixeira? O histórico será preservado.")) return;
+    try {
+      await moveOwnedRecordToTrash("workout", id, workoutName);
+      showToast("Treino movido para a lixeira.");
+      await reloadAfterDelete();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
+    return;
+  }
   let preview;
   try {
     preview = await runAdminRpc(
@@ -5106,13 +5161,32 @@ function renderAdminPersonalItem(profile) {
   )).length;
   return `
     <article class="simple-item stacked">
-      <strong>${escapeHtml(pick(profile, ["nome", "full_name"], "Personal"))}</strong>
-      <span>${escapeHtml(pick(profile, ["email"], "E-mail não informado"))}</span>
+      <strong>Personal cadastrado</strong>
       <small>Status: ${escapeHtml(pick(profile, ["status_usuario"], "ativo"))}</small>
       <small>Alunos sob responsabilidade: ${ownedStudents}</small>
-      <small>ID operacional: ${escapeHtml(profile.id)}</small>
+      <div class="record-actions">
+        <button class="tiny-button ${pick(profile, ["status_usuario"], "ativo") === "ativo" ? "danger" : ""}" type="button" data-admin-personal-action="${pick(profile, ["status_usuario"], "ativo") === "ativo" ? "suspend" : "activate"}" data-id="${escapeHtml(profile.id)}">
+          ${pick(profile, ["status_usuario"], "ativo") === "ativo" ? "Suspender" : "Reativar"}
+        </button>
+      </div>
     </article>
   `;
+}
+
+async function changeTrainerStatus(profileId, status) {
+  if (!await requireAdminTi()) return;
+  if (status === "bloqueado") {
+    const confirmed = await requestStrongConfirmation({
+      title: "Suspender acesso do Personal",
+      description: "O Personal perderá acesso imediatamente. Os alunos e históricos serão preservados.",
+      expectedText: "SUSPENDER"
+    });
+    if (!confirmed) return;
+  }
+  const { error } = await supabaseClient.from("app_profiles").update({ status_usuario: status }).eq("id", profileId);
+  if (error) throw error;
+  showToast(status === "ativo" ? "Personal reativado." : "Personal suspenso.");
+  await loadSupabaseData({ silent: true });
 }
 
 function switchAuthMode(mode) {
@@ -5134,11 +5208,12 @@ function handleInviteRegisterRequest() {
   if (!raw) return;
 
   try {
-    const token = raw.includes("invite=")
-      ? new URL(raw).searchParams.get("invite")
-      : raw;
+    const parsedUrl = raw.includes("invite=") ? new URL(raw) : null;
+    const trainerToken = parsedUrl?.searchParams.get("trainer_invite") || "";
+    const token = parsedUrl ? (trainerToken || parsedUrl.searchParams.get("invite")) : raw;
     if (!token) throw new Error("Token nao encontrado no convite.");
-    window.location.href = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+    const parameter = trainerToken ? "trainer_invite" : "invite";
+    window.location.href = `${window.location.origin}${window.location.pathname}?${parameter}=${encodeURIComponent(token)}`;
   } catch (error) {
     showToast(`Convite invalido: ${error.message}`, "error");
   }
@@ -5270,30 +5345,23 @@ async function fetchTrustedAdminStatus() {
   return data === true;
 }
 
+async function fetchTrainerInviteByToken(token) {
+  if (!token) return null;
+  const { data, error } = await supabaseClient.rpc("get_trainer_invite_by_token", { invite_token: token });
+  if (error) throw error;
+  const invite = Array.isArray(data) ? (data[0] || null) : data;
+  return invite?.status === "pendente" && (!invite.expires_at || new Date(invite.expires_at) > new Date())
+    ? { ...invite, token }
+    : null;
+}
+
 async function ensureUserProfileAndStudentLink(user, options = {}) {
   if (!user?.id) return null;
 
   const existing = await fetchAppProfileByUserId(user.id);
   if (existing) return existing;
 
-  const requestedRole = normalizeRole(options.requestedRole || user.user_metadata?.role || state.preferredLoginRole);
-  if (requestedRole !== "trainer") {
-    return null;
-  }
-
-  const payload = getProfilePayload(
-    user,
-    "personal",
-    options.name || user.user_metadata?.nome || user.user_metadata?.name || user.email
-  );
-  payload.academy_id = null;
-  payload.academy_link_status = null;
-  payload.independent_personal = true;
-
-  const created = await insertWithSchemaFallback("app_profiles", payload, "Erro ao criar perfil de Personal");
-  const appProfile = created?.[0] || payload;
-  await syncCanonicalProfile(user, appProfile);
-  return appProfile;
+  return null;
 }
 
 function hydrateInviteRegisterForm(invite) {
@@ -5308,13 +5376,9 @@ function hydrateInviteRegisterForm(invite) {
     emailInput.readOnly = true;
   }
   if (roleInput) {
-    if (![...roleInput.options].some((option) => option.value === "aluno")) {
-      roleInput.add(new Option("Aluno convidado", "aluno"));
-    }
-    roleInput.value = "aluno";
-    roleInput.disabled = true;
+    roleInput.value = state.pendingInviteType === "trainer" ? "personal" : "aluno";
   }
-  el.registerStatus.textContent = "Convite encontrado. Crie sua senha para finalizar o cadastro de aluno.";
+  el.registerStatus.textContent = `Convite encontrado. Crie sua senha para finalizar o cadastro de ${state.pendingInviteType === "trainer" ? "Personal" : "aluno"}.`;
 }
 
 async function loadInviteFromUrl() {
@@ -5323,7 +5387,9 @@ async function loadInviteFromUrl() {
   if (!token) return;
 
   try {
-    const invite = await fetchInviteByToken(token);
+    const invite = state.pendingInviteType === "trainer"
+      ? await fetchTrainerInviteByToken(token)
+      : await fetchInviteByToken(token);
     if (!invite) {
       showToast("Convite invalido, expirado ou ja utilizado.", "error");
       return;
@@ -5334,12 +5400,9 @@ async function loadInviteFromUrl() {
     const sessionEmail = normalizeAuthEmail(sessionData?.session?.user?.email);
     const inviteEmail = normalizeAuthEmail(invite.email);
     if (sessionEmail && inviteEmail && sessionEmail !== inviteEmail) {
-      const { error: signOutError } = await supabaseClient.auth.signOut();
-      if (signOutError) throw signOutError;
-      state.authUser = null;
-      state.authProfile = null;
-      el.authStatus.textContent = `A sessão de ${sessionEmail} foi encerrada. Entre com ${inviteEmail} para aceitar este convite.`;
-      showToast("Sessão anterior encerrada para proteger o convite.");
+      state.inviteSessionConflict = true;
+      el.inviteSessionConflict?.classList.remove("hidden");
+      el.authStatus.textContent = "Há uma conta diferente conectada. Escolha como continuar.";
     }
   } catch (error) {
     console.error("[Alion Treinos] Erro ao carregar convite:", error);
@@ -5356,7 +5419,8 @@ async function completeInviteForUser(user, invite = state.pendingInvite) {
     throw new Error("Este convite pertence a outro e-mail.");
   }
 
-  const { error } = await supabaseClient.rpc("accept_student_invite_link", {
+  const rpcName = state.pendingInviteType === "trainer" ? "accept_trainer_invite" : "accept_student_invite_link";
+  const { error } = await supabaseClient.rpc(rpcName, {
     invite_token: invite.token
   });
   if (error) {
@@ -5365,6 +5429,7 @@ async function completeInviteForUser(user, invite = state.pendingInvite) {
   }
 
   state.pendingInvite = null;
+  state.pendingInviteType = "";
   state.inviteToken = "";
   clearAuthUrlParams();
   return fetchAuthProfile(user, { createIfMissing: false });
@@ -5519,7 +5584,9 @@ function getSupabaseUrlParams() {
 }
 
 function getInviteTokenFromUrl() {
-  return String(getSupabaseUrlParams().get("invite") || "").trim();
+  const params = getSupabaseUrlParams();
+  state.pendingInviteType = params.get("trainer_invite") ? "trainer" : (params.get("invite") ? "student" : "");
+  return String(params.get("trainer_invite") || params.get("invite") || "").trim();
 }
 
 function urlIndicatesPasswordRecovery() {
@@ -5576,12 +5643,16 @@ async function applyAuthenticatedSessionInternal(session) {
   state.trustedAdmin = await fetchTrustedAdminStatus();
   const metadataInviteToken = session.user.user_metadata?.invite_token || "";
   if (!state.pendingInvite && metadataInviteToken) {
-    state.pendingInvite = await fetchInviteByToken(metadataInviteToken);
+    state.pendingInviteType = session.user.user_metadata?.invite_type === "trainer" ? "trainer" : "student";
+    state.pendingInvite = state.pendingInviteType === "trainer"
+      ? await fetchTrainerInviteByToken(metadataInviteToken)
+      : await fetchInviteByToken(metadataInviteToken);
   }
 
   if (state.pendingInvite) {
+    const acceptedType = state.pendingInviteType;
     state.authProfile = await completeInviteForUser(session.user, state.pendingInvite);
-    showToast("Convite aceito e aluno vinculado ao personal.");
+    showToast(acceptedType === "trainer" ? "Convite aceito e perfil de Personal ativado." : "Convite aceito e aluno vinculado ao Personal.");
   }
 
   try {
@@ -5615,6 +5686,15 @@ async function applyAuthenticatedSessionInternal(session) {
     document.body.dataset.role = "";
     renderAuthStatus();
     changeScreen("first-access");
+    return;
+  }
+
+  const accountStatus = normalizeText(state.authProfile?.status_usuario || "ativo");
+  if (state.authProfile && !["ativo", "active"].includes(accountStatus)) {
+    await handleAuthLogout({ skipConfirmation: true, silent: true });
+    el.authStatus.textContent = "Esta conta está suspensa. Procure o administrador do sistema.";
+    showToast("Conta suspensa.", "error");
+    changeScreen("access");
     return;
   }
 
@@ -5717,7 +5797,7 @@ async function handleAuthRegister(form) {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
-  const role = state.pendingInvite ? "aluno" : String(formData.get("role") || "");
+  const role = state.pendingInviteType === "trainer" ? "personal" : "aluno";
 
   if (!name || !email || !password) {
     showToast("Preencha nome, e-mail e senha.", "error");
@@ -5734,13 +5814,8 @@ async function handleAuthRegister(form) {
     return;
   }
 
-  if (!state.pendingInvite && normalizeRole(role) !== "trainer") {
-    showToast("Somente Personal pode criar cadastro livre. Aluno entra por convite.", "error");
-    return;
-  }
-
-  if (normalizeRole(role) === "student" && !state.pendingInvite) {
-    showToast("Aluno nao cria conta livremente. Solicite convite ao personal.", "error");
+  if (!state.pendingInvite) {
+    showToast("Cadastro disponível somente por convite válido.", "error");
     return;
   }
 
@@ -5763,7 +5838,8 @@ async function handleAuthRegister(form) {
           nome: name,
           name,
           role: databaseRole,
-          invite_token: state.pendingInvite?.token || null
+          invite_token: state.pendingInvite?.token || null,
+          invite_type: state.pendingInviteType
         }
       }
     });
@@ -5832,11 +5908,10 @@ async function handleAuthLogout(options = {}) {
     );
     if (!confirmed) return;
   }
-  const currentUserId = state.authUser?.id || "";
   const { error } = await supabaseClient.auth.signOut();
   if (error) throw error;
   Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith(`${EXECUTION_DRAFT_PREFIX}:`) || (currentUserId && key.startsWith(STORAGE_NAMESPACE) && key.includes(currentUserId))) {
+    if (key.startsWith(`${EXECUTION_DRAFT_PREFIX}:`)) {
       localStorage.removeItem(key);
     }
   });
@@ -6443,6 +6518,22 @@ function bindEvents() {
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
+  el.inviteConflictLogout?.addEventListener("click", async () => {
+    await handleAuthLogout({ skipConfirmation: true, silent: true });
+    state.inviteSessionConflict = false;
+    el.inviteSessionConflict.classList.add("hidden");
+    hydrateInviteRegisterForm(state.pendingInvite);
+  });
+  el.inviteConflictCancel?.addEventListener("click", async () => {
+    state.pendingInvite = null;
+    state.pendingInviteType = "";
+    state.inviteToken = "";
+    state.inviteSessionConflict = false;
+    el.inviteSessionConflict.classList.add("hidden");
+    clearAuthUrlParams();
+    switchAuthMode("login");
+    await initAuthSession();
+  });
   el.firstAccessForm.addEventListener("submit", (event) => {
     event.preventDefault();
     handleFirstAccessPasswordChange(event.currentTarget);
@@ -6659,7 +6750,7 @@ function bindEvents() {
   });
   document.querySelector("#seed-exercise-library").addEventListener("click", seedExerciseLibrary);
   el.adminDownloadExerciseLibraryPdf?.addEventListener("click", printAdminExerciseLibraryPdf);
-  el.adminMaintenanceLog.closest(".card").addEventListener("click", (event) => {
+  el.adminMaintenanceLog?.closest(".card")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-admin-maintenance]");
     if (!button) return;
     handleAdminMaintenance(button.dataset.adminMaintenance);
@@ -6673,6 +6764,24 @@ function bindEvents() {
     }
     handleAdminStudentAction(button.dataset.adminStudentAction, button.dataset.studentId);
   });
+  el.adminPersonalsList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-personal-action]");
+    if (!button) return;
+    changeTrainerStatus(button.dataset.id, button.dataset.adminPersonalAction === "activate" ? "ativo" : "bloqueado")
+      .catch((error) => showToast(error.message, "error"));
+  });
+  el.adminTrainerInviteForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    createTrainerInvite(event.currentTarget).catch((error) => showToast(error.message, "error"));
+  });
+  el.adminTrainerInvitesList?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-copy-trainer-invite]");
+    if (button) copyTextToClipboard(button.dataset.copyTrainerInvite).then(() => showToast("Link copiado."));
+  });
+  [el.trainerTrashList, el.adminTrashList].forEach((list) => list?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-trash-action='restore']");
+    if (button) restoreTrashRecord(button.dataset.id).catch((error) => showToast(error.message, "error"));
+  }));
   el.adminExercisesList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-admin-exercise-action]");
     if (!button) return;
@@ -6719,9 +6828,7 @@ function renderWorkoutActions(workout, hasLogs) {
   const draftButton = status === "rascunho"
     ? ""
     : `<button class="tiny-button" type="button" data-action="status-workout" data-status="rascunho" data-id="${id}">Desativar</button>`;
-  const deleteButton = state.accessRole === "admin"
-    ? `<button class="tiny-button danger" type="button" data-action="delete-workout" data-id="${id}">Excluir definitivo</button>`
-    : "";
+  const deleteButton = `<button class="tiny-button danger" type="button" data-action="delete-workout" data-id="${id}">${state.accessRole === "admin" ? "Excluir definitivo" : "Mover para lixeira"}</button>`;
 
   return `
     <div class="record-actions workout-actions">
@@ -6746,6 +6853,7 @@ async function init() {
   hydrateAdminConfigForm();
   updateLoginRoleHelper(state.preferredLoginRole);
   await loadInviteFromUrl();
+  if (state.inviteSessionConflict) return;
   await initAuthSession();
 }
 

@@ -34,7 +34,8 @@ assert.match(app, /academy_status:\s*"independente"/);
 
 // Admin é validado por RPC/UUID; convite não faz escrita estrutural direta.
 assert.match(app, /rpc\("is_current_admin_ti"\)/);
-assert.match(app, /rpc\("accept_student_invite_link"/);
+assert.match(app, /"accept_student_invite_link"/);
+assert.match(app, /"accept_trainer_invite"/);
 assert.equal(app.includes("ADMIN_EMAIL"), false);
 assert.equal(app.includes("handleBootstrapAdmin"), false);
 assert.equal(app.includes('.from("trainer_students").upsert'), false);
