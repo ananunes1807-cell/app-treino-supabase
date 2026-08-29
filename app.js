@@ -1,6 +1,7 @@
 ﻿const EXECUTION_DRAFT_PREFIX = "Alion Treinos_execution_draft";
-const PENDING_WORKOUT_LOGS_KEY = "Alion Treinos_pending_workout_logs";
-const THEME_STORAGE_KEY = "alion-theme-preference";
+const STORAGE_NAMESPACE = "alion_treinos_v1";
+const PENDING_WORKOUT_LOGS_KEY = `${STORAGE_NAMESPACE}:pending_workout_logs`;
+const THEME_STORAGE_KEY = `${STORAGE_NAMESPACE}:theme`;
 const THEME_VALUES = ["system", "light", "dark"];
 const THEME_COLORS = {
   light: "#f4f7fb",
@@ -716,7 +717,15 @@ async function saveStudentCharacterPreference(form) {
 
 function savePendingWorkoutLogs(logs) {
   if (!state.authUser?.id) return;
-  writeLocalJson(`${PENDING_WORKOUT_LOGS_KEY}:${state.authUser.id}`, logs);
+  const sensitiveFields = new Set(["pain_level", "pain_location", "feedback", "notes", "observations", "observacoes"]);
+  const scrub = (value) => {
+    if (Array.isArray(value)) return value.map(scrub);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value)
+      .filter(([key]) => !sensitiveFields.has(key))
+      .map(([key, nested]) => [key, scrub(nested)]));
+  };
+  writeLocalJson(`${PENDING_WORKOUT_LOGS_KEY}:${state.authUser.id}`, scrub(logs));
 }
 
 function getAllWorkoutLogs() {
@@ -986,14 +995,11 @@ function getExecutionDraftKey(workoutId = getCurrentWorkout(state.studentAreaId)
 }
 
 function loadCurrentExecutionDraft() {
-  const key = getExecutionDraftKey();
-  state.studentExerciseExecution = key ? readLocalJson(key, {}) : {};
+  state.studentExerciseExecution = {};
 }
 
 function saveCurrentExecutionDraft() {
-  const key = getExecutionDraftKey();
-  if (!key) return;
-  writeLocalJson(key, state.studentExerciseExecution);
+  // Dados de execução podem conter informações de saúde e permanecem apenas em memória.
 }
 
 function getPlannedSets(exercise) {
@@ -2650,8 +2656,8 @@ function unlockAdminArea(_password) {
  */
 function hydrateAdminConfigForm() {
   const config = getSupabaseConfig();
-  el.adminSupabaseUrl.value = maskSupabaseUrl(config.url);
-  el.adminSupabaseKey.value = maskSecret(config.anonKey);
+  if (el.adminSupabaseUrl) el.adminSupabaseUrl.value = maskSupabaseUrl(config.url);
+  if (el.adminSupabaseKey) el.adminSupabaseKey.value = maskSecret(config.anonKey);
 }
 
 function maskSupabaseUrl(url) {
@@ -3461,24 +3467,7 @@ async function removeTestWorkouts() {
 }
 
 async function removeDuplicateExercises() {
-  const seen = new Set();
-  const duplicates = [];
-
-  for (const exercise of state.exercises) {
-    const key = getExerciseKey(exercise);
-    if (!key || key === "::") continue;
-    if (seen.has(key)) {
-      duplicates.push(exercise);
-      continue;
-    }
-    seen.add(key);
-  }
-
-  for (const exercise of duplicates) {
-    await deleteById("exercise_library", exercise.id, "Erro ao remover exercicio duplicado");
-  }
-
-  return duplicates.length;
+  throw new Error("A mesclagem automática foi desativada. Revise referências e escolha manualmente o registro principal.");
 }
 
 async function removeOrphanWorkoutData() {
@@ -4582,6 +4571,15 @@ async function reloadAfterDelete() {
   await renderTrainerProfile();
 }
 
+async function moveOwnedRecordToTrash(recordType, id, label) {
+  const { error } = await supabaseClient.rpc("alion_soft_delete_owned_record", {
+    target_type: recordType,
+    target_id: id,
+    target_label: label || "Registro"
+  });
+  if (error) throw new Error(`Não foi possível mover para a lixeira: ${error.message}`);
+}
+
 /**
  * Exclui uma avaliacao pelo id.
  */
@@ -4590,7 +4588,7 @@ async function deleteAssessment(id) {
   console.log("[Alion Treinos] deleteAssessment(id):", id);
 
   try {
-    await deleteById("assessments", id, "Erro ao excluir avaliacao");
+    await moveOwnedRecordToTrash("assessment", id, "Avaliação");
     showToast("Avaliacao excluida.");
     await reloadAfterDelete();
   } catch (error) {
@@ -4606,7 +4604,7 @@ async function deleteBodyMeasurement(id) {
   console.log("[Alion Treinos] deleteBodyMeasurement(id):", id);
 
   try {
-    await deleteById("body_measurements", id, "Erro ao excluir medida");
+    await moveOwnedRecordToTrash("body_measurement", id, "Medida corporal");
     showToast("Medida excluida.");
     await reloadAfterDelete();
   } catch (error) {
@@ -4622,7 +4620,7 @@ async function deleteWorkoutExercise(id) {
   console.log("[Alion Treinos] deleteWorkoutExercise(id):", id);
 
   try {
-    await deleteById("workout_exercises", id, "Erro ao remover exercício do treino");
+    await moveOwnedRecordToTrash("workout_exercise", id, "Exercício do treino");
     showToast("Exercício removido do treino.");
     await reloadAfterDelete();
   } catch (error) {
@@ -5332,6 +5330,17 @@ async function loadInviteFromUrl() {
     }
     state.pendingInvite = invite;
     hydrateInviteRegisterForm(invite);
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const sessionEmail = normalizeAuthEmail(sessionData?.session?.user?.email);
+    const inviteEmail = normalizeAuthEmail(invite.email);
+    if (sessionEmail && inviteEmail && sessionEmail !== inviteEmail) {
+      const { error: signOutError } = await supabaseClient.auth.signOut();
+      if (signOutError) throw signOutError;
+      state.authUser = null;
+      state.authProfile = null;
+      el.authStatus.textContent = `A sessão de ${sessionEmail} foi encerrada. Entre com ${inviteEmail} para aceitar este convite.`;
+      showToast("Sessão anterior encerrada para proteger o convite.");
+    }
   } catch (error) {
     console.error("[Alion Treinos] Erro ao carregar convite:", error);
     showToast(`Erro ao carregar convite: ${error.message}`, "error");
@@ -5668,31 +5677,6 @@ async function applyAuthenticatedSession(session) {
   }
 }
 
-function getGoogleRedirectUrl() {
-  const token = state.inviteToken || getInviteTokenFromUrl();
-  if (!token) return getAuthRedirectUrl();
-  return `${APP_PUBLIC_URL}?invite=${encodeURIComponent(token)}`;
-}
-
-async function signInWithGoogle() {
-  try {
-    el.authStatus.textContent = "Entrando com Google...";
-    showToast("Entrando com Google...");
-
-    const { error } = await supabaseClient.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: getGoogleRedirectUrl()
-      }
-    });
-
-    if (error) throw error;
-    el.authStatus.textContent = "Conta Google conectada. Verificando seu cadastro...";
-  } catch (error) {
-    showAuthError("Erro ao entrar com Google", error);
-  }
-}
-
 async function handleAuthLogin(form) {
   const formData = new FormData(form);
   const email = String(formData.get("email") || "").trim().toLowerCase();
@@ -5713,6 +5697,12 @@ async function handleAuthLogin(form) {
       return;
     }
     await applyAuthenticatedSession(data.session);
+    const actualRole = getCurrentRole();
+    const selectedRole = normalizeRole(state.preferredLoginRole);
+    if (actualRole !== "admin" && actualRole && actualRole !== selectedRole) {
+      await handleAuthLogout({ skipConfirmation: true, silent: true });
+      throw new Error(`Esta conta é de ${actualRole === "trainer" ? "Personal" : "Aluno"}. Selecione o perfil correto para entrar.`);
+    }
     showToast("Login realizado.");
   } catch (error) {
     showAuthError("Excecao capturada no login", error);
@@ -5833,16 +5823,23 @@ async function handleForgotPassword() {
   }
 }
 
-async function handleAuthLogout() {
+async function handleAuthLogout(options = {}) {
   const pendingCount = getPendingWorkoutLogs().length;
-  if (pendingCount) {
+  if (pendingCount && !options.skipConfirmation) {
     const confirmed = window.confirm(
       `Existem ${pendingCount} conclusão(ões) pendente(s) de sincronização neste aparelho. `
       + "Se você sair agora, os registros locais serão preservados, mas só serão enviados depois de um novo login. Deseja sair?"
     );
     if (!confirmed) return;
   }
-  await supabaseClient.auth.signOut();
+  const currentUserId = state.authUser?.id || "";
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) throw error;
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith(`${EXECUTION_DRAFT_PREFIX}:`) || (currentUserId && key.startsWith(STORAGE_NAMESPACE) && key.includes(currentUserId))) {
+      localStorage.removeItem(key);
+    }
+  });
   state.authUser = null;
   state.authProfile = null;
   state.accessRole = "";
@@ -5865,7 +5862,7 @@ async function handleAuthLogout() {
   el.adminPanel.classList.add("hidden");
   renderAuthStatus();
   changeScreen("access");
-  showToast("Sessao encerrada.");
+  if (!options.silent) showToast("Sessão encerrada.");
 }
 
 async function handleFirstAccessPasswordChange(form) {
@@ -6443,7 +6440,6 @@ function bindEvents() {
     event.preventDefault();
     handleAuthRegister(event.currentTarget);
   });
-  el.googleLoginButton?.addEventListener("click", signInWithGoogle);
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
@@ -6459,12 +6455,9 @@ function bindEvents() {
 
   document.querySelectorAll("[data-screen]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (button.dataset.screen === "access") {
-        state.accessRole = "";
-        if (!state.authUser) state.authProfile = null;
-        document.body.dataset.role = "";
-        el.sidebar.classList.add("hidden");
-        renderAuthStatus();
+      if (button.dataset.screen === "access" && state.authUser) {
+        handleAuthLogout().catch((error) => showAuthError("Erro ao sair", error));
+        return;
       }
       changeScreen(button.dataset.screen, { pushHistory: true });
     });
@@ -6649,13 +6642,6 @@ function bindEvents() {
   el.trainerMeasurements.addEventListener("click", handleTrainerListAction);
   el.trainerWorkouts.addEventListener("click", handleTrainerListAction);
 
-  document.querySelector("#supabase-config-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveAdminSupabaseConfig(event.currentTarget);
-  });
-
-  el.copySupabaseUrl?.addEventListener("click", () => copySupabaseConfigValue("url"));
-  el.copySupabaseKey?.addEventListener("click", () => copySupabaseConfigValue("key"));
   el.adminConfirmCancel?.addEventListener("click", () => closeStrongConfirmation(false));
   el.adminConfirmInput?.addEventListener("input", () => {
     const expected = state.pendingAdminConfirmation?.expected || "";

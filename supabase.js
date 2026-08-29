@@ -15,42 +15,14 @@
 */
 const DEFAULT_SUPABASE_URL = "https://wkxfaogfwowdauxlscux.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_NdscXIppRgUHxFCUg2qb-w_gMmgKFYh";
-const SUPABASE_CONFIG_STORAGE_KEY = "app-treino-supabase-config";
 const PRODUCTION_APP_URL = "https://ananunes1807-cell.github.io/app-treino-supabase/";
+const SUPABASE_AUTH_STORAGE_KEY = "alion_treinos_v1:auth";
 
 /**
  * Retorna as credenciais salvas no navegador ou as credenciais padrao do arquivo.
  */
 function getSupabaseConfig() {
-  const savedConfig = localStorage.getItem(SUPABASE_CONFIG_STORAGE_KEY);
-
-  if (!savedConfig) {
-    return {
-      url: DEFAULT_SUPABASE_URL,
-      anonKey: DEFAULT_SUPABASE_ANON_KEY
-    };
-  }
-
-  try {
-    const parsedConfig = JSON.parse(savedConfig);
-    return {
-      url: parsedConfig.url || DEFAULT_SUPABASE_URL,
-      anonKey: parsedConfig.anonKey || DEFAULT_SUPABASE_ANON_KEY
-    };
-  } catch (error) {
-    console.warn("Configuracao local do Supabase invalida.", error);
-    return {
-      url: DEFAULT_SUPABASE_URL,
-      anonKey: DEFAULT_SUPABASE_ANON_KEY
-    };
-  }
-}
-
-/**
- * Salva credenciais no navegador para testes do MVP pelo TI/Admin.
- */
-function saveSupabaseConfig(config) {
-  localStorage.setItem(SUPABASE_CONFIG_STORAGE_KEY, JSON.stringify(config));
+  return { url: DEFAULT_SUPABASE_URL, anonKey: DEFAULT_SUPABASE_ANON_KEY };
 }
 
 /**
@@ -66,7 +38,9 @@ function getAuthRedirectUrl() {
  */
 function createSupabaseClient() {
   const config = getSupabaseConfig();
-  return supabase.createClient(config.url, config.anonKey);
+  return supabase.createClient(config.url, config.anonKey, {
+    auth: { storageKey: SUPABASE_AUTH_STORAGE_KEY }
+  });
 }
 
 /**
