@@ -205,6 +205,9 @@ const el = {
   googleLoginButton: document.querySelector("#google-login-button"),
   forgotPasswordButton: document.querySelector("#forgot-password-button"),
   inviteRegisterButton: document.querySelector("#invite-register-button"),
+  inviteExistingAuthActions: document.querySelector("#invite-existing-auth-actions"),
+  inviteExistingAuthLogin: document.querySelector("#invite-existing-auth-login"),
+  inviteExistingAuthCancel: document.querySelector("#invite-existing-auth-cancel"),
   inviteSessionConflict: document.querySelector("#invite-session-conflict"),
   inviteConflictLogout: document.querySelector("#invite-conflict-logout"),
   inviteConflictCancel: document.querySelector("#invite-conflict-cancel"),
@@ -219,7 +222,8 @@ const el = {
   passwordFlowSubtitle: document.querySelector("#password-flow-subtitle"),
   passwordFlowTitle: document.querySelector("#password-flow-title"),
   passwordFlowDescription: document.querySelector("#password-flow-description"),
-  studentAccessResult: document.querySelector("#student-access-result")
+  studentAccessResult: document.querySelector("#student-access-result"),
+  studentAccessPanel: document.querySelector("#student-access-panel")
 };
 
 /**
@@ -1404,6 +1408,53 @@ function getInviteStatusClass(status) {
   return "neutral";
 }
 
+function getStudentAccessState(student) {
+  const invite = getLatestInviteForStudent(student?.id);
+  if (!invite) return { key: "none", label: "Sem convite", invite: null };
+  const status = normalizeText(invite.status);
+  if (status === "pendente" && invite.expires_at && new Date(invite.expires_at) <= new Date()) {
+    return { key: "expired", label: "Convite expirado", invite };
+  }
+  if (status === "pendente") return { key: "pending", label: "Convite pendente", invite };
+  if (["aceito", "aprovado"].includes(status)) return { key: "accepted", label: "Conta vinculada", invite };
+  if (["cancelado", "recusado"].includes(status)) return { key: "cancelled", label: "Convite cancelado", invite };
+  if (status === "expirado") return { key: "expired", label: "Convite expirado", invite };
+  return { key: status || "none", label: formatInviteStatus(status), invite };
+}
+
+function renderStudentAccessPanel(student) {
+  if (!el.studentAccessPanel) return;
+  if (!student) {
+    el.studentAccessPanel.innerHTML = `<h3>Acesso ao Alion</h3>${emptyMessage("Selecione um aluno para consultar ou gerenciar o acesso.")}`;
+    return;
+  }
+
+  const access = getStudentAccessState(student);
+  const email = String(pick(student, ["email"], "")).trim();
+  let actions = "";
+  if (access.key === "none") {
+    actions = email
+      ? `<button class="tiny-button" type="button" data-student-access-action="generate">Gerar convite</button>`
+      : `<small>Adicione um e-mail ao perfil para gerar o convite.</small>`;
+  } else if (access.key === "pending") {
+    actions = `
+      <button class="tiny-button" type="button" data-student-access-action="copy" data-id="${escapeHtml(access.invite.id)}">Copiar link</button>
+      <button class="tiny-button" type="button" data-student-access-action="share" data-id="${escapeHtml(access.invite.id)}">Compartilhar</button>
+      <button class="tiny-button danger" type="button" data-student-access-action="cancel" data-id="${escapeHtml(access.invite.id)}">Cancelar convite</button>`;
+  } else if (["expired", "cancelled"].includes(access.key)) {
+    actions = email
+      ? `<button class="tiny-button" type="button" data-student-access-action="generate-new">Gerar novo convite</button>`
+      : `<small>Adicione um e-mail ao perfil para gerar um novo convite.</small>`;
+  }
+
+  el.studentAccessPanel.innerHTML = `
+    <h3>Acesso ao Alion</h3>
+    <strong>${escapeHtml(access.label)}</strong>
+    <small>${escapeHtml(email || "E-mail não informado")}</small>
+    ${access.key === "accepted" ? `<small>A identidade Auth existente está vinculada a este aluno.</small>` : ""}
+    <div class="record-actions">${actions}</div>`;
+}
+
 /**
  * Renderiza perfil, avaliacoes, medidas e treinos do aluno selecionado.
  */
@@ -1412,6 +1463,7 @@ async function renderTrainerProfile() {
 
   if (!student) {
     el.trainerProfileSummary.innerHTML = emptyMessage("Selecione um aluno para visualizar o perfil.");
+    renderStudentAccessPanel(null);
     el.trainerAssessments.innerHTML = emptyMessage("Nenhum aluno selecionado.");
     el.trainerMeasurements.innerHTML = emptyMessage("Nenhum aluno selecionado.");
     el.trainerWorkouts.innerHTML = emptyMessage("Nenhum aluno selecionado.");
@@ -1421,6 +1473,7 @@ async function renderTrainerProfile() {
 
   const name = pick(student, ["name", "full_name", "nome"], "Aluno sem nome");
   el.trainerProfileTitle.textContent = name;
+  renderStudentAccessPanel(student);
   el.trainerProfileSummary.innerHTML = `
     <div class="profile-card">
       <div class="avatar large ${getAvatarColor(name)}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
@@ -2228,6 +2281,34 @@ function resetMeasurementEditMode(form) {
   form.dataset.editId = "";
   setFormTitle(form, "Adicionar perimetria");
   setSubmitLabel(form, "Salvar medidas");
+}
+
+async function handleStudentAccessAction(action, inviteId) {
+  const student = state.students.find((item) => String(item.id) === String(state.selectedStudentId));
+  if (!student) return;
+  const email = String(pick(student, ["email"], "")).trim().toLowerCase();
+
+  if (["generate", "generate-new"].includes(action)) {
+    const result = await createStudentInvite(student, email, { forceNew: action === "generate-new" });
+    if (!result.ok) throw new Error(result.message);
+    showToast(result.reusedPending ? "Convite pendente preservado." : "Convite criado com sucesso.");
+    await loadSupabaseData({ silent: true });
+    return;
+  }
+
+  const invite = state.studentInvites.find((item) => String(item.id) === String(inviteId));
+  if (!invite) throw new Error("Convite nao encontrado.");
+  if (action === "share") {
+    const link = buildInviteLink(pick(invite, ["token"], ""));
+    if (navigator.share) await navigator.share({ title: "Convite Alion Treinos", url: link });
+    else {
+      await copyTextToClipboard(link);
+      showToast("Link copiado para compartilhar.");
+    }
+    return;
+  }
+  await handleInviteAction(action, inviteId);
+  renderStudentAccessPanel(student);
 }
 
 function cancelTrainerEditModes() {
@@ -5389,6 +5470,7 @@ async function ensureUserProfileAndStudentLink(user, options = {}) {
 
 function hydrateInviteRegisterForm(invite) {
   if (!invite) return;
+  el.inviteExistingAuthActions?.classList.add("hidden");
   switchAuthMode("register");
   const nameInput = document.querySelector("#register-name");
   const emailInput = document.querySelector("#register-email");
@@ -5402,6 +5484,34 @@ function hydrateInviteRegisterForm(invite) {
     roleInput.value = state.pendingInviteType === "trainer" ? "personal" : "aluno";
   }
   el.registerStatus.textContent = `Convite encontrado. Crie sua senha para finalizar o cadastro de ${state.pendingInviteType === "trainer" ? "Personal" : "aluno"}.`;
+}
+
+function showExistingInviteAuthPrompt() {
+  const inviteEmail = normalizeAuthEmail(state.pendingInvite?.email);
+  el.registerStatus.textContent = "Este e-mail já possui uma conta no Alion. Faça login para aceitar o convite.";
+  el.inviteExistingAuthActions?.classList.remove("hidden");
+  if (el.authEmail) el.authEmail.value = inviteEmail;
+}
+
+function continueExistingInviteWithLogin() {
+  const role = state.pendingInviteType === "trainer" ? "trainer" : "student";
+  const inviteEmail = normalizeAuthEmail(state.pendingInvite?.email);
+  updateLoginRoleHelper(role);
+  switchAuthMode("login");
+  if (el.authEmail) el.authEmail.value = inviteEmail;
+  el.inviteExistingAuthActions?.classList.add("hidden");
+  el.authStatus.textContent = "Entre com a conta existente para aceitar o convite. O e-mail precisa ser o mesmo do convite.";
+  el.authPassword?.focus();
+}
+
+async function cancelExistingInviteFlow() {
+  state.pendingInvite = null;
+  state.pendingInviteType = "";
+  state.inviteToken = "";
+  el.inviteExistingAuthActions?.classList.add("hidden");
+  clearAuthUrlParams();
+  switchAuthMode("login");
+  await initAuthSession();
 }
 
 async function loadInviteFromUrl() {
@@ -5868,9 +5978,12 @@ async function handleAuthRegister(form) {
     });
 
     if (isExistingEmailSignUpResult(data, error)) {
-      throw new Error(state.pendingInvite
-        ? "Este e-mail ja existe. Entre com sua senha usando este mesmo link para aceitar o convite."
-        : "Este e-mail ja esta cadastrado. Entre ou recupere sua senha.");
+      if (state.pendingInvite) {
+        showExistingInviteAuthPrompt();
+        showToast("Este e-mail já possui uma conta. Entre para aceitar o convite.");
+        return;
+      }
+      throw new Error("Este e-mail ja esta cadastrado. Entre ou recupere sua senha.");
     }
 
     if (error) throw error;
@@ -6540,6 +6653,10 @@ function bindEvents() {
   });
   el.forgotPasswordButton.addEventListener("click", handleForgotPassword);
   el.inviteRegisterButton.addEventListener("click", handleInviteRegisterRequest);
+  el.inviteExistingAuthLogin?.addEventListener("click", continueExistingInviteWithLogin);
+  el.inviteExistingAuthCancel?.addEventListener("click", () => {
+    cancelExistingInviteFlow().catch((error) => showToast(error.message, "error"));
+  });
   el.authLogoutButton.addEventListener("click", handleAuthLogout);
   el.inviteConflictLogout?.addEventListener("click", async () => {
     await handleAuthLogout({ skipConfirmation: true, silent: true });
@@ -6716,6 +6833,13 @@ function bindEvents() {
     state.trainerPdfWorkoutId = "all";
     renderTrainerStudents();
     renderTrainerProfile();
+  });
+
+  el.studentAccessPanel?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-student-access-action]");
+    if (!button) return;
+    handleStudentAccessAction(button.dataset.studentAccessAction, button.dataset.id)
+      .catch((error) => showToast(error.message, "error"));
   });
 
   el.trainerPdfWorkoutSelect?.addEventListener("change", (event) => {

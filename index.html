@@ -127,6 +127,14 @@
               <button class="primary-button" type="submit">Criar cadastro</button>
               <p class="muted-text" id="register-status">O cadastro só pode ser concluído por um link de convite válido.</p>
             </form>
+            <div class="form-box hidden" id="invite-existing-auth-actions" role="status">
+              <strong>Este e-mail já possui uma conta no Alion.</strong>
+              <p class="muted-text">Faça login com a conta existente para aceitar este convite. A identidade atual será mantida.</p>
+              <div class="button-row">
+                <button class="primary-button" type="button" id="invite-existing-auth-login">Entrar e aceitar convite</button>
+                <button class="secondary-button" type="button" id="invite-existing-auth-cancel">Cancelar</button>
+              </div>
+            </div>
             <div class="form-box hidden" id="invite-session-conflict" role="alert">
               <strong>Este convite pertence a outra conta.</strong>
               <p class="muted-text">Saia da conta atual para aceitar o convite ou cancele para continuar conectado.</p>
@@ -370,6 +378,10 @@
               </div>
 
               <section class="trainer-tab active" id="trainer-tab-profile">
+                <div class="form-box" id="student-access-panel">
+                  <h3>Acesso ao Alion</h3>
+                  <p class="muted-text">Selecione um aluno para consultar ou gerenciar o acesso.</p>
+                </div>
                 <form class="form-box" id="edit-student-form">
                   <h3>Editar perfil do aluno</h3>
                   <div class="mini-grid">
