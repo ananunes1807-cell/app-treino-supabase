@@ -65,6 +65,7 @@ const state = {
   passwordRecoveryMode: false,
   inviteToken: "",
   pendingInvite: null,
+  pendingStudentInviteOffer: null,
   pendingInviteType: "",
   inviteSessionConflict: false,
   students: [],
@@ -1742,10 +1743,10 @@ async function createStudent(form) {
     const created = await insertStudentWithFallback(fullPayload);
     const createdStudent = created[0];
     state.selectedStudentId = createdStudent?.id || state.selectedStudentId;
-    const accessResult = await createStudentInvite(createdStudent, email);
     form.reset();
     showToast("Aluno adicionado com sucesso.");
-    renderStudentAccessResult(email, accessResult);
+    state.pendingStudentInviteOffer = { student: createdStudent, email };
+    renderStudentInviteOffer(createdStudent, email);
     await loadSupabaseData();
   } catch (error) {
     showToast(error.message, "error");
@@ -1792,40 +1793,25 @@ async function createStudentInvite(student, email, options = {}) {
       };
     }
 
-    if (existingPending && options.forceNew) {
-      await updateWithSchemaFallback("student_invites", existingPending.id, {
-        status: "cancelado",
-        canceled_at: new Date().toISOString(),
-        canceled_by: state.authUser?.id || null,
-        updated_at: new Date().toISOString()
-      }, "Erro ao cancelar convite anterior");
-    }
+    const { data, error } = await supabaseClient.rpc("create_or_get_student_invite", {
+      target_student_id: student.id,
+      target_email: email,
+      replace_pending: options.forceNew === true
+    });
+    if (error) throw new Error(`Erro ao criar convite do aluno: ${error.message}`);
 
-    const token = generateInviteToken();
-    const trainerId = pick(student, ["trainer_id", "personal_id"], "") || state.authProfile?.id || null;
-
-    if (!trainerId) {
-      throw new Error("Personal responsavel nao encontrado para criar o convite.");
-    }
-
-    const invitePayload = {
-      student_id: student.id,
-      name: pick(student, ["name"], ""),
-      email,
-      trainer_id: trainerId,
-      token,
-      status: "pendente",
-      expires_at: getInviteExpirationDate(),
-      created_by: state.authUser?.id || null
-    };
-
-    const created = await insertWithSchemaFallback("student_invites", invitePayload, "Erro ao criar convite do aluno");
+    const createdInvite = Array.isArray(data) ? data[0] : data;
+    if (!createdInvite?.token) throw new Error("O banco nao retornou um convite valido.");
+    const reusedPending = existingPending && String(existingPending.id) === String(createdInvite.id);
 
     return {
       ok: true,
-      invite: created?.[0] || invitePayload,
-      inviteLink: buildInviteLink(token),
-      message: "Convite criado. Envie o link para o aluno finalizar o cadastro."
+      invite: createdInvite,
+      inviteLink: buildInviteLink(createdInvite.token),
+      reusedPending,
+      message: reusedPending
+        ? "Este aluno ja possui um convite pendente. O link existente foi preservado."
+        : "Convite criado. Envie o link para o aluno finalizar o cadastro."
     };
   } catch (error) {
     console.warn("[Alion Treinos] Aluno salvo, mas convite nao foi criado.", error);
@@ -1842,6 +1828,11 @@ function renderStudentAccessResult(email, result) {
     <span>E-mail: ${escapeHtml(email || "Não informado")}</span>
     ${link ? `<span>Link: <b>${escapeHtml(link)}</b></span>` : ""}
     <small>${escapeHtml(result.message)}</small>
+    ${link ? `<div class="record-actions">
+      <button class="tiny-button" type="button" data-student-invite-link="copy" data-link="${escapeHtml(link)}">Copiar link</button>
+      <button class="tiny-button" type="button" data-student-invite-link="share" data-link="${escapeHtml(link)}">Compartilhar</button>
+      <small>Validade: ${escapeHtml(formatDateTime(result.invite?.expires_at))}</small>
+    </div>` : ""}
   `;
 }
 
@@ -1921,6 +1912,38 @@ function renderInvites() {
     el.trainerInvitesList.innerHTML = trainerInvites.length
       ? trainerInvites.map(renderInviteCard).join("")
       : emptyMessage("Nenhum convite encontrado para seus alunos.");
+  }
+}
+
+function renderStudentInviteOffer(student, email) {
+  if (!el.studentAccessResult) return;
+  el.studentAccessResult.classList.remove("hidden");
+  const missingEmail = !String(email || "").trim();
+  el.studentAccessResult.innerHTML = `
+    <strong>Aluno cadastrado com sucesso.</strong>
+    <span>${missingEmail ? "Adicione um e-mail ao aluno para gerar o convite de acesso." : "Deseja gerar o convite de acesso agora?"}</span>
+    <div class="record-actions">
+      ${missingEmail ? "" : `<button class="tiny-button" type="button" data-student-invite-offer="generate">Gerar convite</button>`}
+      <button class="tiny-button" type="button" data-student-invite-offer="later">Agora não</button>
+    </div>
+  `;
+}
+
+async function handleStudentInviteOffer(action) {
+  const pending = state.pendingStudentInviteOffer;
+  if (action === "later") {
+    state.pendingStudentInviteOffer = null;
+    el.studentAccessResult?.classList.add("hidden");
+    showToast("Aluno salvo. O convite pode ser gerado depois na ficha.");
+    return;
+  }
+  if (action !== "generate" || !pending?.student?.id) return;
+  const result = await createStudentInvite(pending.student, pending.email);
+  renderStudentAccessResult(pending.email, result);
+  if (result.ok) {
+    state.pendingStudentInviteOffer = null;
+    await loadSupabaseData({ silent: true });
+    showToast(result.reusedPending ? "Convite pendente preservado." : "Convite criado com sucesso.");
   }
 }
 
@@ -6706,6 +6729,23 @@ function bindEvents() {
   document.querySelector("#new-student-form").addEventListener("submit", (event) => {
     event.preventDefault();
     createStudent(event.currentTarget);
+  });
+  el.studentAccessResult?.addEventListener("click", async (event) => {
+    const offerButton = event.target.closest("[data-student-invite-offer]");
+    if (offerButton) {
+      handleStudentInviteOffer(offerButton.dataset.studentInviteOffer)
+        .catch((error) => showToast(error.message, "error"));
+      return;
+    }
+    const linkButton = event.target.closest("[data-student-invite-link]");
+    if (!linkButton) return;
+    const link = linkButton.dataset.link || "";
+    if (linkButton.dataset.studentInviteLink === "share" && navigator.share) {
+      await navigator.share({ title: "Convite Alion Treinos", url: link });
+    } else {
+      await copyTextToClipboard(link);
+      showToast("Link copiado.");
+    }
   });
   document.querySelector("#edit-student-form").addEventListener("submit", (event) => {
     event.preventDefault();
