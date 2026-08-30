@@ -115,6 +115,8 @@ const state = {
 };
 
 let activeAuthReconciliation = null;
+let activeAccountStatusCheck = null;
+let suspensionHandlingPromise = null;
 
 const el = {
   pageTitle: document.querySelector("#page-title"),
@@ -364,6 +366,7 @@ function writeLocalJson(key, value) {
  * Executa uma consulta Supabase e padroniza o tratamento de erro.
  */
 async function runQuery(query, fallbackMessage) {
+  await assertCurrentAccountActive();
   const { data, error } = await query;
 
   if (error) {
@@ -373,6 +376,57 @@ async function runQuery(query, fallbackMessage) {
   }
 
   return data || [];
+}
+
+async function fetchCurrentAccountActiveStatus() {
+  if (!state.authUser?.id) return null;
+  if (activeAccountStatusCheck) return activeAccountStatusCheck;
+
+  activeAccountStatusCheck = (async () => {
+    const { data, error } = await supabaseClient.rpc("is_current_user_active");
+    if (error) {
+      console.warn("[Alion Treinos] Nao foi possivel confirmar o status atual da conta.", error);
+      return null;
+    }
+    return data === true;
+  })();
+
+  try {
+    return await activeAccountStatusCheck;
+  } finally {
+    activeAccountStatusCheck = null;
+  }
+}
+
+async function handleSuspendedAccount() {
+  if (suspensionHandlingPromise) return suspensionHandlingPromise;
+  suspensionHandlingPromise = (async () => {
+    const message = "Sua conta está suspensa. Procure o administrador.";
+    try {
+      await handleAuthLogout({ skipConfirmation: true, silent: true });
+    } finally {
+      el.authStatus.textContent = message;
+      showToast(message, "error");
+      changeScreen("access");
+    }
+  })();
+
+  try {
+    await suspensionHandlingPromise;
+  } finally {
+    suspensionHandlingPromise = null;
+  }
+}
+
+async function assertCurrentAccountActive() {
+  if (!state.authUser?.id || suspensionHandlingPromise) return;
+  const active = await fetchCurrentAccountActiveStatus();
+  if (active !== false) return;
+
+  await handleSuspendedAccount();
+  const error = new Error("Sua conta está suspensa. Procure o administrador.");
+  error.code = "ACCOUNT_SUSPENDED";
+  throw error;
 }
 
 /**
@@ -1456,9 +1510,9 @@ function renderStudentAccessPanel(student) {
 }
 
 /**
- * Renderiza perfil, avaliacoes, medidas e treinos do aluno selecionado.
+ * Implementacao legada mantida temporariamente para compatibilidade de leitura.
  */
-async function renderTrainerProfile() {
+async function renderTrainerProfileLegacyUnused() {
   const student = state.students.find((item) => String(item.id) === String(state.selectedStudentId));
 
   if (!student) {
@@ -3770,6 +3824,7 @@ async function renderTrainerProfile() {
     el.trainerMeasurements.innerHTML = emptyMessage("Nenhum aluno selecionado.");
     el.trainerWorkouts.innerHTML = emptyMessage("Nenhum aluno selecionado.");
     el.trainerHistory.innerHTML = emptyMessage("Nenhum aluno selecionado.");
+    renderStudentAccessPanel(null);
     fillStudentProfileForm(null);
     renderTrainerWorkoutSelect([]);
     return;
@@ -3779,6 +3834,7 @@ async function renderTrainerProfile() {
   const birthDate = pick(student, ["birth_date"], "");
   const age = calculateAgeFromBirthDate(birthDate);
   el.trainerProfileTitle.textContent = name;
+  renderStudentAccessPanel(student);
   el.trainerProfileSummary.innerHTML = `
     <div class="profile-card">
       <div class="avatar large ${getAvatarColor(name)}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
@@ -5780,6 +5836,14 @@ async function applyAuthenticatedSessionInternal(session) {
     state.pendingInvite = state.pendingInviteType === "trainer"
       ? await fetchTrainerInviteByToken(metadataInviteToken)
       : await fetchInviteByToken(metadataInviteToken);
+  }
+
+  if (!state.pendingInvite) {
+    const active = await fetchCurrentAccountActiveStatus();
+    if (active === false) {
+      await handleSuspendedAccount();
+      return;
+    }
   }
 
   if (state.pendingInvite) {
