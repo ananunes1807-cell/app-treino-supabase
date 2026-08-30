@@ -69,7 +69,13 @@ begin
       end if;
 
       if trash_row.record_type = 'exercise'
-         and exists (select 1 from public.workout_exercises item where item.exercise_id = trash_row.record_id) then
+         and exists (
+           select 1
+           from public.exercise_library exercise
+           join public.workout_exercises item
+             on lower(btrim(item.exercise_name)) = lower(btrim(exercise.name))
+           where exercise.id = trash_row.record_id
+         ) then
         update public.alion_trash_records
         set purge_blocked_reason = 'Expurgo bloqueado: exercício ainda está sendo utilizado.'
         where id = trash_row.id;

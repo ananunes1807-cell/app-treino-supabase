@@ -33,6 +33,7 @@ test("expurgo preserva historico e registra bloqueios", () => {
   assert.match(sql, /treino possui histórico de execução/i);
   assert.match(sql, /aluno requer revisão administrativa/i);
   assert.match(sql, /exercício ainda está sendo utilizado/i);
+  assert.match(sql, /exercise_library[\s\S]*workout_exercises[\s\S]*exercise_name[\s\S]*exercise\.name/i);
   assert.match(sql, /foreign_key_violation/i);
 });
 
