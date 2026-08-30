@@ -1,0 +1,45 @@
+name: Alion trash purge
+
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alion-trash-purge
+  cancel-in-progress: false
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call scheduled trash purge RPC
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_SERVICE_ROLE_KEY:-}" || { echo "Missing SUPABASE_SERVICE_ROLE_KEY secret" >&2; exit 1; }
+
+          response_file="$(mktemp)"
+          http_code="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --header "Content-Type: application/json" \
+            --data '{}' \
+            "https://wkxfaogfwowdauxlscux.supabase.co/rest/v1/rpc/alion_run_scheduled_trash_purge")"
+
+          if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+            echo "Purge RPC failed with HTTP $http_code" >&2
+            jq -c '{code, message, details, hint}' "$response_file" >&2 || true
+            exit 1
+          fi
+
+          jq -e '.status == "success" and (.errors // 0) == 0' "$response_file" >/dev/null
+          jq -c '{status, scanned, purged, blocked, errors, run_id}' "$response_file"
