@@ -2358,6 +2358,13 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   color: var(--muted);
 }
 
+.import-adaptation-notes {
+  min-height: 108px;
+  line-height: 1.45;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 760px) {
   .workout-import-review { grid-template-columns: 1fr; }
   .workout-import-pdf-pane, .workout-import-draft-pane { max-height: none; }

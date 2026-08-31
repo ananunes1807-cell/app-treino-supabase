@@ -1,4 +1,4 @@
-const CACHE_NAME = "alion-pwa-v55-workout-template-v1";
+const CACHE_NAME = "alion-pwa-v56-workout-adaptation-textarea";
 const APP_SHELL = [
   "./",
   "./index.html",

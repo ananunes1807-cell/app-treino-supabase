@@ -26,6 +26,11 @@ test("importador detecta template antes do parser e mantém revisão e RPC", () 
   assert.match(review, /Ficha Padrão Alion detectada/);
 });
 
+test("adaptação e orientação ficam em campo multilinha editável", () => {
+  assert.match(review, /<textarea class="import-adaptation-notes" data-field="adaptation_notes" rows="4">/);
+  assert.doesNotMatch(review, /Adaptação<input data-field="adaptation_notes"/);
+});
+
 test("arquivo e documento são descartados sem armazenamento persistente", () => {
   assert.match(review, /previewDocument\.destroy/);
   assert.match(review, /release\(\{ clearInput: false \}\)/);
