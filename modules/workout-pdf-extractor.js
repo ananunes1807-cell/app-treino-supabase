@@ -63,6 +63,8 @@
         throw new Error(`O PDF excede o limite de ${maxPages} páginas.`);
       }
 
+      const fieldObjects = typeof document.getFieldObjects === "function" ? await document.getFieldObjects() : null;
+      const metadata = typeof document.getMetadata === "function" ? await document.getMetadata().catch(() => null) : null;
       const pages = [];
       let characterCount = 0;
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
@@ -79,7 +81,14 @@
       await loadingTask.destroy();
       signal?.removeEventListener("abort", onAbort);
       const documentType = characterCount < MIN_TEXT_CHARACTERS ? "scanned" : "text";
-      return { page_count: pages.length, document_type: documentType, character_count: characterCount, pages };
+      return {
+        page_count: pages.length,
+        document_type: documentType,
+        character_count: characterCount,
+        pages,
+        form_fields: fieldObjects || {},
+        metadata: metadata?.info || null
+      };
     } catch (error) {
       if (error?.name === "AbortError") throw error;
       const wrapped = new Error(friendlyPdfError(error));

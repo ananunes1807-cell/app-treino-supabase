@@ -1,4 +1,4 @@
-const CACHE_NAME = "alion-pwa-v54-workout-import-v1";
+const CACHE_NAME = "alion-pwa-v55-workout-template-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,7 +13,10 @@ const APP_SHELL = [
   "./modules/workout-pdf.js?v=20260824-pdf-layout-v53",
   "./assets/vendor/pdfjs-3.11.174/pdf.min.js",
   "./assets/vendor/pdfjs-3.11.174/pdf.worker.min.js",
+  "./assets/vendor/pdf-lib-1.17.1/pdf-lib.min.js",
   "./modules/workout-import-schema.js?v=20260831-import-v1",
+  "./modules/workout-template-v1.js?v=20260831-template-v1",
+  "./modules/workout-template-reader.js?v=20260831-template-v1",
   "./modules/workout-pdf-extractor.js?v=20260831-import-v1",
   "./modules/workout-pdf-parser.js?v=20260831-import-v1",
   "./modules/workout-import-matcher.js?v=20260831-import-v1",
@@ -59,6 +62,7 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
+  if (/\.pdf$/i.test(requestUrl.pathname) || event.request.destination === "document" && requestUrl.protocol === "blob:") return;
 
   const isExerciseVideo = requestUrl.pathname.includes("/assets/exercicios/videos/") || requestUrl.pathname.endsWith(".mp4");
   const isExerciseImage = event.request.destination === "image";

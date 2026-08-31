@@ -151,6 +151,14 @@ const el = {
   trainerPdfControls: document.querySelector("#trainer-pdf-controls"),
   trainerPdfWorkoutSelect: document.querySelector("#trainer-pdf-workout-select"),
   trainerDownloadWorkoutPdf: document.querySelector("#trainer-download-workout-pdf"),
+  workoutTemplateModal: document.querySelector("#workout-template-modal"),
+  openWorkoutTemplate: document.querySelector("#open-workout-template"),
+  workoutTemplateClose: document.querySelector("#workout-template-close"),
+  workoutTemplateCancel: document.querySelector("#workout-template-cancel"),
+  workoutTemplateDownload: document.querySelector("#workout-template-download"),
+  workoutTemplateCount: document.querySelector("#workout-template-count"),
+  workoutTemplateExercises: document.querySelector("#workout-template-exercises"),
+  workoutTemplateStudentMode: document.querySelector("#workout-template-student-mode"),
   trainerExerciseSelect: document.querySelector("#trainer-exercise-select"),
   trainerExerciseLibrary: document.querySelector("#trainer-exercise-library"),
   trainerTabs: document.querySelector("#trainer-tabs"),
@@ -1698,6 +1706,51 @@ async function generateWorkoutPdf(studentId, selection = "all") {
   } catch (error) {
     console.error("[Alion Treinos] Erro ao gerar ficha em PDF:", error);
     showToast(error.message || "Não foi possível gerar a ficha em PDF.", "error");
+  }
+}
+
+function openWorkoutTemplateModal() {
+  if (getCurrentRole() !== "trainer") return showToast("Somente o Personal pode gerar a Ficha Padrão Alion.", "error");
+  const student = state.students.find((item) => String(item.id) === String(state.selectedStudentId));
+  if (el.workoutTemplateStudentMode) {
+    el.workoutTemplateStudentMode.disabled = !student || !canManageStudent(student.id);
+    if (el.workoutTemplateStudentMode.disabled && el.workoutTemplateStudentMode.checked) {
+      document.querySelector('input[name="workout-template-mode"][value="blank"]')?.click();
+    }
+  }
+  el.workoutTemplateModal?.classList.remove("hidden");
+}
+
+function closeWorkoutTemplateModal() {
+  el.workoutTemplateModal?.classList.add("hidden");
+}
+
+async function downloadWorkoutTemplate() {
+  try {
+    if (!window.AlionWorkoutTemplateV1) throw new Error("O gerador da Ficha Padrão Alion não foi carregado.");
+    const mode = document.querySelector('input[name="workout-template-mode"]:checked')?.value || "blank";
+    const student = mode === "student"
+      ? state.students.find((item) => String(item.id) === String(state.selectedStudentId))
+      : null;
+    if (mode === "student" && (!student || !canManageStudent(student.id))) throw new Error("Selecione um aluno autorizado ou gere uma ficha em branco.");
+    const trainerName = pick(state.authProfile, ["name", "full_name", "nome"], "");
+    el.workoutTemplateDownload.disabled = true;
+    showToast("Gerando a Ficha Padrão Alion...");
+    await window.AlionWorkoutTemplateV1.download({
+      workoutCount: Number(el.workoutTemplateCount?.value || 1),
+      exercisesPerWorkout: Number(el.workoutTemplateExercises?.value || 6),
+      studentName: student ? pick(student, ["name", "full_name", "nome"], "") : "",
+      trainerName: student ? trainerName : "",
+      objective: student ? pick(student, ["objective"], "") : "",
+      generatorVersion: "alion-web-template-v1"
+    });
+    closeWorkoutTemplateModal();
+    showToast("Ficha preenchível baixada. O arquivo não foi armazenado pelo Alion.", "success");
+  } catch (error) {
+    console.error("[Alion Treinos] Erro ao gerar Ficha Padrão:", error);
+    showToast(error.message || "Não foi possível gerar a Ficha Padrão Alion.", "error");
+  } finally {
+    if (el.workoutTemplateDownload) el.workoutTemplateDownload.disabled = false;
   }
 }
 
@@ -6912,6 +6965,10 @@ function bindEvents() {
   el.trainerDownloadWorkoutPdf?.addEventListener("click", () => {
     generateWorkoutPdf(state.selectedStudentId, state.trainerPdfWorkoutId);
   });
+  el.openWorkoutTemplate?.addEventListener("click", openWorkoutTemplateModal);
+  el.workoutTemplateClose?.addEventListener("click", closeWorkoutTemplateModal);
+  el.workoutTemplateCancel?.addEventListener("click", closeWorkoutTemplateModal);
+  el.workoutTemplateDownload?.addEventListener("click", downloadWorkoutTemplate);
 
   document.querySelector("#reload-trainer-data").addEventListener("click", loadSupabaseData);
   document.querySelector("#new-student-form").addEventListener("submit", (event) => {

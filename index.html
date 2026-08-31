@@ -429,6 +429,8 @@
                   </label>
                   <button class="primary-button" type="submit">Criar treino</button>
                   <button class="secondary-button" type="button" id="open-workout-import">Importar treino por PDF</button>
+                  <button class="secondary-button" type="button" id="open-workout-template">Baixar Ficha Padrão Alion</button>
+                  <small>PDF preenchível no computador e pronto para impressão. Ao importar novamente, o Alion reconhece automaticamente os campos.</small>
                 </form>
 
                 <div class="form-box">
@@ -828,8 +830,29 @@
       </div>
     </div>
 
+    <div class="modal-backdrop hidden" id="workout-template-modal" role="dialog" aria-modal="true" aria-labelledby="workout-template-title">
+      <div class="modal-card workout-template-card">
+        <div class="section-title compact-title">
+          <div><p class="subtitle">AcroForm V1</p><h2 id="workout-template-title">Baixar Ficha Padrão Alion</h2></div>
+          <button class="ghost-button" type="button" id="workout-template-close">Fechar</button>
+        </div>
+        <p>Ficha A4 preenchível no computador e também preparada para impressão. O PDF não é enviado nem armazenado pelo Alion.</p>
+        <div class="mini-grid">
+          <label>Quantidade de treinos<select id="workout-template-count"><option value="1">1 treino</option><option value="2">2 treinos</option><option value="3">3 treinos</option><option value="4">4 treinos</option><option value="5">5 treinos</option></select></label>
+          <label>Linhas por treino<select id="workout-template-exercises"><option value="6">6 exercícios</option><option value="12">12 exercícios</option><option value="18">18 exercícios</option></select></label>
+        </div>
+        <fieldset class="workout-template-mode">
+          <legend>Conteúdo inicial</legend>
+          <label><input type="radio" name="workout-template-mode" value="blank" checked /> Gerar ficha em branco</label>
+          <label><input type="radio" name="workout-template-mode" value="student" id="workout-template-student-mode" /> Gerar ficha para o aluno selecionado</label>
+        </fieldset>
+        <div class="button-row"><button class="secondary-button" type="button" id="workout-template-cancel">Cancelar</button><button class="primary-button" type="button" id="workout-template-download">Baixar PDF preenchível</button></div>
+      </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="assets/vendor/pdfjs-3.11.174/pdf.min.js"></script>
+    <script src="assets/vendor/pdf-lib-1.17.1/pdf-lib.min.js"></script>
     <script src="modules/security.js?v=20260823-core-security-v49"></script>
     <script src="modules/accessibility.js?v=20260727-a11y-v44"></script>
     <script src="modules/workout-rotation.js?v=20260727-easy-v45"></script>
@@ -839,6 +862,8 @@
     <script src="modules/exercise-upload.js?v=20260824-exercise-upload-v51"></script>
     <script src="modules/workout-pdf.js?v=20260824-pdf-layout-v53"></script>
     <script src="modules/workout-import-schema.js?v=20260831-import-v1"></script>
+    <script src="modules/workout-template-v1.js?v=20260831-template-v1"></script>
+    <script src="modules/workout-template-reader.js?v=20260831-template-v1"></script>
     <script src="modules/workout-pdf-extractor.js?v=20260831-import-v1"></script>
     <script src="modules/workout-pdf-parser.js?v=20260831-import-v1"></script>
     <script src="modules/workout-import-matcher.js?v=20260831-import-v1"></script>

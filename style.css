@@ -2290,6 +2290,34 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   margin: auto;
 }
 
+.workout-template-card {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.workout-template-mode {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--border-color, #d8d4dc);
+  border-radius: 12px;
+}
+
+.workout-template-mode label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-template-detected {
+  padding: 12px;
+  border: 1px solid #87b99a;
+  border-radius: 10px;
+  background: #eef8f1;
+  color: #174d29;
+  font-weight: 700;
+}
+
 .workout-import-review {
   display: grid;
   grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr);

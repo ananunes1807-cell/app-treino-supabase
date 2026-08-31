@@ -20,11 +20,11 @@
     byId("workout-import-progress").textContent = message;
     byId("workout-import-progress").classList.remove("hidden");
   }
-  async function release() {
+  async function release({ clearInput = true } = {}) {
     abortController?.abort(); abortController = null;
     if (previewDocument) await previewDocument.destroy().catch(() => {});
     previewDocument = null; file = null; draft = null; pageNumber = 1;
-    const input = byId("workout-import-file"); if (input) input.value = "";
+    const input = byId("workout-import-file"); if (input && clearInput) input.value = "";
   }
   async function close() {
     await release();
@@ -55,12 +55,15 @@
       return;
     }
     saveButton.disabled = false;
+    const templateNotice = draft.template_detected
+      ? `<p class="import-template-detected" role="status">✅ ${escapeHtml(draft.template_label || "Ficha Padrão Alion detectada")}. Revise todos os dados antes de salvar.</p>`
+      : "";
     const reviewItems = draft.review_items?.length ? `
       <details class="import-review-items" open>
         <summary>Itens que precisam de revisão (${draft.review_items.length})</summary>
         ${draft.review_items.map((item) => `<p><strong>Página ${item.page}</strong> · ${escapeHtml(item.type)}: ${escapeHtml(item.text)}</p>`).join("")}
       </details>` : "";
-    byId("workout-import-draft").innerHTML = reviewItems + draft.workouts.map((workout, workoutIndex) => `
+    byId("workout-import-draft").innerHTML = templateNotice + reviewItems + draft.workouts.map((workout, workoutIndex) => `
       <section class="import-workout" data-workout-index="${workoutIndex}">
         <div class="mini-grid"><label>Treino<input data-field="name" value="${escapeHtml(workout.name)}"></label><label>Dia<input data-field="day_label" value="${escapeHtml(workout.day_label)}"></label></div>
         ${workout.exercises.map((exercise, exerciseIndex) => `
@@ -98,13 +101,19 @@
     const selected = byId("workout-import-file").files[0];
     const errors = root.AlionWorkoutImportSchema.validateFileMetadata(selected);
     if (errors.length) return config.toast(errors.join(" "), "error");
+    await release({ clearInput: false });
     file = selected; abortController = new AbortController();
     try {
       byId("workout-import-start").classList.add("hidden"); progress("Validando PDF...");
       root.pdfjsLib.GlobalWorkerOptions.workerSrc = "assets/vendor/pdfjs-3.11.174/pdf.worker.min.js";
       progress("Lendo documento...");
       const extracted = await root.AlionWorkoutPdfExtractor.extractPdf(file, { signal: abortController.signal, onProgress: ({ page, total }) => progress(`Lendo documento... página ${page} de ${total}`) });
-      progress("Identificando treinos..."); draft = root.AlionWorkoutPdfParser.parseExtractedDocument(extracted); draft.source.file_name = file.name;
+      progress("Identificando treinos...");
+      const templateInspection = root.AlionWorkoutTemplateReader.inspect(extracted);
+      draft = templateInspection.status === "external"
+        ? root.AlionWorkoutPdfParser.parseExtractedDocument(extracted)
+        : root.AlionWorkoutTemplateReader.read(extracted);
+      draft.source.file_name = file.name;
       progress("Relacionando exercícios..."); root.AlionWorkoutImportMatcher.matchDraft(draft, config.getLibrary());
       progress("Preparando revisão...");
       previewDocument = await root.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
@@ -132,6 +141,9 @@
     byId("workout-import-close")?.addEventListener("click", close);
     byId("workout-import-cancel")?.addEventListener("click", close);
     byId("workout-import-process")?.addEventListener("click", process);
+    byId("workout-import-file")?.addEventListener("change", async () => {
+      if (previewDocument || draft || file) await release({ clearInput: false });
+    });
     byId("workout-import-save")?.addEventListener("click", save);
     byId("workout-import-draft")?.addEventListener("input", updateDraft);
     byId("workout-import-draft")?.addEventListener("change", updateDraft);
