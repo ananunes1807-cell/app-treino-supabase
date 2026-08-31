@@ -1,8 +1,8 @@
-const CACHE_NAME = "alion-pwa-v53-active-account-v59";
+const CACHE_NAME = "alion-pwa-v54-workout-import-v1";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./style.css?v=20260824-character-preference-v52",
+  "./style.css?v=20260831-workout-import-v1",
   "./modules/security.js?v=20260823-core-security-v49",
   "./modules/accessibility.js?v=20260727-a11y-v44",
   "./modules/workout-rotation.js?v=20260727-easy-v45",
@@ -11,8 +11,15 @@ const APP_SHELL = [
   "./modules/exercise-media.js?v=20260824-character-preference-v52",
   "./modules/exercise-upload.js?v=20260824-exercise-upload-v51",
   "./modules/workout-pdf.js?v=20260824-pdf-layout-v53",
+  "./assets/vendor/pdfjs-3.11.174/pdf.min.js",
+  "./assets/vendor/pdfjs-3.11.174/pdf.worker.min.js",
+  "./modules/workout-import-schema.js?v=20260831-import-v1",
+  "./modules/workout-pdf-extractor.js?v=20260831-import-v1",
+  "./modules/workout-pdf-parser.js?v=20260831-import-v1",
+  "./modules/workout-import-matcher.js?v=20260831-import-v1",
+  "./modules/workout-import-review.js?v=20260831-import-v1",
   "./modules/trainer-data-rules.js?v=20260728-trainer-fixes",
-  "./app.js?v=20260830-active-account-v59",
+  "./app.js?v=20260831-workout-import-v1",
   "./supabase.js?v=20260727-security-v44",
   "./modules/pwa.js?v=20260823-core-security-v49",
   "./manifest.webmanifest",

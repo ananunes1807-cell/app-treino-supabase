@@ -7077,6 +7077,13 @@ async function init() {
   applyTheme();
   bindSystemThemeListener();
   bindEvents();
+  window.AlionWorkoutImportReview?.initialize({
+    getStudentId: () => state.selectedStudentId,
+    getLibrary: () => state.exercises,
+    toast: showToast,
+    rpc: async (name, args) => runQuery(supabaseClient.rpc(name, args), "Não foi possível salvar a importação"),
+    onSaved: async () => loadSupabaseData()
+  });
   bindAuthRecoveryEvents();
   hydrateAdminConfigForm();
   updateLoginRoleHelper(state.preferredLoginRole);
