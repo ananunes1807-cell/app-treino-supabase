@@ -16,6 +16,13 @@ test("interface exige confirmação explícita antes da RPC", () => {
   assert.doesNotMatch(review, /localStorage|indexedDB|caches\./i);
 });
 
+test("múltiplas fichas bloqueiam o salvamento até a escolha explícita", () => {
+  assert.match(review, /requires_fixture_selection/);
+  assert.match(review, /selectFixture/);
+  assert.match(review, /saveButton\.disabled = true/);
+  assert.match(review, /Itens que precisam de revisão/);
+});
+
 test("PDF.js usa versão fixa local e worker local", () => {
   assert.match(html, /assets\/vendor\/pdfjs-3\.11\.174\/pdf\.min\.js/);
   assert.match(review, /assets\/vendor\/pdfjs-3\.11\.174\/pdf\.worker\.min\.js/);

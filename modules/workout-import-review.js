@@ -44,14 +44,30 @@
     })].join("");
   }
   function renderDraft() {
-    byId("workout-import-draft").innerHTML = draft.workouts.map((workout, workoutIndex) => `
+    const saveButton = byId("workout-import-save");
+    if (draft.requires_fixture_selection) {
+      saveButton.disabled = true;
+      byId("workout-import-draft").innerHTML = `
+        <section class="import-fixture-selection" role="alert">
+          <h3>Este PDF parece conter mais de uma ficha. Escolha qual deseja importar.</h3>
+          <div class="button-row">${draft.fixture_candidates.map((candidate) => `<button class="secondary-button" type="button" data-select-fixture="${escapeHtml(candidate.id)}">${escapeHtml(candidate.label)}</button>`).join("")}</div>
+        </section>`;
+      return;
+    }
+    saveButton.disabled = false;
+    const reviewItems = draft.review_items?.length ? `
+      <details class="import-review-items" open>
+        <summary>Itens que precisam de revisão (${draft.review_items.length})</summary>
+        ${draft.review_items.map((item) => `<p><strong>Página ${item.page}</strong> · ${escapeHtml(item.type)}: ${escapeHtml(item.text)}</p>`).join("")}
+      </details>` : "";
+    byId("workout-import-draft").innerHTML = reviewItems + draft.workouts.map((workout, workoutIndex) => `
       <section class="import-workout" data-workout-index="${workoutIndex}">
         <div class="mini-grid"><label>Treino<input data-field="name" value="${escapeHtml(workout.name)}"></label><label>Dia<input data-field="day_label" value="${escapeHtml(workout.day_label)}"></label></div>
         ${workout.exercises.map((exercise, exerciseIndex) => `
           <article class="import-exercise" data-exercise-index="${exerciseIndex}" data-page="${exercise.source_page || 1}">
-            <strong>${escapeHtml(exercise.original_name)}</strong><small>${statusLabel[exercise.match_status]} · página ${exercise.source_page || "?"}</small>
+            <strong>${escapeHtml(exercise.original_name)}</strong><small>${statusLabel[exercise.match_status]} · página ${exercise.source_page || "?"} · ${escapeHtml(exercise.interpretation_type || "exercise")}</small>
             <label>Exercício relacionado<select data-field="exercise_library_id">${libraryOptions(exercise.exercise_library_id)}</select></label>
-            <div class="mini-grid"><label>Nome original<input data-field="original_name" value="${escapeHtml(exercise.original_name)}"></label><label>Séries<input data-field="sets" type="number" min="1" max="100" value="${escapeHtml(exercise.sets)}"></label><label>Repetições<input data-field="reps" value="${escapeHtml(exercise.reps)}"></label><label>Carga<input data-field="weight" value="${escapeHtml(exercise.weight)}"></label><label>Descanso (s)<input data-field="rest_seconds" type="number" min="0" value="${escapeHtml(exercise.rest_seconds)}"></label><label>Equipamento<input data-field="equipment" value="${escapeHtml(exercise.equipment)}"></label></div>
+            <div class="mini-grid"><label>Nome original<input data-field="original_name" value="${escapeHtml(exercise.original_name)}"></label><label>Séries<input data-field="sets" type="number" min="1" max="100" value="${escapeHtml(exercise.sets)}"></label><label>Repetições<input data-field="reps" value="${escapeHtml(exercise.reps)}"></label><label>Duração<input data-field="duration_text" value="${escapeHtml(exercise.duration_text)}"></label><label>Carga<input data-field="weight" value="${escapeHtml(exercise.weight)}"></label><label>Descanso (s)<input data-field="rest_seconds" type="number" min="0" value="${escapeHtml(exercise.rest_seconds)}"></label><label>Equipamento<input data-field="equipment" value="${escapeHtml(exercise.equipment)}"></label></div>
             <label>Instruções<input data-field="instructions" value="${escapeHtml(exercise.instructions)}"></label><label>Adaptação<input data-field="adaptation_notes" value="${escapeHtml(exercise.adaptation_notes)}"></label>
             <button class="tiny-button" type="button" data-remove-exercise>Remover exercício</button>
           </article>`).join("")}
@@ -120,6 +136,14 @@
     byId("workout-import-draft")?.addEventListener("input", updateDraft);
     byId("workout-import-draft")?.addEventListener("change", updateDraft);
     byId("workout-import-draft")?.addEventListener("click", (event) => {
+      const fixtureButton = event.target.closest("[data-select-fixture]");
+      if (fixtureButton) {
+        draft = root.AlionWorkoutPdfParser.selectFixture(draft, fixtureButton.dataset.selectFixture);
+        draft.source.file_name = file?.name || null;
+        root.AlionWorkoutImportMatcher.matchDraft(draft, config.getLibrary());
+        renderDraft();
+        return;
+      }
       const exerciseElement = event.target.closest("[data-exercise-index]");
       if (event.target.matches("[data-remove-exercise]") && exerciseElement) { const workoutElement = event.target.closest("[data-workout-index]"); draft.workouts[Number(workoutElement.dataset.workoutIndex)].exercises.splice(Number(exerciseElement.dataset.exerciseIndex), 1); renderDraft(); }
       else if (exerciseElement) { pageNumber = Number(exerciseElement.dataset.page || 1); renderPage(); }
