@@ -2365,6 +2365,24 @@ body[data-role="student"][data-student-mode="easy"] #student-current-workout {
   white-space: pre-wrap;
 }
 
+.import-workout-notes {
+  min-height: 108px;
+  line-height: 1.45;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
+.import-v2-resolution {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #c58a25;
+  border-radius: var(--radius);
+  background: #fff8e8;
+  color: #4f3508;
+}
+
 @media (max-width: 760px) {
   .workout-import-review { grid-template-columns: 1fr; }
   .workout-import-pdf-pane, .workout-import-draft-pane { max-height: none; }

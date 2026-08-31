@@ -43,6 +43,14 @@
       return `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? "selected" : ""}>${escapeHtml(name)}</option>`;
     })].join("");
   }
+  function addV2MatcherWarnings() {
+    if (draft?.source?.template_version !== 2) return;
+    draft.workouts.forEach((workout) => workout.exercises.forEach((exercise) => {
+      if (!exercise.source?.v2_quick_key || exercise.match_status !== "not_found") return;
+      const text = `Exercício da Ficha V2 não encontrado atualmente na biblioteca: ${exercise.original_name}.`;
+      if (!draft.review_items.some((item) => item.text === text)) draft.review_items.push({ page: exercise.source_page || 1, type: "v2_library_option_missing", text });
+    }));
+  }
   function renderDraft() {
     const saveButton = byId("workout-import-save");
     if (draft.requires_fixture_selection) {
@@ -54,7 +62,8 @@
         </section>`;
       return;
     }
-    saveButton.disabled = false;
+    const hasUnresolvedV2 = Boolean(draft.unresolved_exceptions?.length || draft.unresolved_others?.length);
+    saveButton.disabled = hasUnresolvedV2;
     const templateNotice = draft.template_detected
       ? `<p class="import-template-detected" role="status">✅ ${escapeHtml(draft.template_label || "Ficha Padrão Alion detectada")}. Revise todos os dados antes de salvar.</p>`
       : "";
@@ -63,9 +72,22 @@
         <summary>Itens que precisam de revisão (${draft.review_items.length})</summary>
         ${draft.review_items.map((item) => `<p><strong>Página ${item.page}</strong> · ${escapeHtml(item.type)}: ${escapeHtml(item.text)}</p>`).join("")}
       </details>` : "";
-    byId("workout-import-draft").innerHTML = templateNotice + reviewItems + draft.workouts.map((workout, workoutIndex) => `
+    const unresolvedV2 = `${(draft.unresolved_exceptions || []).map((item, index) => `
+      <section class="import-v2-resolution" role="alert" data-unresolved-exception="${index}">
+        <strong>⚠️ Não foi possível identificar com segurança a qual exercício este ajuste pertence.</strong>
+        <p>Ajuste informado para “${escapeHtml(item.name)}”. Escolha o exercício correto:</p>
+        <select data-exception-target><option value="">Selecione o exercício</option>${item.candidates.map((candidate) => `<option value="${candidate.index}">${escapeHtml(candidate.name)}</option>`).join("")}</select>
+        <button class="secondary-button" type="button" data-apply-exception>Aplicar ajuste ao exercício escolhido</button>
+      </section>`).join("")}${(draft.unresolved_others || []).map((item, index) => `
+      <section class="import-v2-resolution" role="alert" data-unresolved-other="${index}">
+        <strong>⚠️ ${escapeHtml(item.message)}</strong>
+        <label>Nome do outro exercício<input data-other-name placeholder="Informe o exercício"></label>
+        <div class="button-row"><button class="secondary-button" type="button" data-add-other>Adicionar para revisão</button><button class="tiny-button" type="button" data-ignore-other>Remover seleção Outros</button></div>
+      </section>`).join("")}`;
+    byId("workout-import-draft").innerHTML = templateNotice + reviewItems + unresolvedV2 + draft.workouts.map((workout, workoutIndex) => `
       <section class="import-workout" data-workout-index="${workoutIndex}">
-        <div class="mini-grid"><label>Treino<input data-field="name" value="${escapeHtml(workout.name)}"></label><label>Dia<input data-field="day_label" value="${escapeHtml(workout.day_label)}"></label></div>
+        <div class="mini-grid"><label>Treino<input data-field="name" value="${escapeHtml(workout.name)}"></label><label>Dia<input data-field="day_label" value="${escapeHtml(workout.day_label)}"></label><label>Foco do treino<input data-field="objective" value="${escapeHtml(workout.objective)}"></label></div>
+        <label>${draft.source.template_version === 2 ? `Adaptação/Orientação geral do Treino ${escapeHtml(workout.source_label?.match(/treino ([A-G])/i)?.[1] || workoutIndex + 1)}` : "Observações do treino"}<textarea class="import-workout-notes" data-field="notes" rows="4">${escapeHtml(workout.notes)}</textarea></label>
         ${workout.exercises.map((exercise, exerciseIndex) => `
           <article class="import-exercise" data-exercise-index="${exerciseIndex}" data-page="${exercise.source_page || 1}">
             <strong>${escapeHtml(exercise.original_name)}</strong><small>${statusLabel[exercise.match_status]} · página ${exercise.source_page || "?"} · ${escapeHtml(exercise.interpretation_type || "exercise")}</small>
@@ -114,7 +136,7 @@
         ? root.AlionWorkoutPdfParser.parseExtractedDocument(extracted)
         : root.AlionWorkoutTemplateReader.read(extracted);
       draft.source.file_name = file.name;
-      progress("Relacionando exercícios..."); root.AlionWorkoutImportMatcher.matchDraft(draft, config.getLibrary());
+      progress("Relacionando exercícios..."); root.AlionWorkoutImportMatcher.matchDraft(draft, config.getLibrary()); addV2MatcherWarnings();
       progress("Preparando revisão...");
       previewDocument = await root.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
       renderDraft(); await renderPage();
@@ -156,6 +178,22 @@
         renderDraft();
         return;
       }
+      const exceptionBox = event.target.closest("[data-unresolved-exception]");
+      if (event.target.matches("[data-apply-exception]") && exceptionBox) {
+        const unresolvedIndex = Number(exceptionBox.dataset.unresolvedException); const item = draft.unresolved_exceptions[unresolvedIndex];
+        const targetIndex = Number(exceptionBox.querySelector("[data-exception-target]").value);
+        if (!Number.isInteger(targetIndex) || !draft.workouts[item.workout_index]?.exercises[targetIndex]) return config.toast("Escolha o exercício correto para aplicar o ajuste.", "error");
+        root.AlionWorkoutTemplateV2Reader.applyPrescription(draft.workouts[item.workout_index].exercises[targetIndex], item.values, draft, item.page, `Ajuste de ${item.name}`);
+        draft.unresolved_exceptions.splice(unresolvedIndex, 1); renderDraft(); return;
+      }
+      const otherBox = event.target.closest("[data-unresolved-other]");
+      if (event.target.matches("[data-add-other]") && otherBox) {
+        const unresolvedIndex = Number(otherBox.dataset.unresolvedOther); const item = draft.unresolved_others[unresolvedIndex]; const name = otherBox.querySelector("[data-other-name]").value.trim();
+        if (!name) return config.toast("Informe o nome do outro exercício.", "error");
+        const exercise = root.AlionWorkoutImportSchema.createEmptyExercise({ originalName: name, sourcePage: item.page }); exercise.interpretation_type = "structured_template_v2_other";
+        root.AlionWorkoutImportMatcher.matchExercise(exercise, config.getLibrary()); draft.workouts[item.workout_index].exercises.push(exercise); draft.unresolved_others.splice(unresolvedIndex, 1); renderDraft(); return;
+      }
+      if (event.target.matches("[data-ignore-other]") && otherBox) { draft.unresolved_others.splice(Number(otherBox.dataset.unresolvedOther), 1); renderDraft(); return; }
       const exerciseElement = event.target.closest("[data-exercise-index]");
       if (event.target.matches("[data-remove-exercise]") && exerciseElement) { const workoutElement = event.target.closest("[data-workout-index]"); draft.workouts[Number(workoutElement.dataset.workoutIndex)].exercises.splice(Number(exerciseElement.dataset.exerciseIndex), 1); renderDraft(); }
       else if (exerciseElement) { pageNumber = Number(exerciseElement.dataset.page || 1); renderPage(); }

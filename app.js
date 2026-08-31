@@ -156,6 +156,7 @@ const el = {
   workoutTemplateClose: document.querySelector("#workout-template-close"),
   workoutTemplateCancel: document.querySelector("#workout-template-cancel"),
   workoutTemplateDownload: document.querySelector("#workout-template-download"),
+  workoutTemplateVersion: document.querySelector("#workout-template-version"),
   workoutTemplateCount: document.querySelector("#workout-template-count"),
   workoutTemplateExercises: document.querySelector("#workout-template-exercises"),
   workoutTemplateStudentMode: document.querySelector("#workout-template-student-mode"),
@@ -1727,7 +1728,9 @@ function closeWorkoutTemplateModal() {
 
 async function downloadWorkoutTemplate() {
   try {
-    if (!window.AlionWorkoutTemplateV1) throw new Error("O gerador da Ficha Padrão Alion não foi carregado.");
+    const version = Number(el.workoutTemplateVersion?.value || 2);
+    const generator = version === 2 ? window.AlionWorkoutTemplateV2 : window.AlionWorkoutTemplateV1;
+    if (!generator) throw new Error("O gerador da Ficha Alion não foi carregado.");
     const mode = document.querySelector('input[name="workout-template-mode"]:checked')?.value || "blank";
     const student = mode === "student"
       ? state.students.find((item) => String(item.id) === String(state.selectedStudentId))
@@ -1736,14 +1739,16 @@ async function downloadWorkoutTemplate() {
     const trainerName = pick(state.authProfile, ["name", "full_name", "nome"], "");
     el.workoutTemplateDownload.disabled = true;
     showToast("Gerando a Ficha Padrão Alion...");
-    await window.AlionWorkoutTemplateV1.download({
+    const templateOptions = {
       workoutCount: Number(el.workoutTemplateCount?.value || 1),
       exercisesPerWorkout: Number(el.workoutTemplateExercises?.value || 6),
       studentName: student ? pick(student, ["name", "full_name", "nome"], "") : "",
       trainerName: student ? trainerName : "",
       objective: student ? pick(student, ["objective"], "") : "",
-      generatorVersion: "alion-web-template-v1"
-    });
+      generatorVersion: `alion-web-template-v${version}`
+    };
+    if (version === 1) await window.AlionWorkoutTemplateV1.download(templateOptions);
+    else await window.AlionWorkoutTemplateV2.download(templateOptions);
     closeWorkoutTemplateModal();
     showToast("Ficha preenchível baixada. O arquivo não foi armazenado pelo Alion.", "success");
   } catch (error) {
@@ -6969,6 +6974,13 @@ function bindEvents() {
   el.workoutTemplateClose?.addEventListener("click", closeWorkoutTemplateModal);
   el.workoutTemplateCancel?.addEventListener("click", closeWorkoutTemplateModal);
   el.workoutTemplateDownload?.addEventListener("click", downloadWorkoutTemplate);
+  el.workoutTemplateVersion?.addEventListener("change", () => {
+    const isV2 = el.workoutTemplateVersion.value === "2";
+    document.querySelector("#workout-template-version-label").textContent = isV2 ? "AcroForm V2" : "AcroForm V1";
+    document.querySelector("#workout-template-exercises-field")?.classList.toggle("hidden", isV2);
+    if (isV2 && Number(el.workoutTemplateCount.value) < 6) el.workoutTemplateCount.value = "6";
+    if (!isV2 && Number(el.workoutTemplateCount.value) > 5) el.workoutTemplateCount.value = "5";
+  });
 
   document.querySelector("#reload-trainer-data").addEventListener("click", loadSupabaseData);
   document.querySelector("#new-student-form").addEventListener("submit", (event) => {

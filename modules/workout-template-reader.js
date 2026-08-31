@@ -1,10 +1,11 @@
 (function initializeWorkoutTemplateReader(root, factory) {
   "use strict";
   const schema = root?.AlionWorkoutImportSchema || (typeof module === "object" ? require("./workout-import-schema.js") : null);
-  const api = factory(schema);
+  const v2Reader = root?.AlionWorkoutTemplateV2Reader || (typeof module === "object" ? require("./workout-template-v2-reader.js") : null);
+  const api = factory(schema, v2Reader);
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.AlionWorkoutTemplateReader = Object.freeze(api);
-})(typeof window !== "undefined" ? window : null, function createWorkoutTemplateReader(schema) {
+})(typeof window !== "undefined" ? window : null, function createWorkoutTemplateReader(schema, v2Reader) {
   "use strict";
   const TEMPLATE_ID = "ALION_WORKOUT_TEMPLATE";
   const TEMPLATE_VERSION = "1";
@@ -48,6 +49,7 @@
     const id = getValue(fields, "alion_template_id");
     const version = getValue(fields, "alion_template_version");
     if (!id && !version) return { status: "external", fields };
+    if (id === TEMPLATE_ID && version === "2") return v2Reader.inspect(extracted);
     if (id !== TEMPLATE_ID || version !== TEMPLATE_VERSION) return { status: "malformed", reason: "Identificador ou versao incompativel.", fields };
     const names = Object.keys(fields);
     const invalidNames = names.filter((name) => !FIELD_PATTERN.test(name));
@@ -58,6 +60,7 @@
   }
   function read(extracted) {
     const inspection = inspect(extracted);
+    if (inspection.status === "valid" && getValue(inspection.fields, "alion_template_version") === "2") return v2Reader.read(extracted);
     if (inspection.status !== "valid") {
       const error = new Error(inspection.status === "malformed"
         ? "A Ficha Padrao Alion foi identificada, mas sua estrutura esta incompleta ou incompativel. Revise o arquivo ou utilize a importacao como PDF externo."
